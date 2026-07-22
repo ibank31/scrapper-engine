@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+data/campaigns/
+raw*.html
+patch_scrape.py

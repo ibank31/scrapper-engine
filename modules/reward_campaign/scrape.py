@@ -132,7 +132,7 @@ def normalize(c, refmap, prev_ids):
         "progress_pct": round(c.get("progressPercentage") or 0, 1),
         "platforms": plats, "relevance": round(rel, 2), "score": score,
         "flags": flags, "excluded": bool(blocked),
-        "link": ("https://whop.com/" + route) if route else None,
+        "link": ("https://contentrewards.com/discover/" + str(c.get("id"))) if c.get("id") else None,
         "new": c.get("id") not in prev_ids,
         "description": desc[:400],
     }
@@ -144,7 +144,7 @@ def row(c):
     t = (c["title"] or "")[:42].replace("|", "/")
     nb = "NEW " if c["new"] else ""
     plat = ",".join(p[:2] for p in c["platforms"]) or "?"
-    link = "[join](" + c["link"] + ")" if c["link"] else "-"
+    link = "[detail](" + c["link"] + ")" if c["link"] else "-"
     fl = " ".join(f for f in c["flags"] if not f.startswith("EXCLUDED"))
     rate = format(c["rate_per_1k"] or 0, "g")
     return ("| " + nb + t + " | " + (c["brand"] or "-") + " | " + str(c["score"]) + " | $"
@@ -172,6 +172,7 @@ def main():
     cams = [normalize(c, refmap, prev_ids) for c in extract_campaigns(blob)]
     active = [c for c in cams if c["status"] == "active" and c["progress_pct"] < 97]
     ok = [c for c in active if not c["excluded"]]
+    ok = [c for c in ok if (MY_PLATFORMS & set(c["platforms"])) and str(c["type"] or "").lower() in ("clipping", "both")]
     relevant = sorted([c for c in ok if c["relevance"] >= 0.55], key=lambda x: -x["score"])
     offniche = sorted([c for c in ok if c["relevance"] < 0.55],
                       key=lambda x: -((x["rate_per_1k"] or 0) * min((x["budget_left"] or 0), 50000)))
