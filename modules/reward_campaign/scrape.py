@@ -1,66 +1,203 @@
-import json, re, sys, datetime, pathlib
-import requests
+#!/usr/bin/env python3
+# Reward Campaign Watcher - contentrewards.com/discover
+# Output: data/reward_campaign/campaigns.json + DIGEST.md
+# Mode: python scrape.py            -> fetch live
+#       python scrape.py --blob F   -> parse blob hasil decode (flight.txt)
+#       python scrape.py --local F  -> parse file html mentah
+import json, re, sys, os, time
+from datetime import datetime, timezone, timedelta
 
-URL = "https://whop.com/discover/content-rewards/"
+URL = "https://contentrewards.com/discover"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
-OUT = pathlib.Path("data/reward_campaign")
-MY_PLATFORMS = {"tiktok", "youtube", "instagram"}  # sesuaikan akunmu
+OUT_DIR = os.path.join("data", "reward_campaign")
+CHUNK_RE = re.compile(r'self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)')
+MY_PLATFORMS = {"tiktok", "youtube", "instagram"}
+CAT_W = {"technology": 1.0, "education": 0.95, "news": 0.8, "product": 0.7,
+         "personal brand": 0.6, "slideshow": 0.45, "other": 0.4, "none": 0.4,
+         "entertainment": 0.3, "music": 0.15, "gaming": 0.15, "logo": 0.1}
+KW_BONUS = ["ai ", " ai", "artificial intelligence", "startup", "founder", "business",
+            "career", "podcast", "tech", "coding", "developer", "saas", "finance",
+            "investing", "education", "science", "mit ", "book"]
+BLOCK = ["casino", "gambl", "roobet", "betting", ".bet", " bet ", "penjamin", "cannabis",
+         "vape", "nicotine", "onlyfans", "adult content", "18+"]
 
-def fetch_html():
-    r = requests.get(URL, headers=HEADERS, timeout=30)
-    r.raise_for_status()
-    return r.text
+def money(s):
+    if not isinstance(s, str) or not s.strip(): return None
+    t = s.replace("$", "").replace(",", "").strip()
+    try: return float(t)
+    except ValueError: return None
 
-def extract_campaigns(html):
-    """Ambil objek JSON campaign yang tertanam di script Next.js."""
-    campaigns = []
-    # kumpulkan semua blob JSON di dalam <script>
-    for chunk in re.findall(r'self\.__next_f\.push\(\[1,"(.*?)"\]\)', html, re.S):
-        text = chunk.encode().decode("unicode_escape", errors="ignore")
-        # cari objek yang punya ciri khas campaign
-        for m in re.finditer(r'\{[^{}]*"rewardRate"[^{}]*\}', text):
-            try:
-                campaigns.append(json.loads(m.group()))
-            except json.JSONDecodeError:
-                pass
-    return campaigns
+def fetch():
+    import requests
+    last = None
+    for attempt in range(3):
+        try:
+            r = requests.get(URL, headers=HEADERS, timeout=60)
+            if r.status_code == 200: return r.text
+            last = "HTTP " + str(r.status_code)
+        except Exception as e:
+            last = str(e)
+        time.sleep(15 * (attempt + 1))
+    raise SystemExit("fetch failed: " + str(last))
 
-def score(c):
-    rate = float(c.get("rewardRate") or 0)          # $ per 1k views
-    total = float(c.get("totalBudget") or 0)
-    spent = float(c.get("spentBudget") or 0)
-    left = max(total - spent, 0)
-    platforms = {p.lower() for p in c.get("platforms", [])}
-    platform_ok = 1 if platforms & MY_PLATFORMS else 0
-    return rate * (left / total if total else 0) * platform_ok, left
+def decode_blob(html):
+    parts = []
+    for m in CHUNK_RE.finditer(html):
+        c = m.group(1)
+        try: parts.append(json.loads('"' + c + '"'))
+        except Exception: parts.append(c.encode().decode("unicode_escape", "ignore"))
+    return "\n".join(parts)
+
+def parse_balanced(s, start):
+    depth = 0; i = start; instr = False; esc = False
+    while i < len(s):
+        c = s[i]
+        if instr:
+            if esc: esc = False
+            elif c == "\\": esc = True
+            elif c == '"': instr = False
+        else:
+            if c == '"': instr = True
+            elif c in "{[": depth += 1
+            elif c in "}]":
+                depth -= 1
+                if depth == 0: return s[start:i + 1]
+        i += 1
+    return None
+
+def collect(obj, out):
+    if isinstance(obj, dict):
+        if "totalBudget" in obj and "title" in obj: out.append(obj)
+        for v in obj.values(): collect(v, out)
+    elif isinstance(obj, list):
+        for v in obj: collect(v, out)
+
+def build_refmap(blob):
+    refs = {}
+    for m in re.finditer(r'([0-9a-f]{1,4}):T([0-9a-f]+),', blob):
+        try: refs[m.group(1)] = blob[m.end(): m.end() + int(m.group(2), 16)]
+        except ValueError: pass
+    return refs
+
+def extract_campaigns(blob):
+    raw = []; last_end = -1
+    for m in re.finditer(r'\{"(?:id|avatar)":', blob):
+        if m.start() < last_end: continue
+        frag = parse_balanced(blob, m.start())
+        if frag is None: continue
+        try: obj = json.loads(frag)
+        except Exception: continue
+        tmp = []; collect(obj, tmp)
+        if tmp:
+            raw.extend(tmp); last_end = m.start() + len(frag)
+    by_id = {}
+    for c in raw:
+        cid = c.get("id") or c.get("programId") or c.get("title")
+        if cid not in by_id or len(c) > len(by_id[cid]): by_id[cid] = c
+    return list(by_id.values())
+
+def normalize(c, refmap, prev_ids):
+    desc = c.get("description") or ""
+    if isinstance(desc, str):
+        m = re.fullmatch(r'\$([0-9a-f]{1,4})', desc)
+        if m: desc = refmap.get(m.group(1), "")
+    total = money(c.get("totalBudget")); spent = money(c.get("budgetSpent"))
+    rate = money(c.get("pricePerView"))
+    left = max(total - (spent or 0), 0) if total is not None else None
+    plats = [p for p in (c.get("socialPlatforms") or []) if isinstance(p, str)]
+    cat = str(c.get("category") or "none").lower()
+    hay = " ".join([str(c.get("title", "")), str(c.get("brand", "")), str(c.get("whopProductRoute") or ""), desc]).lower()
+    blocked = [b for b in BLOCK if b in hay]
+    kw = [k for k in KW_BONUS if k in hay]
+    rel = min(1.0, CAT_W.get(cat, 0.4) + min(len(kw) * 0.05, 0.25))
+    rate_s = min(rate or 0, 15) / 15
+    budget_s = min(left or 0, 50000) / 50000
+    inter = MY_PLATFORMS & set(plats)
+    plat_s = 1.0 if inter else (0.7 if not plats else 0.3)
+    score = round(100 * (0.45 * rel + 0.25 * rate_s + 0.20 * budget_s + 0.10 * plat_s)
+                  + (5 if c.get("isVerified") else 0), 1)
+    flags = []
+    if re.search(r'tier[ -]?1|usa only|us only|english[ -]speaking', hay): flags.append("EN/Tier-1")
+    if blocked: flags.append("EXCLUDED:" + ",".join(sorted(set(blocked))[:2]))
+    route = c.get("whopProductRoute")
+    return {
+        "id": c.get("id"), "title": c.get("title"), "brand": c.get("brand"),
+        "category": cat, "type": c.get("campaignType"), "status": c.get("status"),
+        "verified": bool(c.get("isVerified")), "rate_per_1k": rate,
+        "budget_total": total, "budget_left": left,
+        "progress_pct": round(c.get("progressPercentage") or 0, 1),
+        "platforms": plats, "relevance": round(rel, 2), "score": score,
+        "flags": flags, "excluded": bool(blocked),
+        "link": ("https://whop.com/" + route) if route else None,
+        "new": c.get("id") not in prev_ids,
+        "description": desc[:400],
+    }
+
+def fmt_money(v):
+    return "-" if v is None else "$" + format(v, ",.0f")
+
+def row(c):
+    t = (c["title"] or "")[:42].replace("|", "/")
+    nb = "NEW " if c["new"] else ""
+    plat = ",".join(p[:2] for p in c["platforms"]) or "?"
+    link = "[join](" + c["link"] + ")" if c["link"] else "-"
+    fl = " ".join(f for f in c["flags"] if not f.startswith("EXCLUDED"))
+    rate = format(c["rate_per_1k"] or 0, "g")
+    return ("| " + nb + t + " | " + (c["brand"] or "-") + " | " + str(c["score"]) + " | $"
+            + rate + " | " + fmt_money(c["budget_left"]) + " | " + str(c["progress_pct"]) + "% | "
+            + plat + " | " + c["category"] + " | " + (c["type"] or "-") + " | " + fl + " | " + link + " |")
+
+HEAD = ("| Campaign | Brand | Skor | $/1K | Sisa budget | Terpakai | Platform | Kategori | Tipe | Flag | Link |\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|")
 
 def main():
-    html = fetch_html()
-    if "--dump" in sys.argv:  # mode debug: simpan HTML mentah utk tuning
-        OUT.mkdir(parents=True, exist_ok=True)
-        (OUT / "raw.html").write_text(html)
-        return
-    rows = []
-    for c in extract_campaigns(html):
-        s, left = score(c)
-        rows.append({**c, "budgetLeft": left, "worthScore": round(s, 2)})
-    rows.sort(key=lambda r: r["worthScore"], reverse=True)
-
-    OUT.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.datetime.utcnow().isoformat()
-    (OUT / "campaigns.json").write_text(json.dumps(
-        {"updatedAt": stamp, "campaigns": rows}, indent=2))
-
-    digest = ["# Whop Campaign Digest", f"_Updated: {stamp} UTC_", ""]
-    for r in rows[:15]:
-        digest.append(
-            f"- **{r.get('title','?')}** — ${r.get('rewardRate','?')}/1k views, "
-            f"sisa budget ${r['budgetLeft']:.0f}, skor {r['worthScore']}")
-    (OUT / "DIGEST.md").write_text("\n".join(digest))
+    os.makedirs(OUT_DIR, exist_ok=True)
+    if "--blob" in sys.argv:
+        blob = open(sys.argv[sys.argv.index("--blob") + 1], encoding="utf-8").read()
+    elif "--local" in sys.argv:
+        blob = decode_blob(open(sys.argv[sys.argv.index("--local") + 1], encoding="utf-8").read())
+    else:
+        blob = decode_blob(fetch())
+    refmap = build_refmap(blob)
+    prev_ids = set()
+    prev_path = os.path.join(OUT_DIR, "campaigns.json")
+    if os.path.exists(prev_path):
+        try:
+            prev_ids = set(c["id"] for c in json.load(open(prev_path))["campaigns"])
+        except Exception: pass
+    cams = [normalize(c, refmap, prev_ids) for c in extract_campaigns(blob)]
+    active = [c for c in cams if c["status"] == "active" and c["progress_pct"] < 97]
+    ok = [c for c in active if not c["excluded"]]
+    relevant = sorted([c for c in ok if c["relevance"] >= 0.55], key=lambda x: -x["score"])
+    offniche = sorted([c for c in ok if c["relevance"] < 0.55],
+                      key=lambda x: -((x["rate_per_1k"] or 0) * min((x["budget_left"] or 0), 50000)))
+    excluded = [c for c in active if c["excluded"]]
+    wib = datetime.now(timezone(timedelta(hours=7)))
+    n_new = sum(1 for c in active if c["new"])
+    lines = [
+        "# Reward Campaign Radar - " + wib.strftime("%d %b %Y %H:%M") + " WIB",
+        "",
+        "Sumber: " + URL + " | Total: **" + str(len(cams)) + "** | Aktif: **" + str(len(active))
+        + "** | Baru sejak run terakhir: **" + str(n_new) + "**",
+        "",
+        "> WARM-UP RULE BinB: campaign clipping = arsip/referensi sampai accountPhase=mature. Jangan produksi campaign clip selama warm-up. Cek aturan tiap campaign (submission window, boosting, min views) sebelum eksekusi.",
+        "",
+        "## Relevan BinB - pantau/arsipkan (" + str(len(relevant)) + ")", "", HEAD,
+    ]
+    lines += [row(c) for c in relevant[:25]]
+    lines += ["", "## Ekonomis tapi off-niche (top 15 dari " + str(len(offniche)) + ")", "", HEAD]
+    lines += [row(c) for c in offniche[:15]]
+    lines += ["", "## Dikecualikan otomatis: " + str(len(excluded)) + " (gambling/vape/dll)", ""]
+    lines += ["- " + str(c["title"]) + " - " + ", ".join(c["flags"]) for c in excluded[:20]]
+    open(os.path.join(OUT_DIR, "DIGEST.md"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    json.dump({"updated": wib.isoformat(), "count": len(cams), "campaigns": cams},
+              open(prev_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print("OK:", len(cams), "campaigns | aktif", len(active), "| relevan", len(relevant),
+          "| excluded", len(excluded), "| baru", n_new)
 
 if __name__ == "__main__":
     main()
