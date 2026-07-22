@@ -11,7 +11,7 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 CHUNK_RE = re.compile(r'self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)')
-OUT_BASE = os.path.join("data", "campaigns")
+OUT_BASE = os.environ.get("CAMPAIGN_HOME", "/sdcard/BinB_Studio/Campaigns")
 
 def money(s):
     if not isinstance(s, str) or not s.strip(): return None

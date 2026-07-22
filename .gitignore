@@ -219,3 +219,6 @@ __marimo__/
 data/campaigns/
 raw*.html
 patch_scrape.py
+
+data/reward_campaign/raw*.html
+detail_probe/*.html
