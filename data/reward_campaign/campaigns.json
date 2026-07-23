@@ -1,5 +1,5 @@
 {
- "updated": "2026-07-22T12:12:18.927956+07:00",
+ "updated": "2026-07-23T14:50:34.577748+07:00",
  "count": 506,
  "campaigns": [
   {
@@ -12,8 +12,8 @@
    "verified": false,
    "rate_per_1k": null,
    "budget_total": 26287.0,
-   "budget_left": 12378.65,
-   "progress_pct": 52.9,
+   "budget_left": 12458.99,
+   "progress_pct": 52.6,
    "platforms": [
     "youtube",
     "tiktok",
@@ -38,7 +38,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 250000.0,
-   "budget_left": 87854.37,
+   "budget_left": 87890.25,
    "progress_pct": 65,
    "platforms": [
     "tiktok",
@@ -87,7 +87,7 @@
    "verified": false,
    "rate_per_1k": 0.15,
    "budget_total": 20000.0,
-   "budget_left": 19992.41,
+   "budget_left": 19992.55,
    "progress_pct": 0,
    "platforms": [
     "youtube",
@@ -181,7 +181,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 50000.0,
-   "budget_left": 47617.14,
+   "budget_left": 47658.97,
    "progress_pct": 5,
    "platforms": [
     "instagram",
@@ -205,7 +205,7 @@
    "verified": true,
    "rate_per_1k": 0.5,
    "budget_total": 85000.0,
-   "budget_left": 83319.22,
+   "budget_left": 83339.22,
    "progress_pct": 2,
    "platforms": [
     "youtube",
@@ -230,7 +230,7 @@
    "verified": true,
    "rate_per_1k": 1.4,
    "budget_total": 20000.0,
-   "budget_left": 19345.51,
+   "budget_left": 19354.66,
    "progress_pct": 3,
    "platforms": [
     "youtube",
@@ -255,8 +255,8 @@
    "verified": true,
    "rate_per_1k": 3.0,
    "budget_total": 2000.0,
-   "budget_left": 1295.21,
-   "progress_pct": 35,
+   "budget_left": 1319.1100000000001,
+   "progress_pct": 34,
    "platforms": [
     "tiktok"
    ],
@@ -278,8 +278,8 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 7000.0,
-   "budget_left": 5768.75,
-   "progress_pct": 18,
+   "budget_left": 5779.88,
+   "progress_pct": 17,
    "platforms": [
     "youtube",
     "tiktok",
@@ -292,31 +292,6 @@
    "link": "https://contentrewards.com/discover/54b13ed2-4d2a-4cfb-9f39-c75c14e86524",
    "new": false,
    "description": "Clip for the latest and most hyped Roblox Battle Royale game! All footage provided. "
-  },
-  {
-   "id": "ca2c832e-a4a2-4a1d-afad-23d51da3501c",
-   "title": "Paul Cheek Clipping | $10,000 budget | $2 CPM",
-   "brand": "Propaganda ",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 2.0,
-   "budget_total": 10000.0,
-   "budget_left": 9485.54,
-   "progress_pct": 5,
-   "platforms": [
-    "instagram",
-    "youtube",
-    "tiktok"
-   ],
-   "relevance": 0.75,
-   "score": 55.9,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/ca2c832e-a4a2-4a1d-afad-23d51da3501c",
-   "new": false,
-   "description": "Paul Cheek is an MIT Sloan senior lecturer and one of the world's leading experts on AI-driven enterprises. Your job is to clip his most authoritative, high-energy moments and post them on TikTok, Instagram, and YouTube Shorts to drive pre-orders of his new book, No One Works Here (Wiley), ahead of the August 25th launch."
   },
   {
    "id": "cfd98389-236a-46f7-88b4-e0a600c52a0d",
@@ -352,7 +327,7 @@
    "verified": false,
    "rate_per_1k": 0.75,
    "budget_total": 6062.0,
-   "budget_left": 1839.7399999999998,
+   "budget_left": 1848.6599999999999,
    "progress_pct": 70,
    "platforms": [
     "tiktok",
@@ -368,6 +343,31 @@
    "description": "Clip Chicklet StreamerU streams on TikTok, Instagram and YT shorts and go viral. "
   },
   {
+   "id": "ca2c832e-a4a2-4a1d-afad-23d51da3501c",
+   "title": "Paul Cheek Clipping | $10,000 budget | $2 CPM",
+   "brand": "Propaganda ",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 2.0,
+   "budget_total": 10000.0,
+   "budget_left": 9518.15,
+   "progress_pct": 5,
+   "platforms": [
+    "instagram",
+    "youtube",
+    "tiktok"
+   ],
+   "relevance": 0.75,
+   "score": 55.9,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/ca2c832e-a4a2-4a1d-afad-23d51da3501c",
+   "new": false,
+   "description": "Paul Cheek is an MIT Sloan senior lecturer and one of the world's leading experts on AI-driven enterprises. Your job is to clip his most authoritative, high-energy moments and post them on TikTok, Instagram, and YouTube Shorts to drive pre-orders of his new book, No One Works Here (Wiley), ahead of the August 25th launch."
+  },
+  {
    "id": "2ade3996-bfdb-4fbf-9114-3932022384f4",
    "title": "Nick Malinosky Campaign",
    "brand": "Clip Farm",
@@ -377,8 +377,8 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 8000.0,
-   "budget_left": 7297.97,
-   "progress_pct": 9,
+   "budget_left": 7325.0,
+   "progress_pct": 8,
    "platforms": [
     "youtube",
     "instagram"
@@ -401,15 +401,15 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 5000.0,
-   "budget_left": 4364.97,
-   "progress_pct": 13,
+   "budget_left": 4380.86,
+   "progress_pct": 12,
    "platforms": [
     "tiktok",
     "youtube",
     "instagram"
    ],
    "relevance": 0.3,
-   "score": 32.7,
+   "score": 32.8,
    "flags": [],
    "excluded": false,
    "link": "https://contentrewards.com/discover/56d8bfeb-705a-42d9-98be-651571329513",
@@ -426,7 +426,7 @@
    "verified": true,
    "rate_per_1k": 2.0,
    "budget_total": 4100.0,
-   "budget_left": 3577.82,
+   "budget_left": 3578.51,
    "progress_pct": 13,
    "platforms": [
     "tiktok",
@@ -451,7 +451,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 7225.0,
-   "budget_left": 3747.14,
+   "budget_left": 3754.36,
    "progress_pct": 48,
    "platforms": [
     "tiktok"
@@ -474,7 +474,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 2000.0,
-   "budget_left": 1595.16,
+   "budget_left": 1595.19,
    "progress_pct": 20,
    "platforms": [
     "tiktok",
@@ -498,7 +498,7 @@
    "verified": true,
    "rate_per_1k": 2.5,
    "budget_total": 1000.0,
-   "budget_left": 458.4,
+   "budget_left": 459.03,
    "progress_pct": 54,
    "platforms": [
     "tiktok"
@@ -521,7 +521,7 @@
    "verified": false,
    "rate_per_1k": 2.25,
    "budget_total": 35000.0,
-   "budget_left": 33547.64,
+   "budget_left": 33549.57,
    "progress_pct": 4,
    "platforms": [
     "instagram"
@@ -535,6 +535,29 @@
    "description": "Read requirements for details."
   },
   {
+   "id": "36e3e102-4390-4f35-9f23-ce4c51a523ea",
+   "title": "Influence AI Clipping | $4.4K Budget | $1.00 CPM",
+   "brand": "Clipix",
+   "category": "slideshow",
+   "type": "clipping",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 1.0,
+   "budget_total": 4434.0,
+   "budget_left": 2144.92,
+   "progress_pct": 52,
+   "platforms": [
+    "tiktok"
+   ],
+   "relevance": 0.55,
+   "score": 42.3,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/36e3e102-4390-4f35-9f23-ce4c51a523ea",
+   "new": false,
+   "description": "Influence AI (@learn.influence) is a psychology-based relationship advice app that helps users understand attraction, communication, and dating dynamics. Your job is to flood TikTok with slideshows built around dark psychology and dark-triad themes: exposing manipulator tactics, breaking down manipulative conversations line by line, and teaching viewers how to spot the patterns. The goal is simple"
+  },
+  {
    "id": "e43f3d77-6f3c-4035-a920-c71860407cf3",
    "title": "Arky Clipping Campaign",
    "brand": "Reach",
@@ -544,8 +567,8 @@
    "verified": false,
    "rate_per_1k": 0.2,
    "budget_total": 5000.0,
-   "budget_left": 2656.85,
-   "progress_pct": 47,
+   "budget_left": 2689.38,
+   "progress_pct": 46,
    "platforms": [
     "youtube",
     "tiktok",
@@ -560,29 +583,6 @@
    "description": "Get paid to clip Arky's stream content.\nJuly 18th-August 18th! \n➡️ https://www.twitch.tv/arky"
   },
   {
-   "id": "36e3e102-4390-4f35-9f23-ce4c51a523ea",
-   "title": "Influence AI Clipping | $4.4K Budget | $1.00 CPM",
-   "brand": "Clipix",
-   "category": "slideshow",
-   "type": "clipping",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 1.0,
-   "budget_total": 4434.0,
-   "budget_left": 2144.67,
-   "progress_pct": 52,
-   "platforms": [
-    "tiktok"
-   ],
-   "relevance": 0.55,
-   "score": 42.3,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/36e3e102-4390-4f35-9f23-ce4c51a523ea",
-   "new": false,
-   "description": "Influence AI (@learn.influence) is a psychology-based relationship advice app that helps users understand attraction, communication, and dating dynamics. Your job is to flood TikTok with slideshows built around dark psychology and dark-triad themes: exposing manipulator tactics, breaking down manipulative conversations line by line, and teaching viewers how to spot the patterns. The goal is simple"
-  },
-  {
    "id": "b4d7ae78-fecc-4259-b402-c76d0d05cef8",
    "title": "Rizpy Official Clipping [Non-Dedicated Pages]",
    "brand": "Content Rewards",
@@ -592,8 +592,8 @@
    "verified": true,
    "rate_per_1k": 0.5,
    "budget_total": 2500.0,
-   "budget_left": 1483.31,
-   "progress_pct": 41,
+   "budget_left": 1536.9299999999998,
+   "progress_pct": 39,
    "platforms": [
     "youtube",
     "tiktok",
@@ -618,7 +618,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 745.3,
+   "budget_left": 751.79,
    "progress_pct": 25,
    "platforms": [
     "tiktok",
@@ -642,7 +642,7 @@
    "verified": true,
    "rate_per_1k": 1.4,
    "budget_total": 5000.0,
-   "budget_left": 1401.48,
+   "budget_left": 1413.6999999999998,
    "progress_pct": 72,
    "platforms": [
     "tiktok",
@@ -666,7 +666,7 @@
    "verified": true,
    "rate_per_1k": 0.15,
    "budget_total": 3000.0,
-   "budget_left": 2790.61,
+   "budget_left": 2791.21,
    "progress_pct": 7,
    "platforms": [
     "tiktok",
@@ -691,7 +691,7 @@
    "verified": true,
    "rate_per_1k": 5.0,
    "budget_total": 24000.0,
-   "budget_left": 22861.64,
+   "budget_left": 22861.89,
    "progress_pct": 5,
    "platforms": [
     "x"
@@ -716,7 +716,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 4000.0,
-   "budget_left": 3088.89,
+   "budget_left": 3089.0299999999997,
    "progress_pct": 23,
    "platforms": [
     "youtube",
@@ -741,7 +741,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 18500.0,
-   "budget_left": 7193.57,
+   "budget_left": 7193.66,
    "progress_pct": 61,
    "platforms": [
     "tiktok",
@@ -765,7 +765,7 @@
    "verified": true,
    "rate_per_1k": 5.0,
    "budget_total": 10000.0,
-   "budget_left": 4965.87,
+   "budget_left": 4966.2,
    "progress_pct": 50,
    "platforms": [
     "tiktok",
@@ -789,7 +789,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 4000.0,
-   "budget_left": 2626.02,
+   "budget_left": 2627.6099999999997,
    "progress_pct": 34,
    "platforms": [
     "tiktok",
@@ -814,7 +814,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 11550.0,
-   "budget_left": 3806.1000000000004,
+   "budget_left": 3806.3900000000003,
    "progress_pct": 67,
    "platforms": [
     "tiktok",
@@ -864,7 +864,7 @@
    "verified": true,
    "rate_per_1k": 1.4,
    "budget_total": 5000.0,
-   "budget_left": 3086.79,
+   "budget_left": 3086.95,
    "progress_pct": 38,
    "platforms": [
     "instagram",
@@ -888,7 +888,7 @@
    "verified": true,
    "rate_per_1k": 3.0,
    "budget_total": 20000.0,
-   "budget_left": 15971.52,
+   "budget_left": 15971.54,
    "progress_pct": 20,
    "platforms": [
     "instagram",
@@ -938,7 +938,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 10000.0,
-   "budget_left": 9966.77,
+   "budget_left": 9969.7,
    "progress_pct": 0,
    "platforms": [
     "youtube",
@@ -963,7 +963,7 @@
    "verified": false,
    "rate_per_1k": 1.5,
    "budget_total": 1500.0,
-   "budget_left": 644.19,
+   "budget_left": 647.58,
    "progress_pct": 57,
    "platforms": [
     "instagram",
@@ -1012,7 +1012,7 @@
    "verified": false,
    "rate_per_1k": 0.75,
    "budget_total": 10000.0,
-   "budget_left": 8924.4,
+   "budget_left": 8925.7,
    "progress_pct": 11,
    "platforms": [
     "instagram",
@@ -1059,7 +1059,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 10000.0,
-   "budget_left": 9664.53,
+   "budget_left": 9665.27,
    "progress_pct": 3,
    "platforms": [
     "youtube",
@@ -1084,7 +1084,7 @@
    "verified": true,
    "rate_per_1k": 1.4,
    "budget_total": 5000.0,
-   "budget_left": 4085.86,
+   "budget_left": 4087.76,
    "progress_pct": 18,
    "platforms": [
     "instagram",
@@ -1108,7 +1108,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 5000.0,
-   "budget_left": 3751.1,
+   "budget_left": 3751.25,
    "progress_pct": 25,
    "platforms": [
     "tiktok",
@@ -1132,7 +1132,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 10000.0,
-   "budget_left": 6222.62,
+   "budget_left": 6223.17,
    "progress_pct": 38,
    "platforms": [
     "youtube",
@@ -1146,31 +1146,6 @@
    "link": "https://contentrewards.com/discover/4e67f9e0-8c0f-4c29-8fed-3e236ae285eb",
    "new": false,
    "description": "The new generation Arab popstar. Confident, spoiled, and impossible to ignore. Clip for Dalou3a and her run as the female icon of a new era. Glam edits, main-character energy, Dubai-to-Egypt popstar moments, flirty and fearless. Go crazy with the edits, keep it premium and high-aesthetic, make Zeina the most viral artist on the internet."
-  },
-  {
-   "id": "c7800b17-ae0a-4fb8-b6c8-323cbf4d2338",
-   "title": "24hWith x Ashton Hall | Clipping",
-   "brand": "24hWith Clipping",
-   "category": "entertainment",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.0,
-   "budget_total": 2850.0,
-   "budget_left": 2453.91,
-   "progress_pct": 14,
-   "platforms": [
-    "youtube",
-    "instagram",
-    "tiktok"
-   ],
-   "relevance": 0.3,
-   "score": 26.1,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/c7800b17-ae0a-4fb8-b6c8-323cbf4d2338",
-   "new": false,
-   "description": "Clip Ashton Hall content and get paid $1,000 per 1M views. Create engaging short-form clips, follow the campaign guidelines, and earn based on your approved views."
   },
   {
    "id": "131fb1de-a0c6-47ba-ad90-56b0cadb99df",
@@ -1194,6 +1169,31 @@
    "link": "https://contentrewards.com/discover/131fb1de-a0c6-47ba-ad90-56b0cadb99df",
    "new": false,
    "description": "Use viral French song Lacazette - SCH in videos for quick $$$$"
+  },
+  {
+   "id": "c7800b17-ae0a-4fb8-b6c8-323cbf4d2338",
+   "title": "24hWith x Ashton Hall | Clipping",
+   "brand": "24hWith Clipping",
+   "category": "entertainment",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 1.0,
+   "budget_total": 2850.0,
+   "budget_left": 2455.91,
+   "progress_pct": 14,
+   "platforms": [
+    "youtube",
+    "instagram",
+    "tiktok"
+   ],
+   "relevance": 0.3,
+   "score": 26.1,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/c7800b17-ae0a-4fb8-b6c8-323cbf4d2338",
+   "new": false,
+   "description": "Clip Ashton Hall content and get paid $1,000 per 1M views. Create engaging short-form clips, follow the campaign guidelines, and earn based on your approved views."
   },
   {
    "id": "1971c9a3-a87f-4527-80e4-d46a4d7daafe",
@@ -1229,7 +1229,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 1000.0,
-   "budget_left": 505.27,
+   "budget_left": 506.43,
    "progress_pct": 49,
    "platforms": [
     "instagram",
@@ -1279,7 +1279,7 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 1200.0,
-   "budget_left": 835.5,
+   "budget_left": 835.5699999999999,
    "progress_pct": 30,
    "platforms": [
     "youtube",
@@ -1304,7 +1304,7 @@
    "verified": true,
    "rate_per_1k": 3.0,
    "budget_total": 3000.0,
-   "budget_left": 2925.52,
+   "budget_left": 2925.54,
    "progress_pct": 2,
    "platforms": [
     "instagram",
@@ -1330,7 +1330,7 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 5000.0,
-   "budget_left": 3929.29,
+   "budget_left": 3933.1800000000003,
    "progress_pct": 21,
    "platforms": [
     "tiktok",
@@ -1355,8 +1355,8 @@
    "verified": false,
    "rate_per_1k": 0.15,
    "budget_total": 1950.0,
-   "budget_left": 1433.0900000000001,
-   "progress_pct": 27,
+   "budget_left": 1435.02,
+   "progress_pct": 26,
    "platforms": [
     "instagram",
     "tiktok",
@@ -1380,7 +1380,7 @@
    "verified": true,
    "rate_per_1k": 0.5,
    "budget_total": 2500.0,
-   "budget_left": 2284.14,
+   "budget_left": 2284.33,
    "progress_pct": 9,
    "platforms": [
     "instagram",
@@ -1404,7 +1404,7 @@
    "verified": false,
    "rate_per_1k": 1.5,
    "budget_total": 5000.0,
-   "budget_left": 3838.27,
+   "budget_left": 3838.44,
    "progress_pct": 23,
    "platforms": [
     "youtube",
@@ -1430,7 +1430,7 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 10000.0,
-   "budget_left": 9658.09,
+   "budget_left": 9658.11,
    "progress_pct": 3,
    "platforms": [
     "tiktok",
@@ -1478,7 +1478,7 @@
    "verified": true,
    "rate_per_1k": 0.05,
    "budget_total": 8250.0,
-   "budget_left": 2033.29,
+   "budget_left": 2033.3100000000004,
    "progress_pct": 75,
    "platforms": [
     "instagram",
@@ -1502,7 +1502,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 12000.0,
-   "budget_left": 8531.94,
+   "budget_left": 8532.47,
    "progress_pct": 29,
    "platforms": [
     "youtube",
@@ -1527,7 +1527,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 3750.0,
-   "budget_left": 948.23,
+   "budget_left": 948.2600000000002,
    "progress_pct": 75,
    "platforms": [
     "tiktok",
@@ -1552,7 +1552,7 @@
    "verified": false,
    "rate_per_1k": 1.05,
    "budget_total": 5000.0,
-   "budget_left": 4128.7,
+   "budget_left": 4132.0599999999995,
    "progress_pct": 17,
    "platforms": [
     "tiktok",
@@ -1624,7 +1624,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 8000.0,
-   "budget_left": 7976.82,
+   "budget_left": 7976.84,
    "progress_pct": 0,
    "platforms": [
     "instagram",
@@ -1648,7 +1648,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 3500.0,
-   "budget_left": 1865.51,
+   "budget_left": 1870.58,
    "progress_pct": 47,
    "platforms": [
     "youtube",
@@ -1662,29 +1662,6 @@
    "link": "https://contentrewards.com/discover/dc05f7a0-555d-4b83-b696-b940e0adc850",
    "new": false,
    "description": "Your mission is to create scroll stopping prank content using the Mischief App that has already VIRAL content and turn it into a video that drives strong, USA based viewership. Every clip should follow the exact three part structure: the hook, the app creation section, and the full text conversation reveal. Every video must include #mischiefai and #mischiefpartner in the caption and using https://"
-  },
-  {
-   "id": "95c45b49-ad24-4f1e-a5af-4b3635bb6a51",
-   "title": "[EASY $$] VIRAL TRUCK VIDEOS",
-   "brand": "Duetti",
-   "category": "music",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 2.0,
-   "budget_total": 1000.0,
-   "budget_left": 894.67,
-   "progress_pct": 11,
-   "platforms": [
-    "tiktok"
-   ],
-   "relevance": 0.15,
-   "score": 20.4,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/95c45b49-ad24-4f1e-a5af-4b3635bb6a51",
-   "new": false,
-   "description": "Post videos of cool trucks (Ford F150, GMC, RAM) using viral rap song Turn Up 1 - Goon Twinn"
   },
   {
    "id": "63e0544d-cb87-4448-ab71-7ffdd8af0f71",
@@ -1710,6 +1687,29 @@
    "link": "https://contentrewards.com/discover/63e0544d-cb87-4448-ab71-7ffdd8af0f71",
    "new": false,
    "description": "Paul Ribot creates content around luxury lifestyle, entrepreneurship, and his \"Beyond Members Club\" brand across Instagram, YouTube, and TikTok. All clips should come directly from Paul's own vlogs, livestreams, or short-form content. Focus on high-life visuals (travel, villas, exclusive events), entrepreneurial mindset moments, bold or contrarian opinions, and funny or unfiltered reactions with f"
+  },
+  {
+   "id": "95c45b49-ad24-4f1e-a5af-4b3635bb6a51",
+   "title": "[EASY $$] VIRAL TRUCK VIDEOS",
+   "brand": "Duetti",
+   "category": "music",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 2.0,
+   "budget_total": 1000.0,
+   "budget_left": 895.47,
+   "progress_pct": 10,
+   "platforms": [
+    "tiktok"
+   ],
+   "relevance": 0.15,
+   "score": 20.4,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/95c45b49-ad24-4f1e-a5af-4b3635bb6a51",
+   "new": false,
+   "description": "Post videos of cool trucks (Ford F150, GMC, RAM) using viral rap song Turn Up 1 - Goon Twinn"
   },
   {
    "id": "78aeff84-8b78-46ab-86fb-1d45b5bbe22a",
@@ -1773,7 +1773,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 4850.0,
-   "budget_left": 1990.5300000000002,
+   "budget_left": 1990.54,
    "progress_pct": 59,
    "platforms": [
     "youtube",
@@ -1798,7 +1798,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 1500.0,
-   "budget_left": 395.0,
+   "budget_left": 395.01,
    "progress_pct": 74,
    "platforms": [
     "tiktok",
@@ -1822,7 +1822,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 2000.0,
-   "budget_left": 567.0699999999999,
+   "budget_left": 567.48,
    "progress_pct": 72,
    "platforms": [
     "instagram",
@@ -1847,7 +1847,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 5000.0,
-   "budget_left": 1573.96,
+   "budget_left": 1574.1799999999998,
    "progress_pct": 69,
    "platforms": [
     "youtube",
@@ -1872,7 +1872,7 @@
    "verified": true,
    "rate_per_1k": 0.6,
    "budget_total": 5000.0,
-   "budget_left": 4968.67,
+   "budget_left": 4971.14,
    "progress_pct": 1,
    "platforms": [
     "youtube",
@@ -1897,7 +1897,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 8000.0,
-   "budget_left": 5032.17,
+   "budget_left": 5039.139999999999,
    "progress_pct": 37,
    "platforms": [
     "tiktok",
@@ -1946,7 +1946,7 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 9500.0,
-   "budget_left": 2376.3100000000004,
+   "budget_left": 2376.4399999999996,
    "progress_pct": 75,
    "platforms": [
     "youtube",
@@ -1971,7 +1971,7 @@
    "verified": false,
    "rate_per_1k": 1.5,
    "budget_total": 2000.0,
-   "budget_left": 1187.4,
+   "budget_left": 1187.5700000000002,
    "progress_pct": 41,
    "platforms": [
     "youtube",
@@ -1996,7 +1996,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 3850.0,
-   "budget_left": 2143.2799999999997,
+   "budget_left": 2146.25,
    "progress_pct": 44,
    "platforms": [
     "tiktok",
@@ -2021,7 +2021,7 @@
    "verified": false,
    "rate_per_1k": 1.8,
    "budget_total": 9000.0,
-   "budget_left": 8406.33,
+   "budget_left": 8407.41,
    "progress_pct": 7,
    "platforms": [
     "tiktok",
@@ -2122,7 +2122,7 @@
    "verified": true,
    "rate_per_1k": 0.5,
    "budget_total": 5000.0,
-   "budget_left": 1361.0,
+   "budget_left": 1361.5300000000002,
    "progress_pct": 73,
    "platforms": [
     "youtube",
@@ -2148,7 +2148,7 @@
    "verified": true,
    "rate_per_1k": 2.0,
    "budget_total": 2527.0,
-   "budget_left": 2161.43,
+   "budget_left": 2161.54,
    "progress_pct": 14,
    "platforms": [
     "youtube",
@@ -2212,31 +2212,6 @@
    "description": "Post clips from will.i.am's “Sick Ass Foo” music video or other will.i.am content, and attach the required audio to all posts. Use text-on-screen to build hype around the release and drive conversation around will.i.am’s new music. TOS can highlight the song, the visuals, the energy of the video, or lean more meme-style by using lyrics/visuals from the track as the punchline to a joke."
   },
   {
-   "id": "9668345a-2f95-48ed-9e99-56eda713bfbe",
-   "title": "$$5,000 Double Holo Pokémon Content | $1.50 CPM",
-   "brand": "ClippedIn",
-   "category": "entertainment",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.5,
-   "budget_total": 5000.0,
-   "budget_left": 4896.64,
-   "progress_pct": 2,
-   "platforms": [
-    "youtube",
-    "tiktok",
-    "instagram"
-   ],
-   "relevance": 0.3,
-   "score": 28.0,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/9668345a-2f95-48ed-9e99-56eda713bfbe",
-   "new": false,
-   "description": "Create engaging clips from Pokémon card show vendor content to promote the Double Holo App and Platform. \n\nHighlight the best moments: big deals, high-stakes negotiations, \"what's it worth\" reactions, and the moments vendors price cards live. Focus on strong content that drives viewers to try the app.\n\nFollow all the campaign guideline rules and CTA. "
-  },
-  {
    "id": "4253e64f-2970-475e-98cd-09ef3a4c6f30",
    "title": "The Real Wolf Of Wall Street Clipping Campaign",
    "brand": "Next Wave Viral | ClipFarm",
@@ -2246,7 +2221,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1001.0,
-   "budget_left": 690.27,
+   "budget_left": 691.5,
    "progress_pct": 31,
    "platforms": [
     "youtube",
@@ -2264,29 +2239,29 @@
    "description": "The Real Wolf of Wall Street is out now on Paramount+. The true story behind the movie, straight from the people who lived it.\n\nClip the show, exclusive cast-member BTS and podcast moments from The Real Wolf of Wall Street (now on Paramount+) and get paid $1 per 1,000 views."
   },
   {
-   "id": "1083ecf4-94f6-4381-86b2-66f8a5789acd",
-   "title": "Rizpy Streamer University Clipping Campaign",
-   "brand": "Reach",
-   "category": "personal brand",
+   "id": "9668345a-2f95-48ed-9e99-56eda713bfbe",
+   "title": "$$5,000 Double Holo Pokémon Content | $1.50 CPM",
+   "brand": "ClippedIn",
+   "category": "entertainment",
    "type": "clipping",
    "status": "active",
    "verified": false,
-   "rate_per_1k": 0.5,
+   "rate_per_1k": 1.5,
    "budget_total": 5000.0,
-   "budget_left": 4932.7,
-   "progress_pct": 1,
+   "budget_left": 4897.39,
+   "progress_pct": 2,
    "platforms": [
     "youtube",
     "tiktok",
     "instagram"
    ],
-   "relevance": 0.6,
-   "score": 39.8,
+   "relevance": 0.3,
+   "score": 28.0,
    "flags": [],
    "excluded": false,
-   "link": "https://contentrewards.com/discover/1083ecf4-94f6-4381-86b2-66f8a5789acd",
+   "link": "https://contentrewards.com/discover/9668345a-2f95-48ed-9e99-56eda713bfbe",
    "new": false,
-   "description": "Get paid to clip Rizpy's stream content while he's at Streamer University. July 18th-July 19th! ➡️ https://www.twitch.tv/rizpyyt"
+   "description": "Create engaging clips from Pokémon card show vendor content to promote the Double Holo App and Platform. \n\nHighlight the best moments: big deals, high-stakes negotiations, \"what's it worth\" reactions, and the moments vendors price cards live. Focus on strong content that drives viewers to try the app.\n\nFollow all the campaign guideline rules and CTA. "
   },
   {
    "id": "b4eb73f4-8fcf-48ef-a80c-f35472764f14",
@@ -2298,7 +2273,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 445.67999999999995,
+   "budget_left": 446.52,
    "progress_pct": 55,
    "platforms": [
     "youtube",
@@ -2338,6 +2313,31 @@
    "description": "Get paid per view to clip on Khantrast's - \"Serve\" TikTok. We're looking for romantic/emotional Anime Edits + FIFA Edits — emotional, hard-synced, hook in the first 2 seconds. Use the official audio, post your clips, hit 1K+ views, and submit your analytics to get paid. Multiple posts per platform allowed. MAX PAYOUT $200+ Read Google Doc Below. "
   },
   {
+   "id": "1083ecf4-94f6-4381-86b2-66f8a5789acd",
+   "title": "Rizpy Streamer University Clipping Campaign",
+   "brand": "Reach",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 0.5,
+   "budget_total": 5000.0,
+   "budget_left": 4936.36,
+   "progress_pct": 1,
+   "platforms": [
+    "youtube",
+    "tiktok",
+    "instagram"
+   ],
+   "relevance": 0.6,
+   "score": 39.8,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/1083ecf4-94f6-4381-86b2-66f8a5789acd",
+   "new": false,
+   "description": "Get paid to clip Rizpy's stream content while he's at Streamer University. July 18th-July 19th! ➡️ https://www.twitch.tv/rizpyyt"
+  },
+  {
    "id": "7c1c6e53-a4a7-42bf-95e4-b8610d26a7de",
    "title": "DiegoLoveless Gaming Clipping [TWITCH CLIPS]",
    "brand": "ClipLaunch",
@@ -2371,7 +2371,7 @@
    "verified": false,
    "rate_per_1k": 1.5,
    "budget_total": 6500.0,
-   "budget_left": 3467.1,
+   "budget_left": 3467.65,
    "progress_pct": 47,
    "platforms": [
     "instagram",
@@ -2443,7 +2443,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 2400.0,
-   "budget_left": 1263.06,
+   "budget_left": 1263.88,
    "progress_pct": 47,
    "platforms": [
     "tiktok",
@@ -2491,7 +2491,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 10000.0,
-   "budget_left": 9779.4,
+   "budget_left": 9779.44,
    "progress_pct": 2,
    "platforms": [
     "instagram",
@@ -2515,7 +2515,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 10000.0,
-   "budget_left": 8252.06,
+   "budget_left": 8252.08,
    "progress_pct": 17,
    "platforms": [
     "youtube",
@@ -2540,7 +2540,7 @@
    "verified": true,
    "rate_per_1k": 0.5,
    "budget_total": 5000.0,
-   "budget_left": 3103.1099999999997,
+   "budget_left": 3103.95,
    "progress_pct": 38,
    "platforms": [
     "youtube",
@@ -2589,7 +2589,7 @@
    "verified": false,
    "rate_per_1k": 1.25,
    "budget_total": 2822.0,
-   "budget_left": 2316.85,
+   "budget_left": 2319.85,
    "progress_pct": 18,
    "platforms": [
     "instagram",
@@ -2663,7 +2663,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 4000.0,
-   "budget_left": 2512.33,
+   "budget_left": 2512.46,
    "progress_pct": 37,
    "platforms": [
     "tiktok",
@@ -2736,7 +2736,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 3195.49,
-   "budget_left": 2645.7999999999997,
+   "budget_left": 2646.33,
    "progress_pct": 17,
    "platforms": [
     "instagram",
@@ -2812,7 +2812,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 275.9,
+   "budget_left": 280.44000000000005,
    "progress_pct": 72,
    "platforms": [
     "youtube",
@@ -2837,7 +2837,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 857.4,
+   "budget_left": 857.97,
    "progress_pct": 14,
    "platforms": [
     "tiktok",
@@ -2850,6 +2850,31 @@
    "link": "https://contentrewards.com/discover/05dae64e-1073-4f08-994e-5b5d7de06dd1",
    "new": false,
    "description": "Create engaging stream edits of WabeWrld throughout Streamer University. Highlight the funniest moments, interactions, reactions, and viral clips from the event. Focus on strong content that helps maximize the reach of his Streamer University streams."
+  },
+  {
+   "id": "7462abdd-c094-4fdd-86b0-fb57ada5fe0b",
+   "title": "Aidan Laurent Kim Audio Campaign | $1K Budget | $0.75 CPM",
+   "brand": "Ordinum ",
+   "category": "music",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 0.75,
+   "budget_total": 1000.0,
+   "budget_left": 301.28,
+   "progress_pct": 70,
+   "platforms": [
+    "tiktok",
+    "instagram",
+    "youtube"
+   ],
+   "relevance": 0.2,
+   "score": 20.4,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/7462abdd-c094-4fdd-86b0-fb57ada5fe0b",
+   "new": false,
+   "description": "🎵 BE RIGHT BACK - AUDIO CLIPPING CAMPAIGN\n\nArtist: Aidan Laurent Kim (@aidanlaurentkim)\n\nAidan Laurent Kim has officially released his new song, \"Be Right Back,\" on all major streaming platforms.\n\nClippers post edits set to the official \"BRB\" sound across TikTok, Instagram, and YouTube. Pick a lane that fits your page: love/relationship edits (movie & TV moments — Ao Haru Ride, 500 Days of Summer,"
   },
   {
    "id": "47fff566-7a4c-4fb9-8348-9a0b1cd9a6cf",
@@ -2873,31 +2898,6 @@
    "link": "https://contentrewards.com/discover/47fff566-7a4c-4fb9-8348-9a0b1cd9a6cf",
    "new": false,
    "description": "We brought the table to the internet. ClipCash.ai has partnered with Duel.com to launch an exclusive Live Blackjack Campaign. Watch, clip from BlackJack livestreams, and earn from posting. Read Google Docs + Content Repo. Min. $1, MAX PAYOUT $200+"
-  },
-  {
-   "id": "7462abdd-c094-4fdd-86b0-fb57ada5fe0b",
-   "title": "Aidan Laurent Kim Audio Campaign | $1K Budget | $0.75 CPM",
-   "brand": "Ordinum ",
-   "category": "music",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 0.75,
-   "budget_total": 1000.0,
-   "budget_left": 278.14,
-   "progress_pct": 72,
-   "platforms": [
-    "tiktok",
-    "instagram",
-    "youtube"
-   ],
-   "relevance": 0.2,
-   "score": 20.4,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/7462abdd-c094-4fdd-86b0-fb57ada5fe0b",
-   "new": false,
-   "description": "🎵 BE RIGHT BACK - AUDIO CLIPPING CAMPAIGN\n\nArtist: Aidan Laurent Kim (@aidanlaurentkim)\n\nAidan Laurent Kim has officially released his new song, \"Be Right Back,\" on all major streaming platforms.\n\nClippers post edits set to the official \"BRB\" sound across TikTok, Instagram, and YouTube. Pick a lane that fits your page: love/relationship edits (movie & TV moments — Ao Haru Ride, 500 Days of Summer,"
   },
   {
    "id": "e28753b7-4cf2-4457-ba02-d27a21370bc7",
@@ -2932,7 +2932,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 3250.0,
-   "budget_left": 3186.68,
+   "budget_left": 3186.79,
    "progress_pct": 2,
    "platforms": [
     "tiktok"
@@ -2946,6 +2946,29 @@
    "description": "Get paid per view to clip 1nonly's \"GRAILED\"  on TikTok. We're looking for World Cup Edits, and Emotional FIFA moments — emotional, hard-synced, hook in the first 2 seconds. Use the official audio, post your clips, hit 1K+ views, and submit your analytics to get paid. Multiple posts per platform allowed. MAX PAYOUT $200+ Read Google Doc Below. "
   },
   {
+   "id": "972f3c20-33bb-4a2c-9025-d6b15aa7d075",
+   "title": "$$1,000 Elina Meng Streamer Clipping Campaign",
+   "brand": "ClippedIn",
+   "category": "entertainment",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 1.0,
+   "budget_total": 1000.0,
+   "budget_left": 855.9300000000001,
+   "progress_pct": 14,
+   "platforms": [
+    "tiktok"
+   ],
+   "relevance": 0.3,
+   "score": 25.5,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/972f3c20-33bb-4a2c-9025-d6b15aa7d075",
+   "new": false,
+   "description": "Clip the best moments from Elina Meng's official Twitch streams during Streamer University and turn them into viral short-form videos.\n\nWe're looking for funny moments, reactions, wholesome interactions, relatable moments, and clips that make sense even without watching the full stream."
+  },
+  {
    "id": "811cfe84-891d-4520-8d6a-f07ebc43b3e1",
    "title": "Nutri AI Calorie Tracker [HEALTH]",
    "brand": "Reachify",
@@ -2955,7 +2978,7 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 5000.0,
-   "budget_left": 3572.76,
+   "budget_left": 3572.95,
    "progress_pct": 29,
    "platforms": [
     "tiktok"
@@ -2969,29 +2992,6 @@
    "link": "https://contentrewards.com/discover/811cfe84-891d-4520-8d6a-f07ebc43b3e1",
    "new": false,
    "description": "40% TIER 1 AUDIENCE REQUIRED.\nMUST FOLLOW THE DOCS GIVEN\n"
-  },
-  {
-   "id": "972f3c20-33bb-4a2c-9025-d6b15aa7d075",
-   "title": "$$1,000 Elina Meng Streamer Clipping Campaign",
-   "brand": "ClippedIn",
-   "category": "entertainment",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.0,
-   "budget_total": 1000.0,
-   "budget_left": 855.91,
-   "progress_pct": 14,
-   "platforms": [
-    "tiktok"
-   ],
-   "relevance": 0.3,
-   "score": 25.5,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/972f3c20-33bb-4a2c-9025-d6b15aa7d075",
-   "new": false,
-   "description": "Clip the best moments from Elina Meng's official Twitch streams during Streamer University and turn them into viral short-form videos.\n\nWe're looking for funny moments, reactions, wholesome interactions, relatable moments, and clips that make sense even without watching the full stream."
   },
   {
    "id": "2ceb2670-8fad-4e8f-b8a4-20fd5213d734",
@@ -3051,7 +3051,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 10000.0,
-   "budget_left": 5479.13,
+   "budget_left": 5467.47,
    "progress_pct": 45,
    "platforms": [
     "youtube",
@@ -3102,7 +3102,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 8000.0,
-   "budget_left": 1593.12,
+   "budget_left": 1593.1899999999996,
    "progress_pct": 80,
    "platforms": [
     "tiktok",
@@ -3126,7 +3126,7 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 4960.0,
-   "budget_left": 1771.58,
+   "budget_left": 1773.0100000000002,
    "progress_pct": 64,
    "platforms": [
     "youtube",
@@ -3166,31 +3166,6 @@
    "description": "Clipsquad, we've got a new campaign for you!\n\nThis time, we're clipping Vice Ganda's exclusive episode with Del Monte, and we're looking for creators who can find the moments that deserve to go viral."
   },
   {
-   "id": "9d2d7332-4298-4172-8ee5-0637daf3a515",
-   "title": "Clips Hablando - Nivel 1 - 0.5$ por cada 1000 visitas",
-   "brand": "Carlos Esparraga Clipping",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 0.5,
-   "budget_total": 5000.0,
-   "budget_left": 3881.1,
-   "progress_pct": 22,
-   "platforms": [
-    "youtube",
-    "instagram",
-    "tiktok"
-   ],
-   "relevance": 0.6,
-   "score": 39.4,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/9d2d7332-4298-4172-8ee5-0637daf3a515",
-   "new": false,
-   "description": ""
-  },
-  {
    "id": "630d3b5a-8680-4c3c-bc16-6f66d9af2d68",
    "title": "Cantina UGC Reposting Campaign",
    "brand": "Clip Farm",
@@ -3214,6 +3189,31 @@
    "link": "https://contentrewards.com/discover/630d3b5a-8680-4c3c-bc16-6f66d9af2d68",
    "new": false,
    "description": "Pick ONE specific Cantina UGC creator and then repost only that creator's UGC content on a fresh, dedicated page built around that creator."
+  },
+  {
+   "id": "9d2d7332-4298-4172-8ee5-0637daf3a515",
+   "title": "Clips Hablando - Nivel 1 - 0.5$ por cada 1000 visitas",
+   "brand": "Carlos Esparraga Clipping",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 0.5,
+   "budget_total": 5000.0,
+   "budget_left": 3881.13,
+   "progress_pct": 22,
+   "platforms": [
+    "youtube",
+    "instagram",
+    "tiktok"
+   ],
+   "relevance": 0.6,
+   "score": 39.4,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/9d2d7332-4298-4172-8ee5-0637daf3a515",
+   "new": false,
+   "description": ""
   },
   {
    "id": "9129e145-9ae8-45b6-bb06-647c65f3f8c3",
@@ -3275,8 +3275,8 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 1000.0,
-   "budget_left": 593.97,
-   "progress_pct": 41,
+   "budget_left": 595.02,
+   "progress_pct": 40,
    "platforms": [
     "youtube",
     "instagram",
@@ -3317,6 +3317,31 @@
    "description": "The Mission:\nWe are building a elite growth squad to propel our upcoming indie feature, \"Goodbye Stuart,\" into the mainstream. We are looking for editors who understand how to stop the scroll and manipulate the algorithm.\n\nWhy Join?\n\nProfessional Assets: Access our Frame.io vault for full-resolution, uncompressed cinematic raw footage. No more low-quality screen recordings.\n\nPerformance Payouts: W"
   },
   {
+   "id": "bb231517-a455-4d9e-bbbb-d2ad565c4fca",
+   "title": "Cliptic x Ismail Vali Clips",
+   "brand": "Cliptic",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 2.0,
+   "budget_total": 4500.0,
+   "budget_left": 929.3299999999999,
+   "progress_pct": 79,
+   "platforms": [
+    "youtube",
+    "instagram",
+    "tiktok"
+   ],
+   "relevance": 0.6,
+   "score": 45.7,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/bb231517-a455-4d9e-bbbb-d2ad565c4fca",
+   "new": false,
+   "description": "Earn by clipping videos from Ismail Vali"
+  },
+  {
    "id": "493b846d-f762-4c5b-a848-74e979e934a2",
    "title": "Leon Bridges | Fete de la Musique ",
    "brand": "The Clip Ship ",
@@ -3326,7 +3351,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 1083.0,
-   "budget_left": 990.84,
+   "budget_left": 990.94,
    "progress_pct": 9,
    "platforms": [
     "tiktok",
@@ -3351,7 +3376,7 @@
    "verified": true,
    "rate_per_1k": 0.5,
    "budget_total": 2100.0,
-   "budget_left": 2085.66,
+   "budget_left": 2085.7,
    "progress_pct": 1,
    "platforms": [
     "tiktok"
@@ -3365,31 +3390,6 @@
    "description": "Create edits or clips of Messi using the provided audio and follow the requirements in the campaign's google doc brief"
   },
   {
-   "id": "bb231517-a455-4d9e-bbbb-d2ad565c4fca",
-   "title": "Cliptic x Ismail Vali Clips",
-   "brand": "Cliptic",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 2.0,
-   "budget_total": 4500.0,
-   "budget_left": 925.7199999999998,
-   "progress_pct": 79,
-   "platforms": [
-    "youtube",
-    "instagram",
-    "tiktok"
-   ],
-   "relevance": 0.6,
-   "score": 45.7,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/bb231517-a455-4d9e-bbbb-d2ad565c4fca",
-   "new": false,
-   "description": "Earn by clipping videos from Ismail Vali"
-  },
-  {
    "id": "9e329177-fae5-41b8-9dae-cd23cd2035ea",
    "title": "Duel Clipping [TIKTOK]",
    "brand": "Reachify",
@@ -3399,7 +3399,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 5000.0,
-   "budget_left": 4931.68,
+   "budget_left": 4931.74,
    "progress_pct": 1,
    "platforms": [
     "tiktok"
@@ -3447,7 +3447,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 1250.0,
-   "budget_left": 811.73,
+   "budget_left": 811.9100000000001,
    "progress_pct": 35,
    "platforms": [
     "tiktok"
@@ -3493,7 +3493,7 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 1080.0,
-   "budget_left": 820.48,
+   "budget_left": 820.5,
    "progress_pct": 24,
    "platforms": [
     "youtube",
@@ -3535,31 +3535,6 @@
    "description": ""
   },
   {
-   "id": "9d35cefb-2b1a-4039-a9b1-679aaf8921f1",
-   "title": "Cantina Character Campaign",
-   "brand": "Clip Farm",
-   "category": "technology",
-   "type": "clipping",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 1.1,
-   "budget_total": 25000.0,
-   "budget_left": 24998.59,
-   "progress_pct": 0,
-   "platforms": [
-    "youtube",
-    "tiktok",
-    "instagram"
-   ],
-   "relevance": 1.0,
-   "score": 71.8,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/9d35cefb-2b1a-4039-a9b1-679aaf8921f1",
-   "new": false,
-   "description": "Cantina is a free AI character / video generator app. Clippers build one original AI character inside Cantina and run a fresh, dedicated page where that character IS the entire page. Content is brain-rot style character episodes, reactions, and voiceovers posted as native, organic-feeling content across TikTok, Instagram Reels, and YouTube Shorts."
-  },
-  {
    "id": "4c6499bb-1427-4e8f-b1d5-be712d33feb9",
    "title": "NIAGARA SLEEP Clipping Campaign",
    "brand": "Accel Club",
@@ -3581,6 +3556,31 @@
    "link": "https://contentrewards.com/discover/4c6499bb-1427-4e8f-b1d5-be712d33feb9",
    "new": false,
    "description": "Help us make better sleep go viral!\nNiagara Sleep Solutions is a premium sleep brand known for bamboo mattress toppers that instantly upgrade comfort, pressure relief, and sleep quality. We're looking for creators to turn our content into engaging short-form videos for TikTok.\n\n- Use the approved content and assets\n- Create original edits, clips, hooks, reactions, or AI storytelling formats\n- High"
+  },
+  {
+   "id": "9d35cefb-2b1a-4039-a9b1-679aaf8921f1",
+   "title": "Cantina Character Campaign",
+   "brand": "Clip Farm",
+   "category": "technology",
+   "type": "clipping",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 1.1,
+   "budget_total": 25000.0,
+   "budget_left": 24998.68,
+   "progress_pct": 0,
+   "platforms": [
+    "youtube",
+    "tiktok",
+    "instagram"
+   ],
+   "relevance": 1.0,
+   "score": 71.8,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/9d35cefb-2b1a-4039-a9b1-679aaf8921f1",
+   "new": false,
+   "description": "Cantina is a free AI character / video generator app. Clippers build one original AI character inside Cantina and run a fresh, dedicated page where that character IS the entire page. Content is brain-rot style character episodes, reactions, and voiceovers posted as native, organic-feeling content across TikTok, Instagram Reels, and YouTube Shorts."
   },
   {
    "id": "955c4014-e7f0-4097-b9fa-060de4405611",
@@ -3689,7 +3689,7 @@
    "verified": true,
    "rate_per_1k": 0.5,
    "budget_total": 4250.0,
-   "budget_left": 4108.49,
+   "budget_left": 4108.54,
    "progress_pct": 3,
    "platforms": [
     "tiktok",
@@ -3713,7 +3713,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 7000.0,
-   "budget_left": 2174.4799999999996,
+   "budget_left": 2174.6400000000003,
    "progress_pct": 69,
    "platforms": [
     "youtube",
@@ -3764,7 +3764,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 10000.0,
-   "budget_left": 7116.280000000001,
+   "budget_left": 7116.29,
    "progress_pct": 29,
    "platforms": [
     "instagram",
@@ -3861,7 +3861,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 938.93,
+   "budget_left": 939.15,
    "progress_pct": 6,
    "platforms": [
     "tiktok"
@@ -3932,7 +3932,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 3000.0,
-   "budget_left": 2957.13,
+   "budget_left": 2957.14,
    "progress_pct": 1,
    "platforms": [
     "youtube",
@@ -3983,7 +3983,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 5000.0,
-   "budget_left": 2533.93,
+   "budget_left": 2533.95,
    "progress_pct": 49,
    "platforms": [
     "instagram",
@@ -4001,6 +4001,29 @@
    "description": "Join the official \"BLINKxLIZ\" Clipping Campaign and get paid to post viral short-form content across Instagram, TikTok, YouTube Shorts, Facebook & X.\n\n💰 Earn $1.5 per 1,000 views\n🔥 Clip Liz’s best moments & highlights\n📈 Grow fanpages, generate views, drive traffic and get paid"
   },
   {
+   "id": "b090af24-cb28-4ba1-a5b2-890096eeb45f",
+   "title": "Clip Ascend AI",
+   "brand": "Ascend AI",
+   "category": "slideshow",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 1.25,
+   "budget_total": 2550.0,
+   "budget_left": 1797.52,
+   "progress_pct": 30,
+   "platforms": [
+    "tiktok"
+   ],
+   "relevance": 0.55,
+   "score": 37.6,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/b090af24-cb28-4ba1-a5b2-890096eeb45f",
+   "new": false,
+   "description": ""
+  },
+  {
    "id": "216b0681-085e-40d2-9fcc-a8e4dff792a1",
    "title": "Velasco Clips",
    "brand": "Brazil Clips",
@@ -4010,7 +4033,7 @@
    "verified": false,
    "rate_per_1k": 0.15,
    "budget_total": 1000.0,
-   "budget_left": 977.6,
+   "budget_left": 978.01,
    "progress_pct": 2,
    "platforms": [
     "youtube",
@@ -4025,29 +4048,6 @@
    "link": "https://contentrewards.com/discover/216b0681-085e-40d2-9fcc-a8e4dff792a1",
    "new": false,
    "description": "Clipe o Velasco e seja pago! Confira o briefing em Resource abaixo."
-  },
-  {
-   "id": "b090af24-cb28-4ba1-a5b2-890096eeb45f",
-   "title": "Clip Ascend AI",
-   "brand": "Ascend AI",
-   "category": "slideshow",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.25,
-   "budget_total": 2550.0,
-   "budget_left": 1796.55,
-   "progress_pct": 30,
-   "platforms": [
-    "tiktok"
-   ],
-   "relevance": 0.55,
-   "score": 37.6,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/b090af24-cb28-4ba1-a5b2-890096eeb45f",
-   "new": false,
-   "description": ""
   },
   {
    "id": "d4056685-e089-4b77-95a2-b59031f171f0",
@@ -4179,7 +4179,7 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 1000.0,
-   "budget_left": 599.81,
+   "budget_left": 600.8399999999999,
    "progress_pct": 40,
    "platforms": [
     "tiktok",
@@ -4204,7 +4204,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 4700.0,
-   "budget_left": 4665.16,
+   "budget_left": 4665.35,
    "progress_pct": 1,
    "platforms": [
     "youtube",
@@ -4246,6 +4246,31 @@
    "description": "Create faceless UGC videos promoting Content Rewards and earn $0.5 per 1k views."
   },
   {
+   "id": "14f743b2-c5ca-4f3e-8c0d-3010c485005d",
+   "title": "Yomi Denzel Clipping - 1$ par 1000 vues",
+   "brand": "Yomi Denzel Clipping",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 1.0,
+   "budget_total": 203000.0,
+   "budget_left": 22215.97,
+   "progress_pct": 89,
+   "platforms": [
+    "instagram",
+    "tiktok",
+    "youtube"
+   ],
+   "relevance": 0.6,
+   "score": 52.6,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/14f743b2-c5ca-4f3e-8c0d-3010c485005d",
+   "new": false,
+   "description": "Clippe le contenu de Yomi Denzel et gagne 1$ pour chaque 1000 vues."
+  },
+  {
    "id": "0f8369c6-eef8-458c-8f22-86cd6404c700",
    "title": "D-Block & S-te-Fan - Bla Bla",
    "brand": "Artist Influence",
@@ -4268,31 +4293,6 @@
    "link": "https://contentrewards.com/discover/0f8369c6-eef8-458c-8f22-86cd6404c700",
    "new": false,
    "description": "Push \"Bla Bla\" into the heart of GymTok and fitness culture. This record is built for high-intensity training content — fast, loud, and impossible to skip. Make it the go-to soundtrack for workout edits and gym motivation content across both platforms."
-  },
-  {
-   "id": "14f743b2-c5ca-4f3e-8c0d-3010c485005d",
-   "title": "Yomi Denzel Clipping - 1$ par 1000 vues",
-   "brand": "Yomi Denzel Clipping",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 1.0,
-   "budget_total": 203000.0,
-   "budget_left": 22189.01000000001,
-   "progress_pct": 89,
-   "platforms": [
-    "instagram",
-    "tiktok",
-    "youtube"
-   ],
-   "relevance": 0.6,
-   "score": 52.5,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/14f743b2-c5ca-4f3e-8c0d-3010c485005d",
-   "new": false,
-   "description": "Clippe le contenu de Yomi Denzel et gagne 1$ pour chaque 1000 vues."
   },
   {
    "id": "33863d55-4cbe-45b5-b43d-fbdfc00db983",
@@ -4404,7 +4404,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 2490.0,
-   "budget_left": 906.05,
+   "budget_left": 906.1099999999999,
    "progress_pct": 64,
    "platforms": [
     "youtube",
@@ -4454,7 +4454,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 958.6,
+   "budget_left": 958.93,
    "progress_pct": 4,
    "platforms": [
     "tiktok",
@@ -4567,6 +4567,30 @@
    "description": "Create short-form content using the official sound 'Beat On My Drum' by Hedex."
   },
   {
+   "id": "ab8ecc47-5ea6-4278-947d-cb8fc1c08f88",
+   "title": "eBay Live Clipping",
+   "brand": "creatorXchange Clipper Marketplace",
+   "category": "product",
+   "type": "clipping",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 1.0,
+   "budget_total": 9500.0,
+   "budget_left": 9500.0,
+   "progress_pct": 0,
+   "platforms": [
+    "instagram",
+    "tiktok"
+   ],
+   "relevance": 0.7,
+   "score": 52.0,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/ab8ecc47-5ea6-4278-947d-cb8fc1c08f88",
+   "new": false,
+   "description": "You're clipping live sports card breaks for eBay Live sellers. The raw footage is people opening cards and reacting. Your job is to turn those moments into short, exciting clips that make people stop scrolling."
+  },
+  {
    "id": "23dee971-8dd3-4a98-bd77-bcd4350f4976",
    "title": "UGC Repurposing [English]",
    "brand": "Content Rewards",
@@ -4591,30 +4615,6 @@
    "link": "https://contentrewards.com/discover/23dee971-8dd3-4a98-bd77-bcd4350f4976",
    "new": false,
    "description": "Edit pre-made UGC for Content Rewards, and get paid $1 per 1k views\n\n"
-  },
-  {
-   "id": "ab8ecc47-5ea6-4278-947d-cb8fc1c08f88",
-   "title": "eBay Live Clipping",
-   "brand": "creatorXchange Clipper Marketplace",
-   "category": "product",
-   "type": "clipping",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 1.0,
-   "budget_total": 9500.0,
-   "budget_left": 9500.0,
-   "progress_pct": 0,
-   "platforms": [
-    "instagram",
-    "tiktok"
-   ],
-   "relevance": 0.7,
-   "score": 52.0,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/ab8ecc47-5ea6-4278-947d-cb8fc1c08f88",
-   "new": false,
-   "description": "You're clipping live sports card breaks for eBay Live sellers. The raw footage is people opening cards and reacting. Your job is to turn those moments into short, exciting clips that make people stop scrolling."
   },
   {
    "id": "29e85d7c-ea2b-499a-92b9-cc69a6eb65bf",
@@ -4776,7 +4776,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 3000.0,
-   "budget_left": 1817.84,
+   "budget_left": 1817.85,
    "progress_pct": 39,
    "platforms": [
     "tiktok",
@@ -4849,7 +4849,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 10000.0,
-   "budget_left": 1290.6299999999992,
+   "budget_left": 1292.5499999999993,
    "progress_pct": 87,
    "platforms": [
     "youtube",
@@ -4926,7 +4926,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 537.85,
+   "budget_left": 538.5799999999999,
    "progress_pct": 46,
    "platforms": [
     "tiktok",
@@ -4951,7 +4951,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 5000.0,
-   "budget_left": 4469.12,
+   "budget_left": 4469.13,
    "progress_pct": 11,
    "platforms": [
     "tiktok"
@@ -4999,7 +4999,7 @@
    "verified": true,
    "rate_per_1k": 1.25,
    "budget_total": 1250.0,
-   "budget_left": 957.77,
+   "budget_left": 958.31,
    "progress_pct": 23,
    "platforms": [
     "tiktok"
@@ -5097,7 +5097,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 3000.0,
-   "budget_left": 635.1799999999998,
+   "budget_left": 635.21,
    "progress_pct": 79,
    "platforms": [
     "youtube",
@@ -5212,31 +5212,6 @@
    "description": "Clip for Afigtrades and get paid $200 per 200k views."
   },
   {
-   "id": "35b64c4c-8585-4a44-a525-41cf54e9e0f3",
-   "title": "EirikWStreams Clips | $2 per 1000 views",
-   "brand": "Copy Clips Community",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 2.0,
-   "budget_total": 1000.0,
-   "budget_left": 532.52,
-   "progress_pct": 47,
-   "platforms": [
-    "youtube",
-    "tiktok",
-    "instagram"
-   ],
-   "relevance": 0.6,
-   "score": 40.5,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/35b64c4c-8585-4a44-a525-41cf54e9e0f3",
-   "new": false,
-   "description": "Clip Eirik's streams get paid!"
-  },
-  {
    "id": "08bd8246-5d43-4412-b891-635e95337bb1",
    "title": "Candy Shorts | AI Micro Dramas",
    "brand": "The Clip Ship ",
@@ -5260,6 +5235,31 @@
    "link": "https://contentrewards.com/discover/08bd8246-5d43-4412-b891-635e95337bb1",
    "new": false,
    "description": "Create edits and post clips from the approved folders provided below to drive curiosity and excitement guided towards candy.ai \n"
+  },
+  {
+   "id": "35b64c4c-8585-4a44-a525-41cf54e9e0f3",
+   "title": "EirikWStreams Clips | $2 per 1000 views",
+   "brand": "Copy Clips Community",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 2.0,
+   "budget_total": 1000.0,
+   "budget_left": 532.53,
+   "progress_pct": 47,
+   "platforms": [
+    "youtube",
+    "tiktok",
+    "instagram"
+   ],
+   "relevance": 0.6,
+   "score": 40.5,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/35b64c4c-8585-4a44-a525-41cf54e9e0f3",
+   "new": false,
+   "description": "Clip Eirik's streams get paid!"
   },
   {
    "id": "fa2577c9-95d5-43be-ab76-22339afacd4a",
@@ -5296,7 +5296,7 @@
    "verified": false,
    "rate_per_1k": 1.25,
    "budget_total": 1000.0,
-   "budget_left": 250.48000000000002,
+   "budget_left": 250.77999999999997,
    "progress_pct": 75,
    "platforms": [
     "youtube",
@@ -5430,29 +5430,28 @@
    "description": "Post clips using the official client-provided Hatebreed footage from the folder linked below. In your edit, turn the volume of the official track down to about 1% so it is barely audible — the clip's own original audio (the live/source audio already in the footage) needs to remain the most prominent sound in the video."
   },
   {
-   "id": "44d953d4-f67f-48c0-8d73-97cb3cfff6a7",
-   "title": "Podcast Clipping - CAPTABLE: AVI",
-   "brand": "Clouted",
-   "category": "other",
+   "id": "bff72fa2-f49f-4aab-8c74-cf1a6443c85d",
+   "title": "Drummer Records Audio Clipping - Gaming/Brainrot Clips",
+   "brand": "Clip Farm",
+   "category": "music",
    "type": "clipping",
    "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.0,
-   "budget_total": 5000.0,
-   "budget_left": 5000.0,
-   "progress_pct": 0,
+   "verified": true,
+   "rate_per_1k": 0.1,
+   "budget_total": 9000.0,
+   "budget_left": 1186.6800000000003,
+   "progress_pct": 87,
    "platforms": [
-    "youtube",
     "tiktok",
     "instagram"
    ],
-   "relevance": 0.6,
-   "score": 40.7,
+   "relevance": 0.15,
+   "score": 22.4,
    "flags": [],
    "excluded": false,
-   "link": "https://contentrewards.com/discover/44d953d4-f67f-48c0-8d73-97cb3cfff6a7",
+   "link": "https://contentrewards.com/discover/bff72fa2-f49f-4aab-8c74-cf1a6443c85d",
    "new": false,
-   "description": "Create engaging short-form clips from **The Cap Table** podcast that highlight founder stories, startup growth, entrepreneurship, fundraising, and business insights. Videos should feel native to the platform while encouraging viewers to watch the full episode on YouTube. All posts must mention **The Cap Table** and **AVI** in the caption.\n"
+   "description": "Overlay James Tonic's \"At The Time In New York\" (official audio only) on trending clips across TikTok and Instagram — get paid per view. No dedicated page required."
   },
   {
    "id": "2d18171c-999f-4be4-ba18-3d8e99a51571",
@@ -5464,7 +5463,7 @@
    "verified": false,
    "rate_per_1k": 0.25,
    "budget_total": 2667.3,
-   "budget_left": 1244.1900000000003,
+   "budget_left": 1244.2700000000002,
    "progress_pct": 53,
    "platforms": [
     "instagram",
@@ -5554,6 +5553,31 @@
    "description": "humAIn is a sci-fi analog horror anthology — standalone episodes of slow-burn, near-future dread in the lineage of Local58, The Backrooms, and the original Twilight Zone. We're opening up approved episode footage for clipping. We want editors who understand analog horror and can find the single most scroll-stopping 30–55 seconds inside a full episode.\n\nPlease choose from one of the attached episod"
   },
   {
+   "id": "d425dd80-81d0-41ca-8d1e-b9a91660fd62",
+   "title": "MoorHouse Media Network - $2.50 CPM",
+   "brand": "MoorHouse",
+   "category": "entertainment",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 2.5,
+   "budget_total": 1000.0,
+   "budget_left": 886.56,
+   "progress_pct": 11,
+   "platforms": [
+    "tiktok",
+    "youtube",
+    "instagram"
+   ],
+   "relevance": 0.3,
+   "score": 28.0,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/d425dd80-81d0-41ca-8d1e-b9a91660fd62",
+   "new": false,
+   "description": "Welcome to the MoorHouse Clipping Network. Pull our raw assets, maximize your retention, and earn automated payouts..\n\n📊 THE CONTRACT\n• Rate: $2.50 CPM ($2.50 per 1,000 views).\n• Minimum Floor: 5,000 views per video to qualify for review.\n• Maximum Cap: $250.00 max payout per individual video.\n\n🎬 RULES & COMPLIANCE\n⚠️ STRICT RULE: All submissions MUST include the @AugustMoor text watermark at 10% "
+  },
+  {
    "id": "6843b49e-7cdc-4cc2-b781-31e2b83cd84e",
    "title": "Maria Ellis - Relapse",
    "brand": "Artist Influence",
@@ -5577,31 +5601,6 @@
    "description": "Clipping campaign focused on TV/Film for Maria Ellis's new release \"Relapse\""
   },
   {
-   "id": "d425dd80-81d0-41ca-8d1e-b9a91660fd62",
-   "title": "MoorHouse Media Network - $2.50 CPM",
-   "brand": "MoorHouse",
-   "category": "entertainment",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 2.5,
-   "budget_total": 1000.0,
-   "budget_left": 886.56,
-   "progress_pct": 11,
-   "platforms": [
-    "tiktok",
-    "youtube",
-    "instagram"
-   ],
-   "relevance": 0.3,
-   "score": 28.0,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/d425dd80-81d0-41ca-8d1e-b9a91660fd62",
-   "new": false,
-   "description": "\nWelcome to the MoorHouse Clipping Network. Pull our raw assets, maximize your retention, and earn automated payouts..\n\n📊 THE CONTRACT\n• Rate: $2.50 CPM ($2.50 per 1,000 views).\n• Minimum Floor: 5,000 views per video to qualify for review.\n• Maximum Cap: $250.00 max payout per individual video.\n\n🎬 RULES & COMPLIANCE\n⚠️ STRICT RULE: All submissions MUST include the @AugustMoor text watermark at 10%"
-  },
-  {
    "id": "93d61e77-3b03-435b-9880-fef2636b8037",
    "title": "'Serotonin' - (UGC) Official Music Campaign",
    "brand": "James Hype",
@@ -5623,6 +5622,31 @@
    "link": "https://contentrewards.com/discover/93d61e77-3b03-435b-9880-fef2636b8037",
    "new": false,
    "description": "Create high-quality short-form content using the official song 'Serotonin' by James Hype. Please note that this campaign is for approved content only any content that is not approved will be automatically rejected if you are interested in creating for James Hype check out our 'Clipping' Campaign."
+  },
+  {
+   "id": "44d953d4-f67f-48c0-8d73-97cb3cfff6a7",
+   "title": "Podcast Clipping - CAPTABLE: AVI",
+   "brand": "Clouted",
+   "category": "other",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 1.0,
+   "budget_total": 5000.0,
+   "budget_left": 5000.0,
+   "progress_pct": 0,
+   "platforms": [
+    "youtube",
+    "tiktok",
+    "instagram"
+   ],
+   "relevance": 0.6,
+   "score": 40.7,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/44d953d4-f67f-48c0-8d73-97cb3cfff6a7",
+   "new": false,
+   "description": "Create engaging short-form clips from **The Cap Table** podcast that highlight founder stories, startup growth, entrepreneurship, fundraising, and business insights. Videos should feel native to the platform while encouraging viewers to watch the full episode on YouTube. All posts must mention **The Cap Table** and **AVI** in the caption.\n"
   },
   {
    "id": "3e9e8e4c-a1c7-41a2-b64b-3be8362d2032",
@@ -5675,6 +5699,29 @@
    "description": "Promote Shark Funded across trading, finance, and motivational pages using influencer clips and YouTube content.\n\n📈 Earn **$2 per 1,000 views**\n🎥 Repost provided influencer clips or create short-form edits from approved YouTube videos\n💰 Drive conversions using code **FAST30**\n📌 CTA + pinned comment required on every post\n🚀 Focus on reach, visibility, and funded trader signups\n\nOnly high-quality su"
   },
   {
+   "id": "dc7131eb-834f-4c6e-91a2-9300256e8849",
+   "title": "MAKE REALLY SAD MESSI WORLD CUP EDITS :(",
+   "brand": "DeFaria Digital Clipping Rewards",
+   "category": "music",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 1.0,
+   "budget_total": 1000.0,
+   "budget_left": 285.59000000000003,
+   "progress_pct": 71,
+   "platforms": [
+    "tiktok"
+   ],
+   "relevance": 0.2,
+   "score": 20.8,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/dc7131eb-834f-4c6e-91a2-9300256e8849",
+   "new": false,
+   "description": "Make Sad Messi World Cup Sports Edits, post them on TikTok, and get paid per 1,000 views. Open to everyone. No follower minimum. No application.\n\nHOW TO GET PAID:\n1. Make a Messi World Cup clip\n2. Post on TikTok with #theboyfromrosario in the caption\n3. Submit your link\n\nEvery post must be a Messi World Cup clip to qualify. More views = more money. The window is now, while the tournament is live. "
+  },
+  {
    "id": "a932cc09-10ee-40bd-9663-5143776e635b",
    "title": "Upload faceless slideshows",
    "brand": "Moon Clips",
@@ -5684,7 +5731,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 10000.0,
-   "budget_left": 1657.6000000000004,
+   "budget_left": 1657.6100000000006,
    "progress_pct": 83,
    "platforms": [
     "tiktok"
@@ -5698,29 +5745,6 @@
    "description": "Download content -> upload to TikTok -> get paid.\nDistribute slideshows for Nutri AI and get paid $3000 for 1M views"
   },
   {
-   "id": "dc7131eb-834f-4c6e-91a2-9300256e8849",
-   "title": "MAKE REALLY SAD MESSI WORLD CUP EDITS :(",
-   "brand": "DeFaria Digital Clipping Rewards",
-   "category": "music",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.0,
-   "budget_total": 1000.0,
-   "budget_left": 284.27,
-   "progress_pct": 72,
-   "platforms": [
-    "tiktok"
-   ],
-   "relevance": 0.2,
-   "score": 20.8,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/dc7131eb-834f-4c6e-91a2-9300256e8849",
-   "new": false,
-   "description": "Make Sad Messi World Cup Sports Edits, post them on TikTok, and get paid per 1,000 views. Open to everyone. No follower minimum. No application.\n\nHOW TO GET PAID:\n1. Make a Messi World Cup clip\n2. Post on TikTok with #theboyfromrosario in the caption\n3. Submit your link\n\nEvery post must be a Messi World Cup clip to qualify. More views = more money. The window is now, while the tournament is live. "
-  },
-  {
    "id": "ec336c84-9a6d-413b-86fe-ce9273a64ad0",
    "title": "Betway - WC GIF Logo Campaign (Nigeria)",
    "brand": "Super G Rising - Africa Only",
@@ -5730,7 +5754,7 @@
    "verified": false,
    "rate_per_1k": 0.4,
    "budget_total": 30600.0,
-   "budget_left": 3970.1100000000006,
+   "budget_left": 3972.1800000000003,
    "progress_pct": 87,
    "platforms": [
     "instagram",
@@ -5779,7 +5803,7 @@
    "verified": false,
    "rate_per_1k": 0.2,
    "budget_total": 5000.0,
-   "budget_left": 659.7399999999998,
+   "budget_left": 660.0600000000004,
    "progress_pct": 87,
    "platforms": [
     "tiktok",
@@ -5979,7 +6003,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 904.01,
+   "budget_left": 904.0699999999999,
    "progress_pct": 10,
    "platforms": [
     "instagram",
@@ -6030,7 +6054,7 @@
    "verified": false,
    "rate_per_1k": 2.5,
    "budget_total": 2500.0,
-   "budget_left": 2224.9,
+   "budget_left": 2224.91,
    "progress_pct": 11,
    "platforms": [
     "instagram",
@@ -6043,31 +6067,6 @@
    "link": "https://contentrewards.com/discover/74989a46-f8a3-4f8c-b1e9-054cd5a6e49b",
    "new": false,
    "description": "Douxds is a men's skincare brand with a viral product the FLEX™ vibrating face brush. Clear skin in 90 days, guaranteed. We're running their short-form clipping campaign on TikTok and Instagram. You'll get instant access to 150+ pre-organized clips with instructions in every folder. Pick a clip, edit it, post it. That's it.\n"
-  },
-  {
-   "id": "068fc1ec-47af-498b-b971-07f4dbc254b4",
-   "title": "Вrenduh stream clipping",
-   "brand": "Clipping Nest",
-   "category": "entertainment",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 0.5,
-   "budget_total": 1000.0,
-   "budget_left": 997.28,
-   "progress_pct": 0,
-   "platforms": [
-    "youtube",
-    "instagram",
-    "tiktok"
-   ],
-   "relevance": 0.3,
-   "score": 24.7,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/068fc1ec-47af-498b-b971-07f4dbc254b4",
-   "new": false,
-   "description": "Clip viral stream moments for Вrenduh. The clips should make people want to explore more about her.  \n\n"
   },
   {
    "id": "3219b6c6-bcc3-4ce3-862b-dc152c2925bc",
@@ -6221,6 +6220,31 @@
    "description": "Clip for us and earn $500 (Only Baseball pages)"
   },
   {
+   "id": "068fc1ec-47af-498b-b971-07f4dbc254b4",
+   "title": "Вrenduh stream clipping",
+   "brand": "Clipping Nest",
+   "category": "entertainment",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 0.5,
+   "budget_total": 1000.0,
+   "budget_left": 997.37,
+   "progress_pct": 0,
+   "platforms": [
+    "youtube",
+    "instagram",
+    "tiktok"
+   ],
+   "relevance": 0.3,
+   "score": 24.7,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/068fc1ec-47af-498b-b971-07f4dbc254b4",
+   "new": false,
+   "description": "Clip viral stream moments for Вrenduh. The clips should make people want to explore more about her.  \n\n"
+  },
+  {
    "id": "cd30789b-ecc7-48eb-98db-123dc84f5a25",
    "title": "No Tomorrow - Audio Campaign",
    "brand": "Tropical Revival",
@@ -6242,6 +6266,32 @@
    "link": "https://contentrewards.com/discover/cd30789b-ecc7-48eb-98db-123dc84f5a25",
    "new": false,
    "description": "Clip high quality and engaging content to connect with the sentiments of \"No Tomorrow\" to bring back the classic era of tropical house."
+  },
+  {
+   "id": "3cd225c8-7c1c-4cfb-82f2-adbde38c2941",
+   "title": "pre.dev Clipping [SOFTWARE CLIPS]",
+   "brand": "ClipLaunch",
+   "category": "technology",
+   "type": "clipping",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 2.0,
+   "budget_total": 1750.0,
+   "budget_left": 207.03999999999996,
+   "progress_pct": 88,
+   "platforms": [
+    "youtube",
+    "tiktok",
+    "instagram",
+    "x"
+   ],
+   "relevance": 1.0,
+   "score": 63.4,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/3cd225c8-7c1c-4cfb-82f2-adbde38c2941",
+   "new": false,
+   "description": "What is pre.dev? pre.dev is a platform that lets you describe the app or software you want to build in plain English, and it uses AI to help you plan, scope, and spec it out, without needing to know how to code. Your mission is to clip the best demos, founder insights, podcasts, and product showcases while pushing the narrative that pre.dev is one of the most powerful AI coding platforms available"
   },
   {
    "id": "c3334256-2e7d-4669-8963-eb135d6f5d81",
@@ -6276,8 +6326,8 @@
    "verified": false,
    "rate_per_1k": 2.0,
    "budget_total": 1000.0,
-   "budget_left": 754.62,
-   "progress_pct": 25,
+   "budget_left": 755.5,
+   "progress_pct": 24,
    "platforms": [
     "instagram",
     "youtube",
@@ -6301,7 +6351,7 @@
    "verified": false,
    "rate_per_1k": 0.4,
    "budget_total": 1700.0,
-   "budget_left": 1098.0700000000002,
+   "budget_left": 1098.08,
    "progress_pct": 35,
    "platforms": [
     "youtube",
@@ -6315,32 +6365,6 @@
    "link": "https://contentrewards.com/discover/46fbe76f-f3e0-4305-ad40-9627388a3364",
    "new": false,
    "description": ""
-  },
-  {
-   "id": "3cd225c8-7c1c-4cfb-82f2-adbde38c2941",
-   "title": "pre.dev Clipping [SOFTWARE CLIPS]",
-   "brand": "ClipLaunch",
-   "category": "technology",
-   "type": "clipping",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 2.0,
-   "budget_total": 1750.0,
-   "budget_left": 204.28999999999996,
-   "progress_pct": 88,
-   "platforms": [
-    "youtube",
-    "tiktok",
-    "instagram",
-    "x"
-   ],
-   "relevance": 1.0,
-   "score": 63.4,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/3cd225c8-7c1c-4cfb-82f2-adbde38c2941",
-   "new": false,
-   "description": "What is pre.dev? pre.dev is a platform that lets you describe the app or software you want to build in plain English, and it uses AI to help you plan, scope, and spec it out, without needing to know how to code. Your mission is to clip the best demos, founder insights, podcasts, and product showcases while pushing the narrative that pre.dev is one of the most powerful AI coding platforms available"
   },
   {
    "id": "6c9c23c5-0006-40ef-88db-dfd16d433c43",
@@ -6515,30 +6539,6 @@
    "description": "Create edits using the official DPAK campaign sound and post them on TikTok & Instagram Reels to earn based on views."
   },
   {
-   "id": "6b756b89-90d6-44d5-8328-dd295d38e735",
-   "title": "Earn $200 Per Sale with Acequision’s Offshore LLC & Bank Account Setup",
-   "brand": "Acequisition LLC",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 7.0,
-   "budget_total": 500.0,
-   "budget_left": 227.70999999999998,
-   "progress_pct": 54,
-   "platforms": [
-    "youtube",
-    "instagram"
-   ],
-   "relevance": 0.65,
-   "score": 51.0,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/6b756b89-90d6-44d5-8328-dd295d38e735",
-   "new": false,
-   "description": "\nClippers create short-form content from the @Acequisition YouTube channel promoting LLCVault (non-US) and FormationVault (US), covering offshore LLC formation, asset protection, privacy, tax efficiency, and sovereignty. Clippers earn pay-per-view PLUS $200 commission per sale generated through their clips (DM ME FOR YOUR UNIQUE LINKS OR USE WHOP) — this stacks on top of standard PPV and is tracke"
-  },
-  {
    "id": "b31e3d59-2064-4e6f-a01a-5080da8a2987",
    "title": "Coach Kyle Campaign",
    "brand": "Clipperazzi",
@@ -6564,6 +6564,30 @@
    "description": "Clipping for Coach Kyle"
   },
   {
+   "id": "6b756b89-90d6-44d5-8328-dd295d38e735",
+   "title": "Earn $200 Per Sale with Acequision’s Offshore LLC & Bank Account Setup",
+   "brand": "Acequisition LLC",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 7.0,
+   "budget_total": 500.0,
+   "budget_left": 227.70999999999998,
+   "progress_pct": 54,
+   "platforms": [
+    "youtube",
+    "instagram"
+   ],
+   "relevance": 0.65,
+   "score": 51.0,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/6b756b89-90d6-44d5-8328-dd295d38e735",
+   "new": false,
+   "description": "Clippers create short-form content from the @Acequisition YouTube channel promoting LLCVault (non-US) and FormationVault (US), covering offshore LLC formation, asset protection, privacy, tax efficiency, and sovereignty. Clippers earn pay-per-view PLUS $200 commission per sale generated through their clips (DM ME FOR YOUR UNIQUE LINKS OR USE WHOP) — this stacks on top of standard PPV and is tracked"
+  },
+  {
    "id": "78bf1e8e-da24-42ec-9eda-f5d21b9f04b6",
    "title": "Jacks Dining Room - [Viral Clipping]",
    "brand": "Clip Farm",
@@ -6587,30 +6611,6 @@
    "link": "https://contentrewards.com/discover/78bf1e8e-da24-42ec-9eda-f5d21b9f04b6",
    "new": false,
    "description": "Jack's Dining Room is a food + travel brand built around Jack — a creator focused on finding the best food and experiences on earth. The brand is built on high-impact storytelling, incredible food moments, big personality, and culturally immersive experiences."
-  },
-  {
-   "id": "bff72fa2-f49f-4aab-8c74-cf1a6443c85d",
-   "title": "Drummer Records Audio Clipping - Gaming/Brainrot Clips",
-   "brand": "Clip Farm",
-   "category": "music",
-   "type": "clipping",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 0.1,
-   "budget_total": 9000.0,
-   "budget_left": 1034.1499999999996,
-   "progress_pct": 89,
-   "platforms": [
-    "tiktok",
-    "instagram"
-   ],
-   "relevance": 0.15,
-   "score": 22.3,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/bff72fa2-f49f-4aab-8c74-cf1a6443c85d",
-   "new": false,
-   "description": "Overlay James Tonic's \"At The Time In New York\" (official audio only) on trending clips across TikTok and Instagram — get paid per view. No dedicated page required."
   },
   {
    "id": "8e281a6d-d037-47e1-96c3-284ca406adbe",
@@ -6682,7 +6682,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/3a6694a2-cf59-43eb-9028-1d1d529f109b",
    "new": false,
-   "description": "\n Film Reality — clip it, get paid\n\nHey! We're Film Reality  the app for tracking your films, TV shows and soundtracks all in one place, building your taste, and showing it off. We're trying to get it in front of as many movie people as possible, and that's where you come in: make a short video using the app, and get paid for every view it pulls.\n\nIdeas that pop off (pick one, make it your style):"
+   "description": " Film Reality — clip it, get paid\n\nHey! We're Film Reality  the app for tracking your films, TV shows and soundtracks all in one place, building your taste, and showing it off. We're trying to get it in front of as many movie people as possible, and that's where you come in: make a short video using the app, and get paid for every view it pulls.\n\nIdeas that pop off (pick one, make it your style):\n"
   },
   {
    "id": "5e5be7d5-2a2e-4bf1-b017-5e5d956ec269",
@@ -6708,29 +6708,6 @@
    "description": "Create Roblox Content by Merging 3 Provided Clips and Voila! You're Ready to Go Viral $Super Easy$"
   },
   {
-   "id": "4eca500f-88e9-4081-9b22-2ddadefec9df",
-   "title": "round and round | BBNO$ Edit Campaign",
-   "brand": "Clipping Culture",
-   "category": "music",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.0,
-   "budget_total": 1500.0,
-   "budget_left": 1075.88,
-   "progress_pct": 28,
-   "platforms": [
-    "tiktok"
-   ],
-   "relevance": 0.15,
-   "score": 18.8,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/4eca500f-88e9-4081-9b22-2ddadefec9df",
-   "new": false,
-   "description": "$$1.50 CPM\n1M views garuntyeed"
-  },
-  {
    "id": "47d90f6d-aa1d-402e-8f05-cad16eff8726",
    "title": "Business Basics | $2k Budget | $3 CPM",
    "brand": "Onyx",
@@ -6753,6 +6730,29 @@
    "link": "https://contentrewards.com/discover/47d90f6d-aa1d-402e-8f05-cad16eff8726",
    "new": false,
    "description": "Business Basics (@BusinessBasicsYT) is a YouTube Channel that covers geopolitics and world affairs, breaking down global conflicts, economic shifts, and power struggles between nations. Your job is to clip their YouTube videos into clean, well-edited short videos that grow their audience, the goal is to drive viewers to their main Instagram, TikTok & YouTube account. Read the google docs from the "
+  },
+  {
+   "id": "4eca500f-88e9-4081-9b22-2ddadefec9df",
+   "title": "round and round | BBNO$ Edit Campaign",
+   "brand": "Clipping Culture",
+   "category": "music",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 1.0,
+   "budget_total": 1500.0,
+   "budget_left": 1075.88,
+   "progress_pct": 28,
+   "platforms": [
+    "tiktok"
+   ],
+   "relevance": 0.15,
+   "score": 18.8,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/4eca500f-88e9-4081-9b22-2ddadefec9df",
+   "new": false,
+   "description": "$$1.50 CPM\n1M views garuntyeed"
   },
   {
    "id": "37ebb731-3540-49c2-af25-027a1a159df1",
@@ -6823,33 +6823,6 @@
    "link": "https://contentrewards.com/discover/37f75dd0-b8da-4dd0-aab3-249cbac2ebfe",
    "new": false,
    "description": "Clip the best moments of Shirin Dayel's content and get paid for viral views. Join the campaign, post short-form clips on TikTok, Instagram Reels, and other social platforms, and earn $1 per 1,000 views while driving traffic through viral entertainment content."
-  },
-  {
-   "id": "fececcb7-7751-4480-bcf9-8b56f4ff3a20",
-   "title": "PLG.Bet Logo Campaign",
-   "brand": "Koji Media",
-   "category": "logo",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 0.15,
-   "budget_total": 2000.0,
-   "budget_left": 2000.0,
-   "progress_pct": 0,
-   "platforms": [
-    "instagram",
-    "tiktok",
-    "x"
-   ],
-   "relevance": 0.1,
-   "score": 15.6,
-   "flags": [
-    "EXCLUDED:.bet"
-   ],
-   "excluded": true,
-   "link": "https://contentrewards.com/discover/fececcb7-7751-4480-bcf9-8b56f4ff3a20",
-   "new": false,
-   "description": "Read Full Rules!!!"
   },
   {
    "id": "e045d701-b073-45fc-9988-c13295e0dadf",
@@ -6985,7 +6958,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 1000.0,
-   "budget_left": 449.82000000000005,
+   "budget_left": 449.83000000000004,
    "progress_pct": 55,
    "platforms": [
     "instagram",
@@ -7024,6 +6997,33 @@
    "link": "https://contentrewards.com/discover/74e0d3c6-b7ba-43e8-ab74-ae9ea44caefd",
    "new": false,
    "description": "Want clips with viral potential from any forms of content. Mainly going to be coming from my Youtube and kick streams. a tag to my main page must be in your bio"
+  },
+  {
+   "id": "fececcb7-7751-4480-bcf9-8b56f4ff3a20",
+   "title": "PLG.Bet Logo Campaign",
+   "brand": "Koji Media",
+   "category": "logo",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 0.15,
+   "budget_total": 2000.0,
+   "budget_left": 2000.0,
+   "progress_pct": 0,
+   "platforms": [
+    "instagram",
+    "tiktok",
+    "x"
+   ],
+   "relevance": 0.1,
+   "score": 15.6,
+   "flags": [
+    "EXCLUDED:.bet"
+   ],
+   "excluded": true,
+   "link": "https://contentrewards.com/discover/fececcb7-7751-4480-bcf9-8b56f4ff3a20",
+   "new": false,
+   "description": "Read Full Rules!!!"
   },
   {
    "id": "5f460604-b76e-438a-9d09-63259e9a3867",
@@ -7108,7 +7108,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1800.0,
-   "budget_left": 1544.87,
+   "budget_left": 1544.8899999999999,
    "progress_pct": 14,
    "platforms": [
     "youtube",
@@ -7208,7 +7208,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 1000.0,
-   "budget_left": 975.13,
+   "budget_left": 975.19,
    "progress_pct": 2,
    "platforms": [
     "tiktok"
@@ -7516,6 +7516,31 @@
    "description": "HealthMeter is an all-in-one health and nutrition tracker that helps people log meals, track workouts, track calories and macros, and build healthier habits. Create engaging TikTok slideshows using our ready-made formats, AI tool, overlay text, and music. The goal is to make every slideshow relatable and convincing enough to drive HealthMeter downloads."
   },
   {
+   "id": "ebfbe87e-b5df-46d1-a4fb-d6725c4e8314",
+   "title": "Jeremiah Brown Clipping | $9,100 budget | $0.8 CPM",
+   "brand": "Propaganda ",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 0.8,
+   "budget_total": 9100.0,
+   "budget_left": 985.3199999999997,
+   "progress_pct": 89,
+   "platforms": [
+    "instagram",
+    "youtube",
+    "tiktok"
+   ],
+   "relevance": 0.6,
+   "score": 43.7,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/ebfbe87e-b5df-46d1-a4fb-d6725c4e8314",
+   "new": false,
+   "description": "Jeremiah Brown creates content on Twitch and YouTube, sharing stories, reactions, conversations, and everyday experiences with his audience. All clips must come directly from Jeremiah’s Twitch streams or YouTube videos. Focus on authentic reactions, funny moments, engaging conversations, strong opinions, emotional moments, and clips that spark curiosity and keep viewers watching."
+  },
+  {
    "id": "1efdbbea-cf89-446d-8c9b-756ba2c0f58a",
    "title": "Finsta App Logo Campaign",
    "brand": "Finsta App",
@@ -7538,31 +7563,6 @@
    "link": "https://contentrewards.com/discover/1efdbbea-cf89-446d-8c9b-756ba2c0f58a",
    "new": false,
    "description": "Use our logo / gif in your streamer clips and get paid. Very simple."
-  },
-  {
-   "id": "41babd2a-080e-4e7a-a27f-6bde1094b1a3",
-   "title": "DiagoFit Clipping",
-   "brand": "VOLUM",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.0,
-   "budget_total": 1350.0,
-   "budget_left": 1075.13,
-   "progress_pct": 20,
-   "platforms": [
-    "youtube",
-    "tiktok",
-    "instagram"
-   ],
-   "relevance": 0.65,
-   "score": 41.3,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/41babd2a-080e-4e7a-a27f-6bde1094b1a3",
-   "new": false,
-   "description": "Clip Diagofit content and get paid per 1,000 views. Post on TikTok, Instagram, or YouTube — the more views you get, the more you earn. Read the guidelines carefully before posting and submit your content through Whop to get paid."
   },
   {
    "id": "712da60f-a981-45f2-84de-358e7fcf312d",
@@ -7591,29 +7591,29 @@
    "description": "Clips about Timmeh at TJR Island"
   },
   {
-   "id": "ebfbe87e-b5df-46d1-a4fb-d6725c4e8314",
-   "title": "Jeremiah Brown Clipping | $9,100 budget | $0.8 CPM",
-   "brand": "Propaganda ",
+   "id": "41babd2a-080e-4e7a-a27f-6bde1094b1a3",
+   "title": "DiagoFit Clipping",
+   "brand": "VOLUM",
    "category": "personal brand",
    "type": "clipping",
    "status": "active",
-   "verified": true,
-   "rate_per_1k": 0.8,
-   "budget_total": 9100.0,
-   "budget_left": 980.0100000000002,
-   "progress_pct": 89,
+   "verified": false,
+   "rate_per_1k": 1.0,
+   "budget_total": 1350.0,
+   "budget_left": 1075.13,
+   "progress_pct": 20,
    "platforms": [
-    "instagram",
     "youtube",
-    "tiktok"
+    "tiktok",
+    "instagram"
    ],
-   "relevance": 0.6,
-   "score": 43.7,
+   "relevance": 0.65,
+   "score": 41.3,
    "flags": [],
    "excluded": false,
-   "link": "https://contentrewards.com/discover/ebfbe87e-b5df-46d1-a4fb-d6725c4e8314",
+   "link": "https://contentrewards.com/discover/41babd2a-080e-4e7a-a27f-6bde1094b1a3",
    "new": false,
-   "description": "Jeremiah Brown creates content on Twitch and YouTube, sharing stories, reactions, conversations, and everyday experiences with his audience. All clips must come directly from Jeremiah’s Twitch streams or YouTube videos. Focus on authentic reactions, funny moments, engaging conversations, strong opinions, emotional moments, and clips that spark curiosity and keep viewers watching."
+   "description": "Clip Diagofit content and get paid per 1,000 views. Post on TikTok, Instagram, or YouTube — the more views you get, the more you earn. Read the guidelines carefully before posting and submit your content through Whop to get paid."
   },
   {
    "id": "a230e9ed-d603-4b7e-8854-2b3f50c83a4f",
@@ -7870,7 +7870,7 @@
    "verified": false,
    "rate_per_1k": 0.2,
    "budget_total": 1195.0,
-   "budget_left": 1135.64,
+   "budget_left": 1135.68,
    "progress_pct": 5,
    "platforms": [
     "instagram",
@@ -7987,30 +7987,7 @@
    "excluded": true,
    "link": "https://contentrewards.com/discover/3175e71f-f058-408c-b6ff-c3c2831447b8",
    "new": false,
-   "description": "\nSharky World Cup Vibe Jam — Create, Clip & Earn 🌎⚽🎮\n\nMake the World Cup playable.\n\nSharky.gg is the first AI-native multiplayer game creation platform. Prompt a game. Share the link. Play with friends in Discord. Seconds, not weeks.\n\nFrom May 20 – June 20, we’re running the Sharky World Cup Vibe Jam — a 32-day creator campaign for creators, editors, streamers, and UGC makers.\n\nThere are two separ"
-  },
-  {
-   "id": "eb0858cd-78f3-4749-820c-3348e33ea74f",
-   "title": "High Payout",
-   "brand": "DREANZ - VINTAGE RESELLING & SUPPLIERS",
-   "category": "personal brand",
-   "type": "ugc",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 0.5,
-   "budget_total": 1000.0,
-   "budget_left": 730.96,
-   "progress_pct": 27,
-   "platforms": [
-    "tiktok"
-   ],
-   "relevance": 0.6,
-   "score": 38.1,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/eb0858cd-78f3-4749-820c-3348e33ea74f",
-   "new": false,
-   "description": ""
+   "description": "Sharky World Cup Vibe Jam — Create, Clip & Earn 🌎⚽🎮\n\nMake the World Cup playable.\n\nSharky.gg is the first AI-native multiplayer game creation platform. Prompt a game. Share the link. Play with friends in Discord. Seconds, not weeks.\n\nFrom May 20 – June 20, we’re running the Sharky World Cup Vibe Jam — a 32-day creator campaign for creators, editors, streamers, and UGC makers.\n\nThere are two separa"
   },
   {
    "id": "96feea70-28c4-40be-b6db-76d57156c910",
@@ -8063,6 +8040,29 @@
    "description": "This campaign is designed to expand the reach of Leif Bjelland's personal brand, introduce his ideas on breathwork and quieting the mind to new audiences, and drive qualified viewers to his social profiles. Clippers should prioritise engaging, high-retention moments that showcase Leif's lived experience, grounded perspective, and contrarian take on why more information isn't the answer, while appe"
   },
   {
+   "id": "eb0858cd-78f3-4749-820c-3348e33ea74f",
+   "title": "High Payout",
+   "brand": "DREANZ - VINTAGE RESELLING & SUPPLIERS",
+   "category": "personal brand",
+   "type": "ugc",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 0.5,
+   "budget_total": 1000.0,
+   "budget_left": 730.96,
+   "progress_pct": 27,
+   "platforms": [
+    "tiktok"
+   ],
+   "relevance": 0.6,
+   "score": 38.1,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/eb0858cd-78f3-4749-820c-3348e33ea74f",
+   "new": false,
+   "description": ""
+  },
+  {
    "id": "509d76a7-942d-4ad6-a60c-930e1112eb31",
    "title": "BLOND:ISH Stream Highlights Clipping 1",
    "brand": "BLOND:ISH",
@@ -8097,7 +8097,7 @@
    "verified": false,
    "rate_per_1k": 0.4,
    "budget_total": 9000.0,
-   "budget_left": 1020.25,
+   "budget_left": 1021.1599999999999,
    "progress_pct": 89,
    "platforms": [
     "youtube",
@@ -8416,7 +8416,7 @@
    "verified": false,
    "rate_per_1k": 1.5,
    "budget_total": 500.0,
-   "budget_left": 101.68,
+   "budget_left": 101.85000000000002,
    "progress_pct": 80,
    "platforms": [
     "instagram",
@@ -8454,7 +8454,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/13e9507e-5554-4766-8b36-67491cfafcb7",
    "new": false,
-   "description": "\n💵 Paid Creator Opportunity: Shopify App Short-Form Videos\n\nWe’re looking for fluent English-speaking creators to make short vertical videos for Sternify, a Shopify app used by ecommerce stores to improve their product pages, trust sections, upsells, bundles, and cart drawer.\n\nThis is not a polished ad job. We want native short-form content that feels like TikTok/Reels: clear, direct, useful, and "
+   "description": "💵 Paid Creator Opportunity: Shopify App Short-Form Videos\n\nWe’re looking for fluent English-speaking creators to make short vertical videos for Sternify, a Shopify app used by ecommerce stores to improve their product pages, trust sections, upsells, bundles, and cart drawer.\n\nThis is not a polished ad job. We want native short-form content that feels like TikTok/Reels: clear, direct, useful, and e"
   },
   {
    "id": "1c8ef5c4-5fc2-4f8d-9dc7-a28d2609957c",
@@ -8514,7 +8514,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 1000.0,
-   "budget_left": 835.74,
+   "budget_left": 835.85,
    "progress_pct": 16,
    "platforms": [
     "tiktok"
@@ -8551,30 +8551,6 @@
    "description": ""
   },
   {
-   "id": "ab4b1187-84be-4692-9cf4-012a129316fd",
-   "title": "Roxane Clipping",
-   "brand": "Roxane FRANCE clipping",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 0.5,
-   "budget_total": 500.0,
-   "budget_left": 259.55,
-   "progress_pct": 48,
-   "platforms": [
-    "instagram",
-    "tiktok"
-   ],
-   "relevance": 0.6,
-   "score": 37.9,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/ab4b1187-84be-4692-9cf4-012a129316fd",
-   "new": false,
-   "description": ""
-  },
-  {
    "id": "4c83f24e-56de-42cf-98c3-f600bf4b1a5d",
    "title": "Shrimp & Co - UK Streamers Clipping",
    "brand": "FYP Clips",
@@ -8597,6 +8573,30 @@
    "link": "https://contentrewards.com/discover/4c83f24e-56de-42cf-98c3-f600bf4b1a5d",
    "new": false,
    "description": "Shrimp & Co are teaming up with six big name UK streamers to host an opening day stream for their new store! 🔥\n\nClip up any viral, funny or special moments to get paid! 💰"
+  },
+  {
+   "id": "ab4b1187-84be-4692-9cf4-012a129316fd",
+   "title": "Roxane Clipping",
+   "brand": "Roxane FRANCE clipping",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 0.5,
+   "budget_total": 500.0,
+   "budget_left": 259.55,
+   "progress_pct": 48,
+   "platforms": [
+    "instagram",
+    "tiktok"
+   ],
+   "relevance": 0.6,
+   "score": 37.9,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/ab4b1187-84be-4692-9cf4-012a129316fd",
+   "new": false,
+   "description": ""
   },
   {
    "id": "d86b37b7-87b0-4d46-9cad-244a787e1d51",
@@ -8659,7 +8659,7 @@
    "verified": false,
    "rate_per_1k": 0.35,
    "budget_total": 5000.0,
-   "budget_left": 585.2399999999998,
+   "budget_left": 585.2600000000002,
    "progress_pct": 88,
    "platforms": [
     "instagram",
@@ -8795,29 +8795,6 @@
    "description": ""
   },
   {
-   "id": "d10591c5-203a-4c7a-a75b-c51c8907f6b4",
-   "title": "206ALO Clipping Campaign",
-   "brand": "BP x Clipping",
-   "category": "personal brand",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 0.5,
-   "budget_total": 1000.0,
-   "budget_left": 960.18,
-   "progress_pct": 4,
-   "platforms": [
-    "tiktok"
-   ],
-   "relevance": 0.7,
-   "score": 42.7,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/d10591c5-203a-4c7a-a75b-c51c8907f6b4",
-   "new": false,
-   "description": "Submit clips from 206ALO content and earn based on qualified views.\n\nCreators can post on TikTok, Instagram Reels, YouTube Shorts, X, or Facebook. Submit your video link after posting. Approved clips will be tracked and paid based on campaign rewards.\n\nDo not submit stolen, low-quality, deleted, private, or unrelated content. Only approved clips are eligible for payout."
-  },
-  {
    "id": "74dc649b-ee1d-42f4-a1ff-e12d45f93706",
    "title": "Hornyt.ai Clipping (AI CHATBOT ONLYFNAS)",
    "brand": "hornyt AI",
@@ -8844,6 +8821,29 @@
    "link": "https://contentrewards.com/discover/74dc649b-ee1d-42f4-a1ff-e12d45f93706",
    "new": false,
    "description": "Earn by promoting Hornyt.ai, the AI chat automation platform for creators and agencies.\n\nCreate short-form videos for TikTok, Instagram Reels, YouTube Shorts, or X showing how creators and OFM agencies can automate fan chats, reply 24/7, and scale revenue with AI.\n\nYou can use our demo footage, your own voiceover, reactions, screen recordings, or educational hooks. The video must clearly mention H"
+  },
+  {
+   "id": "d10591c5-203a-4c7a-a75b-c51c8907f6b4",
+   "title": "206ALO Clipping Campaign",
+   "brand": "BP x Clipping",
+   "category": "personal brand",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 0.5,
+   "budget_total": 1000.0,
+   "budget_left": 960.56,
+   "progress_pct": 4,
+   "platforms": [
+    "tiktok"
+   ],
+   "relevance": 0.7,
+   "score": 42.7,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/d10591c5-203a-4c7a-a75b-c51c8907f6b4",
+   "new": false,
+   "description": "Submit clips from 206ALO content and earn based on qualified views.\n\nCreators can post on TikTok, Instagram Reels, YouTube Shorts, X, or Facebook. Submit your video link after posting. Approved clips will be tracked and paid based on campaign rewards.\n\nDo not submit stolen, low-quality, deleted, private, or unrelated content. Only approved clips are eligible for payout."
   },
   {
    "id": "ea48a847-ba33-46b8-9d33-810414929873",
@@ -8903,7 +8903,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 10500.0,
-   "budget_left": 969.7600000000002,
+   "budget_left": 970.0699999999997,
    "progress_pct": 91,
    "platforms": [
     "youtube",
@@ -9007,7 +9007,7 @@
    "verified": false,
    "rate_per_1k": 0.3,
    "budget_total": 6604.53,
-   "budget_left": 651.04,
+   "budget_left": 651.1599999999999,
    "progress_pct": 90,
    "platforms": [
     "instagram",
@@ -9057,7 +9057,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 19500.0,
-   "budget_left": 1719.6500000000015,
+   "budget_left": 1719.9900000000016,
    "progress_pct": 91,
    "platforms": [
     "tiktok"
@@ -9281,7 +9281,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 3750.0,
-   "budget_left": 285.9499999999998,
+   "budget_left": 286.0500000000002,
    "progress_pct": 92,
    "platforms": [
     "tiktok",
@@ -9546,8 +9546,8 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 1000.0,
-   "budget_left": 975.0,
-   "progress_pct": 3,
+   "budget_left": 975.02,
+   "progress_pct": 2,
    "platforms": [
     "youtube"
    ],
@@ -9558,6 +9558,32 @@
    "link": "https://contentrewards.com/discover/e7d41210-0f7e-4385-87e7-f708d73f6720",
    "new": false,
    "description": "Clips with adult humour, politics, controversial topics, stuff that makes me look bad, are all ok - anything goes, as long as YouTube and Content Rewards' rules are followed. Also, AI is ok."
+  },
+  {
+   "id": "f46988fb-3c9a-41d8-99b6-04d28f194871",
+   "title": "Kuky - Teodoro | Music audio only Campaign",
+   "brand": "Music Promo Clippers",
+   "category": "music",
+   "type": "ugc",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 1.5,
+   "budget_total": 780.0,
+   "budget_left": 89.57000000000005,
+   "progress_pct": 89,
+   "platforms": [
+    "youtube",
+    "tiktok",
+    "instagram",
+    "facebook"
+   ],
+   "relevance": 0.15,
+   "score": 19.3,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/f46988fb-3c9a-41d8-99b6-04d28f194871",
+   "new": false,
+   "description": "Use your best editing content to promote this song by adding its audio and optionally lyrics to your content, and adding the song & artist name in the description/comments and visible on the video itself with text. Also tag the artist.\n\nExample: \"Xaiah - Save Me\""
   },
   {
    "id": "18e98f9e-1b51-4f56-a6bb-9f3cc05b64c1",
@@ -9609,32 +9635,6 @@
    "description": "Clip CHLOE Explains, the Lyrical Lemonade interview show. Cut the best moments from any episode and post them to TikTok, Instagram Reels, or YouTube Shorts.\n\nEarn $1.50 per 1,000 views. Minimum 5,000 views to get paid.\n\nEvery clip must tag @lyricallemonade and use #CHLOEexplains. Pull footage from the official episodes only. Assets and full episodes are in the Drive folder below.\n\nClips must hold "
   },
   {
-   "id": "f46988fb-3c9a-41d8-99b6-04d28f194871",
-   "title": "Kuky - Teodoro | Music audio only Campaign",
-   "brand": "Music Promo Clippers",
-   "category": "music",
-   "type": "ugc",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.5,
-   "budget_total": 780.0,
-   "budget_left": 87.00999999999999,
-   "progress_pct": 89,
-   "platforms": [
-    "youtube",
-    "tiktok",
-    "instagram",
-    "facebook"
-   ],
-   "relevance": 0.15,
-   "score": 19.3,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/f46988fb-3c9a-41d8-99b6-04d28f194871",
-   "new": false,
-   "description": "Use your best editing content to promote this song by adding its audio and optionally lyrics to your content, and adding the song & artist name in the description/comments and visible on the video itself with text. Also tag the artist.\n\nExample: \"Xaiah - Save Me\""
-  },
-  {
    "id": "32d31112-1b43-43b0-85cc-fd950f4793f8",
    "title": "UGC Vids AI",
    "brand": "Viewify",
@@ -9669,7 +9669,7 @@
    "verified": true,
    "rate_per_1k": 1.25,
    "budget_total": 34000.0,
-   "budget_left": 1908.7099999999991,
+   "budget_left": 1909.130000000001,
    "progress_pct": 94,
    "platforms": [
     "youtube",
@@ -9754,7 +9754,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/689c9078-7cfb-4ade-a410-0496b5445c89",
    "new": false,
-   "description": "\nBroke? Chronically online? Spend way too much time watching creators anyway?\n\nPerfect.\n\nYou don't need a big following, editing experience, or a successful social media account to make money with this program. All you need is a good eye for content and the ability to spot moments that have viral potential.\n\nHere's how it works:\n\nWatch Duel.com creator content, livestreams, or VODs. Find funny, ed"
+   "description": "Broke? Chronically online? Spend way too much time watching creators anyway?\n\nPerfect.\n\nYou don't need a big following, editing experience, or a successful social media account to make money with this program. All you need is a good eye for content and the ability to spot moments that have viral potential.\n\nHere's how it works:\n\nWatch Duel.com creator content, livestreams, or VODs. Find funny, edu"
   },
   {
    "id": "157ca7f3-8b5e-45b8-bdc6-0741a7d0c960",
@@ -9815,7 +9815,7 @@
    "verified": false,
    "rate_per_1k": 0.25,
    "budget_total": 9653.87,
-   "budget_left": 720.710000000001,
+   "budget_left": 720.9000000000015,
    "progress_pct": 93,
    "platforms": [
     "youtube",
@@ -9841,7 +9841,7 @@
    "verified": false,
    "rate_per_1k": 0.4,
    "budget_total": 4784.0,
-   "budget_left": 383.2399999999998,
+   "budget_left": 383.25,
    "progress_pct": 92,
    "platforms": [
     "instagram",
@@ -10051,6 +10051,31 @@
    "description": "Clipping/Edit campaign for Bub Styles' new OUTERWEAR SZN 6"
   },
   {
+   "id": "c24409b5-7983-4f4c-bf69-a33453d4b784",
+   "title": "Drew's Campaign",
+   "brand": "That Boy Drew 22",
+   "category": "entertainment",
+   "type": "clipping",
+   "status": "active",
+   "verified": false,
+   "rate_per_1k": 1.0,
+   "budget_total": 1000.0,
+   "budget_left": 63.65999999999997,
+   "progress_pct": 94,
+   "platforms": [
+    "youtube",
+    "instagram",
+    "tiktok"
+   ],
+   "relevance": 0.3,
+   "score": 25.2,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/c24409b5-7983-4f4c-bf69-a33453d4b784",
+   "new": false,
+   "description": "Earn $1 per 1,000 Views"
+  },
+  {
    "id": "7dbcb79d-d312-42e2-abe4-1a1bfce76188",
    "title": "Clip2Earn",
    "brand": "Freedom Builders",
@@ -10075,31 +10100,6 @@
    "link": "https://contentrewards.com/discover/7dbcb79d-d312-42e2-abe4-1a1bfce76188",
    "new": false,
    "description": "Chiến dịch dành cho cộng đồng Freedom Builders:\n💰 $2 / 1,000 views\nKhi bạn cắt video giá trị từ hệ sinh thái và đăng lên social của mình.\n\nChỉ cần:\nCắt đoạn hay\nĐăng TikTok / Reels / Shorts\nLan tỏa cơ hội AI & Global Income\nVừa xây personal brand\nVừa tạo thu nhập\nVừa giúp cộng đồng phát triển 🚀\nBuild Freedom. Share & Earn."
-  },
-  {
-   "id": "c24409b5-7983-4f4c-bf69-a33453d4b784",
-   "title": "Drew's Campaign",
-   "brand": "That Boy Drew 22",
-   "category": "entertainment",
-   "type": "clipping",
-   "status": "active",
-   "verified": false,
-   "rate_per_1k": 1.0,
-   "budget_total": 1000.0,
-   "budget_left": 63.57000000000005,
-   "progress_pct": 94,
-   "platforms": [
-    "youtube",
-    "instagram",
-    "tiktok"
-   ],
-   "relevance": 0.3,
-   "score": 25.2,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/c24409b5-7983-4f4c-bf69-a33453d4b784",
-   "new": false,
-   "description": "Earn $1 per 1,000 Views"
   },
   {
    "id": "e6120b78-012b-4252-b92a-8cc3e4b5b925",
@@ -10136,7 +10136,7 @@
    "verified": true,
    "rate_per_1k": 1.0,
    "budget_total": 40445.0,
-   "budget_left": 1892.1699999999983,
+   "budget_left": 1907.1399999999994,
    "progress_pct": 95,
    "platforms": [
     "tiktok",
@@ -10184,7 +10184,7 @@
    "verified": true,
    "rate_per_1k": 0.5,
    "budget_total": 1800.0,
-   "budget_left": 95.75,
+   "budget_left": 95.86999999999989,
    "progress_pct": 95,
    "platforms": [
     "tiktok",
@@ -10256,7 +10256,7 @@
    "verified": true,
    "rate_per_1k": 0.12,
    "budget_total": 35005.0,
-   "budget_left": 1431.75,
+   "budget_left": 1431.760000000002,
    "progress_pct": 96,
    "platforms": [
     "tiktok",
@@ -10467,7 +10467,7 @@
    "excluded": true,
    "link": "https://contentrewards.com/discover/b463313d-46fc-4a0b-90dd-533931bf0bdf",
    "new": false,
-   "description": "\npick your angle\n\nChoose one of these three topics. You can combine them, but lead with one.\n\nANGLE 1 // TRUtaste: Most devices use a post inside the pod. That post has metals, synthetic cotton, and glue. All sitting in your oil. turn removed all of it. No post. No metals. No cotton. No glue. Just the oil and a food-safe silicone seal.\nUse the b-roll of a competitor post being pulled apart vs turn"
+   "description": "pick your angle\n\nChoose one of these three topics. You can combine them, but lead with one.\n\nANGLE 1 // TRUtaste: Most devices use a post inside the pod. That post has metals, synthetic cotton, and glue. All sitting in your oil. turn removed all of it. No post. No metals. No cotton. No glue. Just the oil and a food-safe silicone seal.\nUse the b-roll of a competitor post being pulled apart vs turn’"
   },
   {
    "id": "04312bc7-6ada-49b5-989b-d143bc54cb1f",
@@ -10539,7 +10539,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/f4f307ac-9a7d-4bb5-ab8d-ad96edf82db0",
    "new": false,
-   "description": "\n💸🔥 CLIP MY STREAMS & GET PAID 🔥💸\n🎥 I go LIVE on TikTok every day from 4AM – 11AM EST  \n💅 I’m looking for people who can turn my BEST live moments into VIRAL clips  \n\n───────────────\n\n📌 WHAT TO DO:\n• ✂️ Clip moments directly from my LIVE streams (NOT old page content)  \n• 📲 Post clips on TikTok  \n• 🏷️ YOU MUST tag @Benzi_2.0 in EVERY clip  \n• 📅 Stay consistent and post daily  \n\n───────────────\n\n💰 "
+   "description": "💸🔥 CLIP MY STREAMS & GET PAID 🔥💸\n🎥 I go LIVE on TikTok every day from 4AM – 11AM EST  \n💅 I’m looking for people who can turn my BEST live moments into VIRAL clips  \n\n───────────────\n\n📌 WHAT TO DO:\n• ✂️ Clip moments directly from my LIVE streams (NOT old page content)  \n• 📲 Post clips on TikTok  \n• 🏷️ YOU MUST tag @Benzi_2.0 in EVERY clip  \n• 📅 Stay consistent and post daily  \n\n───────────────\n\n💰 P"
   },
   {
    "id": "57f5e009-03b0-43de-8cad-d2bf8c3ed333",
@@ -10666,7 +10666,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/71ac3df6-6c1a-4224-b528-027152b6bfae",
    "new": false,
-   "description": "\nWelcome to the Testo Maxxing Content Rewards Team! 💪\n\nYour job: short-form content that shows people why the Testo Maxxing App is the easiest and best way to increase ones Testosterone naturally. \n\nThe angle that works --> Check out the following App Accounts: \n\n- Checkoasis (scientific angle)\n- officialaronov (Society topics and then why Testo Maxxing matters)\n- lucy_japanese (Text with face as "
+   "description": "Welcome to the Testo Maxxing Content Rewards Team! 💪\n\nYour job: short-form content that shows people why the Testo Maxxing App is the easiest and best way to increase ones Testosterone naturally. \n\nThe angle that works --> Check out the following App Accounts: \n\n- Checkoasis (scientific angle)\n- officialaronov (Society topics and then why Testo Maxxing matters)\n- lucy_japanese (Text with face as t"
   },
   {
    "id": "a0731a07-269e-42a1-9c01-06108dea12d6",
@@ -10678,7 +10678,7 @@
    "verified": true,
    "rate_per_1k": 1.75,
    "budget_total": 30000.0,
-   "budget_left": 845.630000000001,
+   "budget_left": 859.5699999999997,
    "progress_pct": 97,
    "platforms": [
     "tiktok"
@@ -10969,7 +10969,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 2822.0,
-   "budget_left": 99.48000000000002,
+   "budget_left": 99.48999999999978,
    "progress_pct": 96,
    "platforms": [
     "tiktok"
@@ -11115,7 +11115,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 13250.0,
-   "budget_left": 342.14999999999964,
+   "budget_left": 342.34000000000015,
    "progress_pct": 97,
    "platforms": [
     "instagram",
@@ -11152,7 +11152,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/736975f2-cd6d-454e-b9e4-4aff74f0b6ae",
    "new": false,
-   "description": "\nSmart — that's a clean incentive. A free-month code costs you nothing (they're new users anyway) and gives creators a reason to actually try the app before filming, which means way better content.\nLet me add that to the description and tighten it up. Copy-paste this version:\n\n📣 GET PAID TO POST — $3 PER 1,000 VIEWS\nCalling all door-to-door reps, creators, and sales influencers. Make content featu"
+   "description": "Smart — that's a clean incentive. A free-month code costs you nothing (they're new users anyway) and gives creators a reason to actually try the app before filming, which means way better content.\nLet me add that to the description and tighten it up. Copy-paste this version:\n\n📣 GET PAID TO POST — $3 PER 1,000 VIEWS\nCalling all door-to-door reps, creators, and sales influencers. Make content featur"
   },
   {
    "id": "0ea6f4ef-d02d-4433-8b61-02a0191c3540",
@@ -11214,7 +11214,7 @@
    "verified": false,
    "rate_per_1k": 1.0,
    "budget_total": 71225.0,
-   "budget_left": 1394.2799999999988,
+   "budget_left": 1396.6399999999994,
    "progress_pct": 98,
    "platforms": [
     "youtube",
@@ -11325,7 +11325,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/6ee437cf-21e0-47f2-9ba5-1d3c69c6844b",
    "new": false,
-   "description": "\nWe're looking for authentic TikTok and Instagram creators to share content about Sweat Tent — the only portable sauna that reaches 200°F (real clinical sauna temperatures).\nWHAT WE SELL:\nSweat Tent is a portable, wood-fired sauna that sets up in 15 minutes and reaches 200°F. No\nelectricity needed. It packs into a bag and delivers a real sauna experience in your backyard. Priced at $1499 Over 10,0"
+   "description": "We're looking for authentic TikTok and Instagram creators to share content about Sweat Tent — the only portable sauna that reaches 200°F (real clinical sauna temperatures).\nWHAT WE SELL:\nSweat Tent is a portable, wood-fired sauna that sets up in 15 minutes and reaches 200°F. No\nelectricity needed. It packs into a bag and delivers a real sauna experience in your backyard. Priced at $1499 Over 10,00"
   },
   {
    "id": "19f39dab-b693-4696-b8f0-6f69fb1e66d4",
@@ -11448,7 +11448,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/a9db1b9b-a93b-4cb9-95f8-2e24267a9abe",
    "new": false,
-   "description": "\n\nORGN (Origin) is an AI‑powered coding platform that keeps your code confidential by default, no matter what. We’re in early alpha and looking to generate buzz, build awareness, and capture mindshare on social media and among a technical audience. \n\nAs part of this campaign, you’ll create high‑quality UGC videos introducing ORGN as a new, serious contender in the AI coding‑tool space, as a secure"
+   "description": "\nORGN (Origin) is an AI‑powered coding platform that keeps your code confidential by default, no matter what. We’re in early alpha and looking to generate buzz, build awareness, and capture mindshare on social media and among a technical audience. \n\nAs part of this campaign, you’ll create high‑quality UGC videos introducing ORGN as a new, serious contender in the AI coding‑tool space, as a secure "
   },
   {
    "id": "9baab199-ba10-4a1a-ae42-9ecb7388a59f",
@@ -11533,7 +11533,7 @@
    "verified": false,
    "rate_per_1k": 0.5,
    "budget_total": 8000.0,
-   "budget_left": 128.28999999999996,
+   "budget_left": 130.64999999999964,
    "progress_pct": 98,
    "platforms": [
     "tiktok"
@@ -11773,7 +11773,7 @@
    "verified": true,
    "rate_per_1k": 1.5,
    "budget_total": 1000.0,
-   "budget_left": 6.659999999999968,
+   "budget_left": 7.25,
    "progress_pct": 99,
    "platforms": [
     "tiktok",
@@ -11903,7 +11903,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/25223470-294d-44cb-b5f8-ba73952f1d65",
    "new": false,
-   "description": "\n  An autonomous AI agent was given $1,000 and 5 days to get Marc Andreessen to reply to a single email. It bought billboards, hired 6\n  humans off Craigslist, got blocked by a16z security (on video through Meta AI glasses), and a high schooler scammed it out of 75% of its\n  budget.\n\n  The full campaign archive is live at pmarca.ai — every dollar spent, every decision logged.\n\n  YOUR TASK: Make a "
+   "description": "  An autonomous AI agent was given $1,000 and 5 days to get Marc Andreessen to reply to a single email. It bought billboards, hired 6\n  humans off Craigslist, got blocked by a16z security (on video through Meta AI glasses), and a high schooler scammed it out of 75% of its\n  budget.\n\n  The full campaign archive is live at pmarca.ai — every dollar spent, every decision logged.\n\n  YOUR TASK: Make a v"
   },
   {
    "id": "3f46886e-42ec-4bbd-8fe3-686e772b7090",
@@ -11976,7 +11976,7 @@
    "excluded": false,
    "link": "https://contentrewards.com/discover/83d5cd0d-301f-4562-ab89-d9609068a3ea",
    "new": false,
-   "description": "\nWe're building a network of video editors and content creators who clip IDL event footage and post it on TikTok and Instagram. Your job is simple: watch the footage, find the best moments, cut something people can't scroll past, and post it.\nThis is not brand content. This is fan-driven, culture-first clipping. Go for the moments that hit, not the moments that look \"official.\" Content must be ori"
+   "description": "We're building a network of video editors and content creators who clip IDL event footage and post it on TikTok and Instagram. Your job is simple: watch the footage, find the best moments, cut something people can't scroll past, and post it.\nThis is not brand content. This is fan-driven, culture-first clipping. Go for the moments that hit, not the moments that look \"official.\" Content must be orig"
   },
   {
    "id": "2f40eead-db93-4f4c-84ec-be51869b958a",
@@ -12088,7 +12088,7 @@
    "verified": true,
    "rate_per_1k": 0.6,
    "budget_total": 318751.62,
-   "budget_left": 36708.609999999986,
+   "budget_left": 36731.54999999999,
    "progress_pct": 88.5,
    "platforms": [],
    "relevance": 0.7,
@@ -12130,11 +12130,11 @@
    "verified": true,
    "rate_per_1k": 3.0,
    "budget_total": 74000.0,
-   "budget_left": 3543.7100000000064,
-   "progress_pct": 95.2,
+   "budget_left": 3298.470000000001,
+   "progress_pct": 95.5,
    "platforms": [],
    "relevance": 0.7,
-   "score": 49.9,
+   "score": 49.8,
    "flags": [],
    "excluded": false,
    "link": "https://contentrewards.com/discover/454eec46-d16a-41f1-8bf6-df0bfb80e05d",
@@ -12163,27 +12163,6 @@
    "description": "Make A Fresh Branded Account Greg Lav, clip the provided content, and Earn up to $1.75 Per 1000 views!"
   },
   {
-   "id": "b4a9a517-9678-4e38-bc8b-603035387b1b",
-   "title": "DTH",
-   "brand": "Virality",
-   "category": "personal brand",
-   "type": "both",
-   "status": "active",
-   "verified": true,
-   "rate_per_1k": 1.5,
-   "budget_total": 25000.0,
-   "budget_left": 61.970000000001164,
-   "progress_pct": 99.8,
-   "platforms": [],
-   "relevance": 0.65,
-   "score": 43.8,
-   "flags": [],
-   "excluded": false,
-   "link": "https://contentrewards.com/discover/b4a9a517-9678-4e38-bc8b-603035387b1b",
-   "new": false,
-   "description": "Clip viral moments from DTH Show podcasts, brand every video with the NOBS logo, and earn up to $1.50 per 1,000 views."
-  },
-  {
    "id": "5d5933f0-b869-466c-909c-05715db13c09",
    "title": "Polymarket Official Clipping",
    "brand": "Polymarket Official Clipping",
@@ -12205,6 +12184,27 @@
    "description": ""
   },
   {
+   "id": "b4a9a517-9678-4e38-bc8b-603035387b1b",
+   "title": "DTH",
+   "brand": "Virality",
+   "category": "personal brand",
+   "type": "both",
+   "status": "active",
+   "verified": true,
+   "rate_per_1k": 1.5,
+   "budget_total": 25000.0,
+   "budget_left": 61.970000000001164,
+   "progress_pct": 99.8,
+   "platforms": [],
+   "relevance": 0.65,
+   "score": 43.8,
+   "flags": [],
+   "excluded": false,
+   "link": "https://contentrewards.com/discover/b4a9a517-9678-4e38-bc8b-603035387b1b",
+   "new": false,
+   "description": "Clip viral moments from DTH Show podcasts, brand every video with the NOBS logo, and earn up to $1.50 per 1,000 views."
+  },
+  {
    "id": "89f37078-1ed7-47d4-8ed1-dbb4971d221f",
    "title": "Content Rewards [Long-form UGC]",
    "brand": "Content Rewards",
@@ -12214,7 +12214,7 @@
    "verified": true,
    "rate_per_1k": 15.0,
    "budget_total": 20000.0,
-   "budget_left": 14833.529999999999,
+   "budget_left": 14836.29,
    "progress_pct": 25.8,
    "platforms": [],
    "relevance": 0.7,
@@ -12319,8 +12319,8 @@
    "verified": false,
    "rate_per_1k": 0.2,
    "budget_total": 5000.0,
-   "budget_left": 1834.71,
-   "progress_pct": 63.3,
+   "budget_left": 1840.9,
+   "progress_pct": 63.2,
    "platforms": [],
    "relevance": 0.4,
    "score": 26.1,

@@ -4,49 +4,18 @@
 #   python modules/reward_campaign/pull_detail.py <campaign_id_atau_url>
 #   python modules/reward_campaign/pull_detail.py --local file.html
 # Flags: --no-translate --no-download
-import json, re, sys, os, time
+import json, re, sys, os
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-CHUNK_RE = re.compile(r'self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from core.fetch import fetch_text, FetchError, DEFAULT_HEADERS
+from core.nextjs_flight import decode_blob, parse_balanced
+from core.textutil import money
+
 OUT_BASE = os.environ.get("CAMPAIGN_HOME", "/sdcard/BinB_Studio/Campaigns")
-
-def money(s):
-    if not isinstance(s, str) or not s.strip(): return None
-    t = s.replace("$", "").replace(",", "").strip()
-    try: return float(t)
-    except ValueError: return None
 
 def fmt_money(s):
     v = money(s)
     return "-" if v is None else "$" + format(v, ",.2f").rstrip("0").rstrip(".")
-
-def decode_blob(html):
-    parts = []
-    for m in CHUNK_RE.finditer(html):
-        c = m.group(1)
-        try: parts.append(json.loads('"' + c + '"'))
-        except Exception: parts.append(c.encode().decode("unicode_escape", "ignore"))
-    return "\n".join(parts)
-
-def parse_balanced(s, start):
-    depth = 0; i = start; instr = False; esc = False
-    while i < len(s):
-        c = s[i]
-        if instr:
-            if esc: esc = False
-            elif c == "\\": esc = True
-            elif c == '"': instr = False
-        else:
-            if c == '"': instr = True
-            elif c in "{[": depth += 1
-            elif c in "}]":
-                depth -= 1
-                if depth == 0: return s[start:i + 1]
-        i += 1
-    return None
 
 def extract_detail(blob):
     k = blob.find('"staticDetails"')
@@ -85,7 +54,7 @@ def download_resources(resources, dest):
                     gdown.download(url=url, output=os.path.join(dest, label), quiet=False, fuzzy=True)
             else:
                 import requests
-                resp = requests.get(url, headers=HEADERS, timeout=120, stream=True)
+                resp = requests.get(url, headers=DEFAULT_HEADERS, timeout=120, stream=True)
                 resp.raise_for_status()
                 name = re.sub(r'[^A-Za-z0-9._-]', '_', url.split("?")[0].split("/")[-1] or label)
                 with open(os.path.join(dest, name), "wb") as f:
@@ -107,10 +76,10 @@ def main():
         m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', args[0])
         cid = m.group(0) if m else args[0]
         url = "https://contentrewards.com/discover/" + cid
-        import requests
-        r = requests.get(url, headers=HEADERS, timeout=60)
-        if r.status_code != 200: raise SystemExit("HTTP " + str(r.status_code) + " - cek id campaign")
-        html = r.text
+        try:
+            html = fetch_text(url, retries=1)
+        except FetchError as e:
+            raise SystemExit(str(e) + " - cek id campaign")
     d = extract_detail(decode_blob(html))
     c = d["campaign"]; sd = d.get("staticDetails") or {}
     tr = make_translator(not no_tr)

@@ -4,17 +4,16 @@
 # Mode: python scrape.py            -> fetch live
 #       python scrape.py --blob F   -> parse blob hasil decode (flight.txt)
 #       python scrape.py --local F  -> parse file html mentah
-import json, re, sys, os, time
+import json, re, sys, os
 from datetime import datetime, timezone, timedelta
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from core.fetch import fetch_text, FetchError
+from core.nextjs_flight import decode_blob, parse_balanced, build_refmap
+from core.textutil import money
+
 URL = "https://contentrewards.com/discover"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
 OUT_DIR = os.path.join("data", "reward_campaign")
-CHUNK_RE = re.compile(r'self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)')
 MY_PLATFORMS = {"tiktok", "youtube", "instagram"}
 CAT_W = {"technology": 1.0, "education": 0.95, "news": 0.8, "product": 0.7,
          "personal brand": 0.6, "slideshow": 0.45, "other": 0.4, "none": 0.4,
@@ -25,49 +24,11 @@ KW_BONUS = ["ai ", " ai", "artificial intelligence", "startup", "founder", "busi
 BLOCK = ["casino", "gambl", "roobet", "betting", ".bet", " bet ", "penjamin", "cannabis",
          "vape", "nicotine", "onlyfans", "adult content", "18+"]
 
-def money(s):
-    if not isinstance(s, str) or not s.strip(): return None
-    t = s.replace("$", "").replace(",", "").strip()
-    try: return float(t)
-    except ValueError: return None
-
 def fetch():
-    import requests
-    last = None
-    for attempt in range(3):
-        try:
-            r = requests.get(URL, headers=HEADERS, timeout=60)
-            if r.status_code == 200: return r.text
-            last = "HTTP " + str(r.status_code)
-        except Exception as e:
-            last = str(e)
-        time.sleep(15 * (attempt + 1))
-    raise SystemExit("fetch failed: " + str(last))
-
-def decode_blob(html):
-    parts = []
-    for m in CHUNK_RE.finditer(html):
-        c = m.group(1)
-        try: parts.append(json.loads('"' + c + '"'))
-        except Exception: parts.append(c.encode().decode("unicode_escape", "ignore"))
-    return "\n".join(parts)
-
-def parse_balanced(s, start):
-    depth = 0; i = start; instr = False; esc = False
-    while i < len(s):
-        c = s[i]
-        if instr:
-            if esc: esc = False
-            elif c == "\\": esc = True
-            elif c == '"': instr = False
-        else:
-            if c == '"': instr = True
-            elif c in "{[": depth += 1
-            elif c in "}]":
-                depth -= 1
-                if depth == 0: return s[start:i + 1]
-        i += 1
-    return None
+    try:
+        return fetch_text(URL)
+    except FetchError as e:
+        raise SystemExit("fetch failed: " + str(e))
 
 def collect(obj, out):
     if isinstance(obj, dict):
@@ -75,13 +36,6 @@ def collect(obj, out):
         for v in obj.values(): collect(v, out)
     elif isinstance(obj, list):
         for v in obj: collect(v, out)
-
-def build_refmap(blob):
-    refs = {}
-    for m in re.finditer(r'([0-9a-f]{1,4}):T([0-9a-f]+),', blob):
-        try: refs[m.group(1)] = blob[m.end(): m.end() + int(m.group(2), 16)]
-        except ValueError: pass
-    return refs
 
 def extract_campaigns(blob):
     raw = []; last_end = -1
@@ -123,7 +77,6 @@ def normalize(c, refmap, prev_ids):
     flags = []
     if re.search(r'tier[ -]?1|usa only|us only|english[ -]speaking', hay): flags.append("EN/Tier-1")
     if blocked: flags.append("EXCLUDED:" + ",".join(sorted(set(blocked))[:2]))
-    route = c.get("whopProductRoute")
     return {
         "id": c.get("id"), "title": c.get("title"), "brand": c.get("brand"),
         "category": cat, "type": c.get("campaignType"), "status": c.get("status"),

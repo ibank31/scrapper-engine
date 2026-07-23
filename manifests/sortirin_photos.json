@@ -1,0 +1,126 @@
+{
+ "site": "sortirin.com",
+ "review_dir": "/sdcard/Download/sortirin-foto-review",
+ "products": [
+  {
+   "slug": "smartwatch-amazfit-bip-5",
+   "kategori": "smartwatch",
+   "pages": [
+    "https://us.amazfit.com/products/amazfit-bip-5",
+    "https://au.amazfit.com/products/bip-5"
+   ],
+   "sumber": "resmi brand (Amazfit)"
+  },
+  {
+   "slug": "speaker-anker-soundcore-2",
+   "kategori": "speaker-bluetooth",
+   "pages": [
+    "https://www.soundcore.com/products/soundcore-2"
+   ],
+   "sumber": "resmi brand (soundcore)"
+  },
+  {
+   "slug": "speaker-jbl-flip-6",
+   "kategori": "speaker-bluetooth",
+   "pages": [
+    "https://id.jbl.com/bluetooth-portables/FLIP-6-.html",
+    "https://jblstore.co.id/product/jbl-flip-6/"
+   ],
+   "sumber": "resmi brand (JBL Indonesia)"
+  },
+  {
+   "slug": "speaker-jbl-go-4",
+   "kategori": "speaker-bluetooth",
+   "pages": [
+    "https://id.jbl.com/bluetooth-portables/GO-4.html",
+    "https://jblstore.co.id/product/jbl-go-4/"
+   ],
+   "sumber": "resmi brand (JBL Indonesia)"
+  },
+  {
+   "slug": "speaker-robot-rb100",
+   "kategori": "speaker-bluetooth",
+   "pages": [
+    "https://www.tokopedia.com/mitragadget/robot-rb100-rb-100-5-0-speaker-bluetooth-mini-portable-original"
+   ],
+   "sumber": "MARKETPLACE (Tokopedia) — tidak ada halaman resmi Robot; risiko hak pakai lebih tinggi, cek manual"
+  },
+  {
+   "slug": "speaker-sony-srs-xb100",
+   "kategori": "speaker-bluetooth",
+   "pages": [
+    "https://electronics.sony.com/audio/speakers/wireless-speakers/p/srsxb100-b",
+    "https://www.sony-asia.com/wireless-speakers/products/srs-xb100"
+   ],
+   "sumber": "resmi brand (Sony)"
+  },
+  {
+   "slug": "tws-baseus-bowie-e19",
+   "kategori": "tws",
+   "pages": [
+    "https://baseus.com.au/products/bowie-e19-true-wireless-earphones",
+    "https://baseus.com.au/cdn/shop/files/1_ad167a53-caa4-427a-97ba-e57008ef5379_800x.jpg"
+   ],
+   "sumber": "resmi brand (Baseus AU)"
+  },
+  {
+   "slug": "tws-earfun-air-2",
+   "kategori": "tws",
+   "pages": [
+    "https://shop.myearfun.com/products/earfun-air-2-hi-res-true-wireless-earbuds",
+    "https://www.myearfun.com/eu/headphones/earfun-air-2-hi-res-true-wireless-earbuds-black"
+   ],
+   "sumber": "resmi brand (EarFun)"
+  },
+  {
+   "slug": "tws-jbl-wave-beam",
+   "kategori": "tws",
+   "pages": [
+    "https://id.jbl.com/in-ear-headphones/WAVE-BEAM.html",
+    "https://jblstore.co.id/en/product/jbl-wave-beam/"
+   ],
+   "sumber": "resmi brand (JBL Indonesia)"
+  },
+  {
+   "slug": "tws-qcy-t13-anc",
+   "kategori": "tws",
+   "pages": [
+    "https://www.qcy.com/products/qcy-t13-anc"
+   ],
+   "sumber": "resmi brand (QCY)"
+  },
+  {
+   "slug": "tws-redmi-buds-6-active",
+   "kategori": "tws",
+   "pages": [
+    "https://www.mi.co.id/id/product/redmi-buds-6-active/"
+   ],
+   "sumber": "resmi brand (Xiaomi Indonesia)"
+  },
+  {
+   "slug": "tws-soundcore-liberty-4-nc",
+   "kategori": "tws",
+   "pages": [
+    "https://www.soundcore.com/products/liberty-4-nc-a3947z11"
+   ],
+   "sumber": "resmi brand (soundcore)"
+  },
+  {
+   "slug": "tws-soundcore-p20i",
+   "kategori": "tws",
+   "pages": [
+    "https://www.soundcore.com/products/p20i"
+   ],
+   "sumber": "resmi brand (soundcore)"
+  },
+  {
+   "slug": "tws-soundcore-p25i",
+   "kategori": "tws",
+   "pages": [
+    "https://anker.com.bd/product/soundcore-anker-p25i-true-wireless-in-ear-earbuds/",
+    "https://www.verizon.com/products/soundcore-by-anker-p25i-true-wireless-headphones/"
+   ],
+   "sumber": "distributor resmi Anker (Bangladesh); fallback Verizon"
+  }
+ ]
+}
