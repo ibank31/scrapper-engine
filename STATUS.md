@@ -13,8 +13,9 @@ engine online
 - Kebijakan gratis D1/R2 ditetapkan di `cloudflare/FREE_COST_POLICY.md`: raw video lokal, R2 hanya preview sementara, D1 hanya metadata, dan guard harian sebelum upload/query.
 - Asumsi komputer lokal dicabut; untuk pengguna HP, compute video diarahkan ke GitHub Actions standard runner pada repository public. Detail ada di `cloudflare/PHONE_ONLY_ARCHITECTURE.md`.
 - API dan UI progress sudah mendukung status `queued`, `processing`, `review`, dan `error`; workflow `.github/workflows/clipper-worker.yml` menjalankan pipeline pada GitHub runner dan mengunggah preview R2.
+- Mode deployment disederhanakan: Pages Function memakai binding R2 langsung, GitHub Actions mengambil job `queued` lewat schedule 5 menit, sehingga pengguna tidak perlu memberikan GitHub token atau R2 S3 key.
 - Auto-publish tetap disabled by design sampai pipeline render dan approval selesai.
 
 ## Next milestone
 
-Berikutnya: uji dispatch end-to-end setelah resource D1/R2/Worker dibuat dan secrets dipasang.
+Berikutnya: deploy Pages Function dari branch main, seed satu campaign fixture, lalu uji alur antre → worker → preview dari URL Pages.

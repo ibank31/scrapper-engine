@@ -30,11 +30,11 @@ def run(command: list[str], cwd: str | None = None) -> None:
     subprocess.run(command, check=True, cwd=cwd, text=True)
 
 
-def upload_r2(path: str, key: str, content_type: str, bucket: str):
-    import boto3
-    client = boto3.client("s3", endpoint_url=os.environ["R2_ENDPOINT"], aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"], aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"], region_name="auto")
-    client.upload_file(path, bucket, key, ExtraArgs={"ContentType": content_type, "CacheControl": "public,max-age=3600"})
-    return client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=86400)
+def upload_r2(api_base: str, job_id: str, token: str, path: str, key: str, content_type: str):
+    with open(path, "rb") as stream:
+        response = requests.post(api_base.rstrip("/") + f"/api/jobs/{job_id}/upload", headers={"x-worker-token": token}, files={"file": (Path(path).name, stream, content_type)}, data={"key": key}, timeout=180)
+    response.raise_for_status()
+    return response.json()["download_url"]
 
 
 def main() -> None:
@@ -44,8 +44,15 @@ def main() -> None:
     ap.add_argument("--worker-token", default=os.environ.get("CLIPPER_WORKER_TOKEN"), required=False)
     ap.add_argument("--whisper-model", default=os.environ.get("CLIPPER_WHISPER_MODEL", "small"))
     args = ap.parse_args()
-    if not args.api_base or not args.job_id or not args.worker_token:
-        raise SystemExit("CLIPPER_API_URL, JOB_ID, dan CLIPPER_WORKER_TOKEN wajib tersedia")
+    if not args.api_base or not args.worker_token:
+        raise SystemExit("CLIPPER_API_URL dan CLIPPER_WORKER_TOKEN wajib tersedia")
+    if not args.job_id:
+        queued = api_call(args.api_base, "/api/jobs", args.worker_token).get("jobs", [])
+        candidate = next((job for job in queued if job.get("status") == "queued"), None)
+        if not candidate:
+            print("Tidak ada job queued; runner selesai tanpa proses.")
+            return
+        args.job_id = candidate["id"]
     root = tempfile.mkdtemp(prefix="clipper-job-")
     try:
         job = api_call(args.api_base, f"/api/jobs/{args.job_id}", args.worker_token)["job"]
@@ -75,13 +82,13 @@ def main() -> None:
         review_dir = workspace / "review"
         run([sys.executable, "run.py", "review_queue", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--validation", str(validation_path), "--rendered-dir", str(render_dir), "--out-dir", str(review_dir)])
         update(args.api_base, args.job_id, args.worker_token, "processing", 92, "Mengunggah preview ke R2")
-        review = json.load(open(review_dir / "review.json", encoding="utf-8")); bucket = os.environ["R2_BUCKET"]; previews = []
+        review = json.load(open(review_dir / "review.json", encoding="utf-8")); previews = []
         for item in review.get("items", []):
             if item.get("status") == "blocked": continue
             video_path = review_dir / item["video"]; thumbnail_path = review_dir / item["thumbnail"] if item.get("thumbnail") else None
             prefix = f"jobs/{args.job_id}/clip-{int(item['rank']):03d}"
-            video_url = upload_r2(str(video_path), prefix + ".mp4", "video/mp4", bucket)
-            thumb_url = upload_r2(str(thumbnail_path), prefix + ".jpg", "image/jpeg", bucket) if thumbnail_path and thumbnail_path.exists() else None
+            video_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(video_path), prefix + ".mp4", "video/mp4")
+            thumb_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(thumbnail_path), prefix + ".jpg", "image/jpeg") if thumbnail_path and thumbnail_path.exists() else None
             previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": item.get("validation", {}), "caption_draft": item.get("caption_draft"), "checklist": item.get("checklist", [])})
         api_call(args.api_base, f"/api/jobs/{args.job_id}/previews", args.worker_token, "POST", {"previews": previews})
         update(args.api_base, args.job_id, args.worker_token, "review", 100, f"{len(previews)} preview siap direview")

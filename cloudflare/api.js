@@ -36,13 +36,7 @@ export default {
         const exists = await env.DB.prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active'").bind(parts[2]).first();
         if (!exists) return json({ error: "campaign_not_found" }, 404);
         await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Menunggu worker cloud", timestamp, timestamp).run();
-        let dispatch = "not_configured";
-        if (env.GITHUB_TOKEN) {
-          const dispatchResponse = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO || "ibank31/scrapper-engine"}/actions/workflows/clipper-worker.yml/dispatches`, { method: "POST", headers: { "accept": "application/vnd.github+json", "authorization": `Bearer ${env.GITHUB_TOKEN}`, "content-type": "application/json", "user-agent": "clipper-engine" }, body: JSON.stringify({ ref: env.GITHUB_REF || "main", inputs: { job_id: id, campaign_id: parts[2] } }) });
-          dispatch = dispatchResponse.ok ? "sent" : `failed_${dispatchResponse.status}`;
-          if (dispatch !== "sent") await env.DB.prepare("UPDATE jobs SET status='error',error=?,message=?,updated_at=? WHERE id=?").bind(`GitHub dispatch ${dispatch}`, "Worker cloud gagal dipanggil", now(), id).run();
-        }
-        return json({ job: { id, campaign_id: parts[2], status: dispatch === "sent" || dispatch === "not_configured" ? "queued" : "error", progress: 0, message: dispatch === "sent" ? "Masuk antrean GitHub Actions" : "Menunggu worker cloud", created_at: timestamp }, dispatch }, 201);
+        return json({ job: { id, campaign_id: parts[2], status: "queued", progress: 0, message: "Masuk antrean worker cloud", created_at: timestamp } }, 201);
       }
       if (parts[1] === "jobs" && request.method === "GET" && !parts[2]) {
         const result = await env.DB.prepare("SELECT j.id,j.campaign_id,j.status,j.progress,j.message,j.error,j.created_at,j.updated_at,c.title AS campaign_title,c.brand AS campaign_brand FROM jobs j JOIN campaigns c ON c.id=j.campaign_id ORDER BY j.updated_at DESC LIMIT 30").all();
@@ -66,6 +60,18 @@ export default {
         }
         await env.DB.prepare("UPDATE jobs SET status='review',progress=100,message=?,updated_at=? WHERE id=?").bind(`${(body.previews || []).length} preview siap review`, timestamp, parts[2]).run();
         return json({ ok: true });
+      }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "upload" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const form = await request.formData(); const file = form.get("file"); const key = String(form.get("key") || "");
+        if (!file || !key || !env.CLIPS) return json({ error: "upload_invalid" }, 400);
+        await env.CLIPS.put(key, file.stream(), { httpMetadata: { contentType: file.type || "application/octet-stream", cacheControl: "public,max-age=3600" } });
+        return json({ ok: true, key, download_url: `${url.origin}/api/files?key=${encodeURIComponent(key)}` });
+      }
+      if (parts[1] === "files" && request.method === "GET") {
+        const key = url.searchParams.get("key"); if (!key || !env.CLIPS) return json({ error: "file_not_found" }, 404);
+        const object = await env.CLIPS.get(key); if (!object) return json({ error: "file_not_found" }, 404);
+        const headers = new Headers(cors); object.writeHttpMetadata(headers); headers.set("etag", object.httpEtag); return new Response(object.body, { headers });
       }
       if (parts[1] === "jobs" && parts[2] && request.method === "PATCH") {
         if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);

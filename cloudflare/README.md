@@ -31,7 +31,7 @@ Cloudflare Workers Free is suitable for a light API, not video rendering. The cu
 6. Put the public API URL in `web/config.js` and set `DEMO_MODE: false`.
 7. Protect the Pages site and Worker with Cloudflare Access before using private campaign or video data.
 
-The Worker API also needs a GitHub token with Actions write permission on `ibank31/scrapper-engine` as the `GITHUB_TOKEN` secret, plus `GITHUB_REPO=ibank31/scrapper-engine` and `GITHUB_REF=main`. The API dispatches `.github/workflows/clipper-worker.yml` when a user starts a job. The GitHub workflow then needs these repository secrets: `CLIPPER_API_URL`, `CLIPPER_WORKER_TOKEN`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET`.
+The API does not need a GitHub token or R2 S3 keys. Starting a job writes `queued` metadata to D1. A public-repository GitHub Actions schedule checks the queue every five minutes. The worker uploads files through the protected Pages Function, which uses the R2 binding directly. The only repository secrets required by the workflow are `CLIPPER_API_URL` and `CLIPPER_WORKER_TOKEN`.
 
 Because the user only has a phone, the Python worker must not be assumed to run locally. The planned worker is a GitHub Actions standard runner from the public `ibank31/scrapper-engine` repository. It will run the existing pipeline, upload MP4 and thumbnails to R2, insert preview rows, and PATCH job progress with `x-worker-token`. See [`PHONE_ONLY_ARCHITECTURE.md`](./PHONE_ONLY_ARCHITECTURE.md). It must never receive or store Cloudflare credentials in the repository.
 

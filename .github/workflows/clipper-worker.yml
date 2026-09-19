@@ -1,6 +1,8 @@
 name: clipper-worker
 
 on:
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       job_id:
@@ -37,9 +39,5 @@ jobs:
         env:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
           JOB_ID: ${{ inputs.job_id }}
         run: python worker/run_job.py
