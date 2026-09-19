@@ -9,8 +9,9 @@ engine online
 - Worker video lokal tersedia: `transcribe`, `select_clips`, dan `render_clips`; transkripsi memakai faster-whisper dan render memakai FFmpeg.
 - Validator clip tersedia melalui `validate_clips`; ia membedakan `pass`, `needs_review`, dan `fail` untuk pemeriksaan teknis serta tindakan manual campaign.
 - Review queue tersedia melalui `review_queue`; ia membuat thumbnail, `INDEX.md`, `review.json`, caption draft, dan checklist manual per clip.
+- Dashboard Cloudflare Pages awal tersedia di `web/`, dengan mode demo dan kontrak API Worker/D1/R2 di `cloudflare/`.
 - Auto-publish tetap disabled by design sampai pipeline render dan approval selesai.
 
 ## Next milestone
 
-Berikutnya: scheduler worker lokal, state transition review, dan pemantauan campaign baru.
+Berikutnya: sambungkan Pages ke akun Cloudflare, deploy API/D1/R2, lalu buat worker Python yang mengambil job dari API dan mengunggah preview.

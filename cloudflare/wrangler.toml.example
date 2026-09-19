@@ -1,0 +1,15 @@
+name = "clipper-engine-api"
+main = "api.js"
+compatibility_date = "2026-09-19"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "clipper-engine"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "CLIPS"
+bucket_name = "REPLACE_WITH_R2_BUCKET_NAME"
+
+[vars]
+# Do not put WORKER_TOKEN here. Set it with: wrangler secret put WORKER_TOKEN
