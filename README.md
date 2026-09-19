@@ -36,7 +36,21 @@ pip install deep-translator     # opsional, terjemahan brief campaign
 ```
 python run.py reward_campaign
 python run.py reward_detail <campaign_id>
+python run.py reward_plan <detail.json atau HTML/Flight detail>
 python run.py product_image --manifest manifests/sortirin_photos.json --repo ~/sortirin
+```
+
+## Campaign-aware clipping
+
+`reward_plan` membaca `campaign`, `staticDetails.requirements`, `staticDetails.resources`, dan teks deskripsi campaign. Outputnya adalah `*.plan.json` dan `*.PLAN.md` yang berisi material wajib, URL asset, rasio video, audio resmi, watermark, CTA, handle, batas views/payout, larangan, dan gate validasi. Plan ini menjadi **source of truth** sebelum pipeline clipping merender atau mengantrekan video.
+
+Publishing sengaja dikunci (`publish_allowed: false`) sampai semua gate wajib lolos dan ada human review. URL Dropbox/Google Drive/Frame.io/YouTube/Vimeo yang tertanam dalam aturan akan dicatat sebagai kandidat asset; downloader berikutnya harus mengunduhnya ke job workspace tanpa mengabaikan aturan campaign.
+
+Contoh dari detail lokal:
+
+```bash
+python run.py reward_plan path/to/detail.json
+python -m unittest discover -s tests -v
 ```
 
 ## Prinsip sumber (product_image)
