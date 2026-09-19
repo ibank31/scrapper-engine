@@ -18,12 +18,23 @@ def fmt_money(s):
     return "-" if v is None else "$" + format(v, ",.2f").rstrip("0").rstrip(".")
 
 def extract_detail(blob):
-    k = blob.find('"staticDetails"')
-    if k < 0: raise SystemExit("staticDetails tidak ditemukan - struktur halaman berubah?")
-    start = blob.rfind('{"campaign":', 0, k)
-    if start < 0: raise SystemExit("objek campaign tidak ditemukan")
-    frag = parse_balanced(blob, start)
-    return json.loads(frag)
+    for marker in ('"payouts":', '"contentRequirements":', '"referenceMaterials":'):
+        k = blob.find(marker)
+        if k < 0: continue
+        start = blob.rfind('{', 0, k)
+        while start >= 0:
+            frag = parse_balanced(blob, start)
+            try: obj = json.loads(frag) if frag else None
+            except Exception: obj = None
+            if isinstance(obj, dict) and obj.get("id") and ("payouts" in obj or "contentRequirements" in obj):
+                req_items = (obj.get("contentRequirements") or {}).get("items") or []
+                requirements = [{"text": str(item), "isMandatory": True} for item in req_items]
+                resources = [{"label": r.get("type") or "reference material", "platform": "all", "url": r.get("url")} for r in (obj.get("referenceMaterials") or []) if r.get("url")]
+                campaign = dict(obj)
+                campaign.update({"brand": obj.get("organizationName") or obj.get("brand"), "socialPlatforms": obj.get("platforms") or [], "campaignType": obj.get("payoutType") or obj.get("type"), "status": obj.get("status") or "active"})
+                return {"campaign": campaign, "staticDetails": {"requirements": requirements, "resources": resources, "payouts": obj.get("payouts") or []}}
+            start = blob.rfind('{', 0, start)
+    raise SystemExit("detail campaign tidak ditemukan - struktur halaman berubah?")
 
 def make_translator(enabled):
     if not enabled:

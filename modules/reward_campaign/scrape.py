@@ -32,14 +32,14 @@ def fetch():
 
 def collect(obj, out):
     if isinstance(obj, dict):
-        if "totalBudget" in obj and "title" in obj: out.append(obj)
+        if ("totalBudget" in obj or "budgetTotalRaw" in obj) and "title" in obj: out.append(obj)
         for v in obj.values(): collect(v, out)
     elif isinstance(obj, list):
         for v in obj: collect(v, out)
 
 def extract_campaigns(blob):
     raw = []; last_end = -1
-    for m in re.finditer(r'\{"(?:id|avatar)":', blob):
+    for m in re.finditer(r'\{"(?:id|avatar|availableBudgetRaw|budgetTotalRaw)":', blob):
         if m.start() < last_end: continue
         frag = parse_balanced(blob, m.start())
         if frag is None: continue
@@ -59,10 +59,11 @@ def normalize(c, refmap, prev_ids):
     if isinstance(desc, str):
         m = re.fullmatch(r'\$([0-9a-f]{1,4})', desc)
         if m: desc = refmap.get(m.group(1), "")
-    total = money(c.get("totalBudget")); spent = money(c.get("budgetSpent"))
-    rate = money(c.get("pricePerView"))
+    total = c.get("budgetTotalRaw") if c.get("budgetTotalRaw") is not None else money(c.get("totalBudget"))
+    spent = c.get("budgetSpentRaw") if c.get("budgetSpentRaw") is not None else money(c.get("budgetSpent"))
+    rate = c.get("ratePer1kRaw") if c.get("ratePer1kRaw") is not None else money(str(c.get("ratePer1kLabel") or c.get("pricePerView") or "").replace("$$", "$"))
     left = max(total - (spent or 0), 0) if total is not None else None
-    plats = [p for p in (c.get("socialPlatforms") or []) if isinstance(p, str)]
+    plats = [p for p in (c.get("platforms") or c.get("socialPlatforms") or []) if isinstance(p, str)]
     cat = str(c.get("category") or "none").lower()
     hay = " ".join([str(c.get("title", "")), str(c.get("brand", "")), str(c.get("whopProductRoute") or ""), desc]).lower()
     blocked = [b for b in BLOCK if b in hay]
@@ -79,7 +80,7 @@ def normalize(c, refmap, prev_ids):
     if blocked: flags.append("EXCLUDED:" + ",".join(sorted(set(blocked))[:2]))
     return {
         "id": c.get("id"), "title": c.get("title"), "brand": c.get("brand"),
-        "category": cat, "type": c.get("campaignType"), "status": c.get("status"),
+        "category": cat, "type": c.get("campaignType") or c.get("type") or "cpm", "status": c.get("status") or "active",
         "verified": bool(c.get("isVerified")), "rate_per_1k": rate,
         "budget_total": total, "budget_left": left,
         "progress_pct": round(c.get("progressPercentage") or 0, 1),
@@ -125,7 +126,7 @@ def main():
     cams = [normalize(c, refmap, prev_ids) for c in extract_campaigns(blob)]
     active = [c for c in cams if c["status"] == "active" and c["progress_pct"] < 97]
     ok = [c for c in active if not c["excluded"]]
-    ok = [c for c in ok if (MY_PLATFORMS & set(c["platforms"])) and str(c["type"] or "").lower() in ("clipping", "both")]
+    ok = [c for c in ok if (MY_PLATFORMS & set(c["platforms"])) and str(c["type"] or "").lower() in ("clipping", "both", "cpm", "per_post", "per-post", "retainer")]
     relevant = sorted([c for c in ok if c["relevance"] >= 0.55], key=lambda x: -x["score"])
     offniche = sorted([c for c in ok if c["relevance"] < 0.55],
                       key=lambda x: -((x["rate_per_1k"] or 0) * min((x["budget_left"] or 0), 50000)))

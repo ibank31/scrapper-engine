@@ -58,7 +58,17 @@ def main() -> None:
         job = api_call(args.api_base, f"/api/jobs/{args.job_id}", args.worker_token)["job"]
         plan = job.get("campaign_plan")
         if not plan:
-            raise RuntimeError("campaign belum memiliki compiled campaign plan")
+            detail_root = os.path.join(root, "campaign-detail")
+            os.environ["CAMPAIGN_HOME"] = detail_root
+            update(args.api_base, args.job_id, args.worker_token, "processing", 3, "Mengambil detail dan syarat campaign")
+            run([sys.executable, "run.py", "reward_detail", job["campaign_id"], "--no-translate", "--no-download"])
+            details = list(Path(detail_root).rglob("detail.json"))
+            if not details: raise RuntimeError("detail campaign tidak ditemukan")
+            run([sys.executable, "run.py", "reward_plan", str(details[0])])
+            plan_path = details[0].with_name("detail.plan.json")
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        else:
+            plan_path = Path(root) / "plan.json"
         plan_path = os.path.join(root, "plan.json")
         with open(plan_path, "w", encoding="utf-8") as fh: json.dump(plan, fh, ensure_ascii=False, indent=2)
         update(args.api_base, args.job_id, args.worker_token, "processing", 8, "Membaca rules campaign")

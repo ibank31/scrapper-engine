@@ -10,7 +10,8 @@ function json(data, status = 200) {
 function now() { return new Date().toISOString(); }
 function parse(row) {
   if (!row) return row;
-  return { ...row, platforms: JSON.parse(row.platforms_json || "[]"), detail: JSON.parse(row.detail_json || "{}"), plan: row.plan_json ? JSON.parse(row.plan_json) : null };
+  const detail = JSON.parse(row.detail_json || "{}");
+  return { ...row, platforms: JSON.parse(row.platforms_json || "[]"), detail, plan: row.plan_json ? JSON.parse(row.plan_json) : null, category: detail.category, type: detail.type, flags: detail.flags || [], link: detail.link, verified: Boolean(detail.verified), description: detail.description };
 }
 function workerAuthorized(request, env) {
   return Boolean(env.WORKER_TOKEN && request.headers.get("x-worker-token") === env.WORKER_TOKEN);
@@ -23,6 +24,16 @@ export default {
     const parts = url.pathname.split("/").filter(Boolean);
     if (parts[0] !== "api") return json({ error: "not_found" }, 404);
     try {
+      if (parts[1] === "campaigns" && parts[2] === "sync" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const body = await request.json(); const timestamp = now(); let synced = 0;
+        for (const campaign of body.campaigns || []) {
+          if (!campaign.id || !campaign.title) continue;
+          await env.DB.prepare("INSERT INTO campaigns (id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,brand=excluded.brand,status=excluded.status,score=excluded.score,rate_per_1k=excluded.rate_per_1k,budget_left=excluded.budget_left,platforms_json=excluded.platforms_json,detail_json=excluded.detail_json,updated_at=excluded.updated_at").bind(String(campaign.id), campaign.title, campaign.brand || null, campaign.status || "active", campaign.score || 0, campaign.rate_per_1k || 0, campaign.budget_left || 0, JSON.stringify(campaign.platforms || []), JSON.stringify(campaign), null, timestamp).run();
+          synced += 1;
+        }
+        return json({ ok: true, synced, updated_at: timestamp });
+      }
       if (parts[1] === "campaigns" && request.method === "GET" && !parts[2]) {
         const result = await env.DB.prepare("SELECT id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at FROM campaigns WHERE status = 'active' ORDER BY score DESC LIMIT 50").all();
         return json({ campaigns: (result.results || []).map(parse) });
