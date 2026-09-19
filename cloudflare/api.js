@@ -13,7 +13,7 @@ function parse(row) {
   return { ...row, platforms: JSON.parse(row.platforms_json || "[]"), detail: JSON.parse(row.detail_json || "{}"), plan: row.plan_json ? JSON.parse(row.plan_json) : null };
 }
 function workerAuthorized(request, env) {
-  return env.WORKER_TOKEN && request.headers.get("x-worker-token") === env.WORKER_TOKEN;
+  return Boolean(env.WORKER_TOKEN && request.headers.get("x-worker-token") === env.WORKER_TOKEN);
 }
 
 export default {
@@ -24,25 +24,48 @@ export default {
     if (parts[0] !== "api") return json({ error: "not_found" }, 404);
     try {
       if (parts[1] === "campaigns" && request.method === "GET" && !parts[2]) {
-        const result = await env.DB.prepare("SELECT * FROM campaigns WHERE status = 'active' ORDER BY score DESC").all();
+        const result = await env.DB.prepare("SELECT id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at FROM campaigns WHERE status = 'active' ORDER BY score DESC LIMIT 50").all();
         return json({ campaigns: (result.results || []).map(parse) });
       }
-      if (parts[1] === "campaigns" && parts[2] && request.method === "GET") {
+      if (parts[1] === "campaigns" && parts[2] && request.method === "GET" && !parts[3]) {
         const row = await env.DB.prepare("SELECT * FROM campaigns WHERE id = ?").bind(parts[2]).first();
         return row ? json({ campaign: parse(row) }) : json({ error: "campaign_not_found" }, 404);
       }
       if (parts[1] === "campaigns" && parts[2] && parts[3] === "jobs" && request.method === "POST") {
         const id = crypto.randomUUID(); const timestamp = now();
-        await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Queued for local worker", timestamp, timestamp).run();
-        return json({ job: { id, campaign_id: parts[2], status: "queued", progress: 0 } }, 201);
+        const exists = await env.DB.prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active'").bind(parts[2]).first();
+        if (!exists) return json({ error: "campaign_not_found" }, 404);
+        await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Menunggu worker cloud", timestamp, timestamp).run();
+        let dispatch = "not_configured";
+        if (env.GITHUB_TOKEN) {
+          const dispatchResponse = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO || "ibank31/scrapper-engine"}/actions/workflows/clipper-worker.yml/dispatches`, { method: "POST", headers: { "accept": "application/vnd.github+json", "authorization": `Bearer ${env.GITHUB_TOKEN}`, "content-type": "application/json", "user-agent": "clipper-engine" }, body: JSON.stringify({ ref: env.GITHUB_REF || "main", inputs: { job_id: id, campaign_id: parts[2] } }) });
+          dispatch = dispatchResponse.ok ? "sent" : `failed_${dispatchResponse.status}`;
+          if (dispatch !== "sent") await env.DB.prepare("UPDATE jobs SET status='error',error=?,message=?,updated_at=? WHERE id=?").bind(`GitHub dispatch ${dispatch}`, "Worker cloud gagal dipanggil", now(), id).run();
+        }
+        return json({ job: { id, campaign_id: parts[2], status: dispatch === "sent" || dispatch === "not_configured" ? "queued" : "error", progress: 0, message: dispatch === "sent" ? "Masuk antrean GitHub Actions" : "Menunggu worker cloud", created_at: timestamp }, dispatch }, 201);
+      }
+      if (parts[1] === "jobs" && request.method === "GET" && !parts[2]) {
+        const result = await env.DB.prepare("SELECT j.id,j.campaign_id,j.status,j.progress,j.message,j.error,j.created_at,j.updated_at,c.title AS campaign_title,c.brand AS campaign_brand FROM jobs j JOIN campaigns c ON c.id=j.campaign_id ORDER BY j.updated_at DESC LIMIT 30").all();
+        return json({ jobs: result.results || [] });
       }
       if (parts[1] === "jobs" && parts[2] && request.method === "GET" && !parts[3]) {
-        const row = await env.DB.prepare("SELECT * FROM jobs WHERE id = ?").bind(parts[2]).first();
-        return row ? json({ job: row }) : json({ error: "job_not_found" }, 404);
+        const row = await env.DB.prepare("SELECT j.*,c.title AS campaign_title,c.brand AS campaign_brand,c.plan_json AS campaign_plan_json FROM jobs j JOIN campaigns c ON c.id=j.campaign_id WHERE j.id = ?").bind(parts[2]).first();
+        if (!row) return json({ error: "job_not_found" }, 404);
+        row.campaign_plan = row.campaign_plan_json ? JSON.parse(row.campaign_plan_json) : null; delete row.campaign_plan_json;
+        return json({ job: row });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT * FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
+        const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         return json({ previews: result.results || [] });
+      }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const body = await request.json(); const timestamp = now();
+        for (const preview of body.previews || []) {
+          await env.DB.prepare("INSERT OR REPLACE INTO previews (id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, JSON.stringify(preview.checklist || []), timestamp).run();
+        }
+        await env.DB.prepare("UPDATE jobs SET status='review',progress=100,message=?,updated_at=? WHERE id=?").bind(`${(body.previews || []).length} preview siap review`, timestamp, parts[2]).run();
+        return json({ ok: true });
       }
       if (parts[1] === "jobs" && parts[2] && request.method === "PATCH") {
         if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);

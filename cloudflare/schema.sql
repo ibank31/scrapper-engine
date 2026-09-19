@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS previews (
   status TEXT NOT NULL DEFAULT 'pending_review',
   video_key TEXT,
   thumbnail_key TEXT,
+  download_url TEXT,
   validation_json TEXT NOT NULL DEFAULT '{}',
   caption_draft TEXT,
   checklist_json TEXT NOT NULL DEFAULT '[]',
