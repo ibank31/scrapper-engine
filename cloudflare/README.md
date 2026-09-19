@@ -15,6 +15,8 @@ window.CLIPPER_CONFIG = {
 
 ## Free-first boundaries
 
+The exact storage, retention, query, and upload guardrails are documented in [`FREE_COST_POLICY.md`](./FREE_COST_POLICY.md). Read and apply that policy before creating production bindings.
+
 Cloudflare Pages Free supports static deployments and has a 25 MiB individual asset limit, so MP4 files must not be committed to Pages. Put videos and thumbnails in R2 and expose only short-lived or protected download URLs through the API. R2 currently includes 10 GB-month storage, 1 million Class A operations, 10 million Class B operations, and free egress on the standard free tier. Check current billing before storing a large library.
 
 Cloudflare Workers Free is suitable for a light API, not video rendering. The current limit is 100,000 requests per day, 10 ms CPU per request, and 128 MB memory. Cloudflare Queues can be used later for job notifications, but its free tier has a 10,000 operations/day allowance and 24-hour retention. The actual heavy job remains on the local Python worker.

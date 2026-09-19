@@ -10,6 +10,7 @@ engine online
 - Validator clip tersedia melalui `validate_clips`; ia membedakan `pass`, `needs_review`, dan `fail` untuk pemeriksaan teknis serta tindakan manual campaign.
 - Review queue tersedia melalui `review_queue`; ia membuat thumbnail, `INDEX.md`, `review.json`, caption draft, dan checklist manual per clip.
 - Dashboard Cloudflare Pages awal tersedia di `web/`, dengan mode demo dan kontrak API Worker/D1/R2 di `cloudflare/`.
+- Kebijakan gratis D1/R2 ditetapkan di `cloudflare/FREE_COST_POLICY.md`: raw video lokal, R2 hanya preview sementara, D1 hanya metadata, dan guard harian sebelum upload/query.
 - Auto-publish tetap disabled by design sampai pipeline render dan approval selesai.
 
 ## Next milestone
