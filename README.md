@@ -57,10 +57,13 @@ python run.py transcribe data/jobs/<campaign-id>/assets/source.mp4 --model small
 python run.py select_clips data/jobs/<campaign-id>/assets/transcript/transcript.json
 python run.py render_clips data/jobs/<campaign-id>/assets/source.mp4 data/jobs/<campaign-id>/assets/transcript/candidates.json --transcript data/jobs/<campaign-id>/assets/transcript/transcript.json
 python run.py validate_clips --plan data/jobs/<campaign-id>/plan.json --glob 'data/jobs/<campaign-id>/outputs/*.mp4'
+python run.py review_queue --plan data/jobs/<campaign-id>/plan.json --candidates data/jobs/<campaign-id>/assets/transcript/candidates.json --validation validation.json --rendered-dir data/jobs/<campaign-id>/outputs --out-dir data/jobs/<campaign-id>/review
 python -m unittest discover -s tests -v
 ```
 
 `reward_intake` membuat workspace campaign dengan `plan.json`, `assets.json`, folder `assets/`, `outputs/`, dan `review/`. Link langsung yang aman dicoba otomatis dengan retry dan checksum. Link folder atau platform yang mungkin membutuhkan login dicatat di `MANUAL_ASSETS.md`; mesin tidak melakukan bypass akses.
+
+`review_queue` menyalin clip ke folder review, membuat thumbnail, membuat `INDEX.md`, `review.json`, caption draft, dan checklist manual per clip. Clip yang gagal validator diberi status `blocked`; clip lain tetap berstatus `pending_review` sampai Anda memeriksanya.
 
 ## Prinsip sumber (product_image)
 
