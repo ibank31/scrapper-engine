@@ -6,6 +6,9 @@ Usage:
   python run.py reward_detail <campaign_id_atau_url> [--no-translate --no-download]
   python run.py reward_plan <detail.json|flight.html> [--local]
   python run.py reward_intake <plan.json> [--workspace data/jobs]
+  python run.py transcribe <video> [--model small]
+  python run.py select_clips <transcript.json>
+  python run.py render_clips <video> <candidates.json> [--transcript transcript.json]
   python run.py product_image --manifest manifests/xxx.json --repo ~/situs
 """
 import os, runpy, sys
@@ -16,6 +19,9 @@ MODULES = {
     "reward_detail": "modules/reward_campaign/pull_detail.py",
     "reward_plan": "modules/reward_campaign/build_plan.py",
     "reward_intake": "modules/reward_campaign/intake.py",
+    "transcribe": "modules/clipping/transcribe.py",
+    "select_clips": "modules/clipping/select.py",
+    "render_clips": "modules/clipping/render.py",
     "product_image": "modules/product_image/run.py",
 }
 

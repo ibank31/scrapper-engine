@@ -29,6 +29,8 @@ run.py                   dispatcher: python run.py <modul> [args]
 pip install requests
 pkg install -y libwebp          # untuk product_image
 pip install deep-translator     # opsional, terjemahan brief campaign
+pip install -r requirements.txt # requests + faster-whisper untuk worker AI lokal
+sudo apt install ffmpeg         # Ubuntu/Debian
 ```
 
 ## Pemakaian
@@ -51,6 +53,9 @@ Contoh dari detail lokal:
 ```bash
 python run.py reward_plan path/to/detail.json
 python run.py reward_intake path/to/detail.plan.json --workspace data/jobs
+python run.py transcribe data/jobs/<campaign-id>/assets/source.mp4 --model small
+python run.py select_clips data/jobs/<campaign-id>/assets/transcript/transcript.json
+python run.py render_clips data/jobs/<campaign-id>/assets/source.mp4 data/jobs/<campaign-id>/assets/transcript/candidates.json --transcript data/jobs/<campaign-id>/assets/transcript/transcript.json
 python -m unittest discover -s tests -v
 ```
 
