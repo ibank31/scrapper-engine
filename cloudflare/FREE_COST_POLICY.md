@@ -2,7 +2,7 @@
 
 ## Keputusan utama
 
-D1 dan R2 dipakai sebagai **control plane dan delivery layer**, bukan tempat penyimpanan semua bahan video. Video mentah, transkrip lengkap, cache Whisper, dan file kerja FFmpeg tetap berada di worker Python lokal. Cloudflare hanya menerima data yang diperlukan oleh dashboard.
+D1 dan R2 dipakai sebagai **control plane dan delivery layer**, bukan tempat penyimpanan semua bahan video. Video mentah, transkrip lengkap, cache Whisper, dan file kerja FFmpeg berada hanya di execution worker sementara. Untuk pengguna HP, execution worker ini adalah GitHub Actions runner yang hidup selama job dan dibersihkan setelah selesai; bukan HP pengguna dan bukan komputer pribadi. Cloudflare hanya menerima data yang diperlukan oleh dashboard.
 
 Kebijakan ini menjaga biaya awal sedekat mungkin dengan nol selama volume masih berada di dalam kuota Free. Tidak ada konfigurasi cloud yang dapat menjamin biaya nol jika penggunaan melampaui kuota atau akun berubah ke plan berbayar. Karena itu mesin akan memiliki batas harian, batas storage, dan cleanup otomatis.
 
@@ -37,7 +37,7 @@ R2 menyimpan tiga jenis object:
 2. **Thumbnail** JPEG/WebP berukuran kecil.
 3. **Final MP4** hanya setelah pengguna menekan ACC. Final tersedia untuk download selama 24–72 jam, kemudian dihapus.
 
-Raw footage tidak boleh diunggah otomatis ke R2. Sumber tetap berada pada asset workspace lokal, kecuali pengguna sengaja mengaktifkan backup.
+Raw footage tidak boleh disimpan permanen di R2. Sumber berada pada workspace ephemeral GitHub Actions selama proses, lalu dihapus ketika job selesai. Backup permanen hanya boleh diaktifkan secara sengaja.
 
 ## Retensi wajib
 
@@ -48,7 +48,7 @@ Raw footage tidak boleh diunggah otomatis ke R2. Sumber tetap berada pada asset 
 | Preview pending review | 14 hari |
 | Preview approved | 3 hari setelah approval |
 | Final download package | 24 jam setelah dibuat |
-| Raw footage | Lokal, dibersihkan sesuai disk policy |
+| Raw footage | GitHub runner ephemeral, dihapus setelah job |
 
 Jika pengguna belum mereview preview dalam 14 hari, job ditandai `expired` dan object dihapus. R2 lifecycle rules digunakan sebagai pengaman kedua, sedangkan worker lokal menghapus metadata D1 secara periodik.
 
@@ -116,7 +116,7 @@ Cloudflare dashboard tetap menjadi sumber monitoring terakhir. Terms dan kuota d
 
 ## Kesimpulan
 
-Konfigurasi termurah adalah **Pages untuk UI, D1 untuk metadata kecil, R2 untuk preview proxy sementara, dan Python lokal untuk semua kerja berat**. Dengan kebijakan ini, kita tidak perlu membayar server GPU, tidak menyimpan bahan mentah di cloud, dan tidak membayar storage video permanen. Biaya baru menjadi kemungkinan jika jumlah campaign, preview, request, atau retensi melebihi batas konservatif.
+Konfigurasi termurah untuk pengguna HP adalah **Pages untuk UI, D1 untuk metadata kecil, R2 untuk preview proxy sementara, dan GitHub Actions runner ephemeral untuk semua kerja berat**. Dengan kebijakan ini, kita tidak perlu membayar server GPU, tidak menyimpan bahan mentah permanen di cloud, dan tidak membayar storage video permanen. Biaya baru menjadi kemungkinan jika jumlah campaign, preview, request, atau retensi melebihi batas konservatif.
 
 ## References
 
