@@ -56,6 +56,7 @@ python run.py reward_intake path/to/detail.plan.json --workspace data/jobs
 python run.py transcribe data/jobs/<campaign-id>/assets/source.mp4 --model small
 python run.py select_clips data/jobs/<campaign-id>/assets/transcript/transcript.json
 python run.py render_clips data/jobs/<campaign-id>/assets/source.mp4 data/jobs/<campaign-id>/assets/transcript/candidates.json --transcript data/jobs/<campaign-id>/assets/transcript/transcript.json
+python run.py validate_clips --plan data/jobs/<campaign-id>/plan.json --glob 'data/jobs/<campaign-id>/outputs/*.mp4'
 python -m unittest discover -s tests -v
 ```
 

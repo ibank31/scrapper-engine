@@ -9,6 +9,7 @@ Usage:
   python run.py transcribe <video> [--model small]
   python run.py select_clips <transcript.json>
   python run.py render_clips <video> <candidates.json> [--transcript transcript.json]
+  python run.py validate_clips --plan plan.json --glob 'renders/*.mp4'
   python run.py product_image --manifest manifests/xxx.json --repo ~/situs
 """
 import os, runpy, sys
@@ -22,6 +23,7 @@ MODULES = {
     "transcribe": "modules/clipping/transcribe.py",
     "select_clips": "modules/clipping/select.py",
     "render_clips": "modules/clipping/render.py",
+    "validate_clips": "modules/clipping/validate.py",
     "product_image": "modules/product_image/run.py",
 }
 
