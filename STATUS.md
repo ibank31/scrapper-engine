@@ -19,3 +19,5 @@ engine online
 ## Next milestone
 
 Berikutnya: deploy Pages Function dari branch main, seed satu campaign fixture, lalu uji alur antre → worker → preview dari URL Pages.
+
+- Pages deployment filter diperluas ke seluruh repository agar Pages Function ikut ter-deploy.
