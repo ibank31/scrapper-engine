@@ -31,7 +31,7 @@ Cloudflare Workers Free is suitable for a light API, not video rendering. The cu
 6. Put the public API URL in `web/config.js` and set `DEMO_MODE: false`.
 7. Protect the Pages site and Worker with Cloudflare Access before using private campaign or video data.
 
-The local Python worker will later poll `GET /api/jobs`, run the existing pipeline, upload MP4 and thumbnails to R2, insert preview rows, and PATCH job progress with `x-worker-token`. It must never receive or store Cloudflare credentials in the repository.
+Because the user only has a phone, the Python worker must not be assumed to run locally. The planned worker is a GitHub Actions standard runner from the public `ibank31/scrapper-engine` repository. It will run the existing pipeline, upload MP4 and thumbnails to R2, insert preview rows, and PATCH job progress with `x-worker-token`. See [`PHONE_ONLY_ARCHITECTURE.md`](./PHONE_ONLY_ARCHITECTURE.md). It must never receive or store Cloudflare credentials in the repository.
 
 ## API contract
 
