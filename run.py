@@ -5,6 +5,7 @@ Usage:
   python run.py reward_campaign [--blob F | --local F]
   python run.py reward_detail <campaign_id_atau_url> [--no-translate --no-download]
   python run.py reward_plan <detail.json|flight.html> [--local]
+  python run.py reward_intake <plan.json> [--workspace data/jobs]
   python run.py product_image --manifest manifests/xxx.json --repo ~/situs
 """
 import os, runpy, sys
@@ -14,6 +15,7 @@ MODULES = {
     "reward_campaign": "modules/reward_campaign/scrape.py",
     "reward_detail": "modules/reward_campaign/pull_detail.py",
     "reward_plan": "modules/reward_campaign/build_plan.py",
+    "reward_intake": "modules/reward_campaign/intake.py",
     "product_image": "modules/product_image/run.py",
 }
 

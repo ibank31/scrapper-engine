@@ -50,8 +50,11 @@ Contoh dari detail lokal:
 
 ```bash
 python run.py reward_plan path/to/detail.json
+python run.py reward_intake path/to/detail.plan.json --workspace data/jobs
 python -m unittest discover -s tests -v
 ```
+
+`reward_intake` membuat workspace campaign dengan `plan.json`, `assets.json`, folder `assets/`, `outputs/`, dan `review/`. Link langsung yang aman dicoba otomatis dengan retry dan checksum. Link folder atau platform yang mungkin membutuhkan login dicatat di `MANUAL_ASSETS.md`; mesin tidak melakukan bypass akses.
 
 ## Prinsip sumber (product_image)
 
