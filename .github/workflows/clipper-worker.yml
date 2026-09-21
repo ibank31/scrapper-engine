@@ -38,4 +38,5 @@ jobs:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
           JOB_ID: ${{ inputs.job_id }}
+          PYTHONPATH: ${{ github.workspace }}
         run: python worker/run_job.py

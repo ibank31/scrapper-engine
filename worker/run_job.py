@@ -11,6 +11,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Repo root must be on sys.path so `from core...` works when the
+# workflow invokes `python worker/run_job.py` (cwd is repo root,
+# but the package root is not automatically on PYTHONPATH).
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 import requests
 
 from core.relevance import check_candidate
