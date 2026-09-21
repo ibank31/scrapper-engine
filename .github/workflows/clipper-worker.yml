@@ -6,16 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       job_id:
-        description: "Cloudflare job ID"
-        required: true
-        type: string
-      campaign_id:
-        description: "Campaign ID"
-        required: true
+        description: "Cloudflare job ID (leave empty to claim the oldest queued job)"
+        required: false
         type: string
 
 concurrency:
-  group: clipper-${{ inputs.job_id }}
+  group: clipper-worker
   cancel-in-progress: false
 
 jobs:
@@ -27,19 +23,18 @@ jobs:
     steps:
       - name: Checkout engine
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install FFmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
       - name: Install Python dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
-      - name: Sync live Content Rewards campaigns
-        env:
-          CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
-          CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
-        run: python worker/sync_campaigns.py
+
       - name: Run clipping pipeline
         env:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
