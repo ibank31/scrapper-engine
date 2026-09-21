@@ -26,3 +26,4 @@ Berikutnya: deploy Pages Function dari branch main, seed satu campaign fixture, 
 - Pages deployment filter diperluas ke seluruh repository agar Pages Function ikut ter-deploy.
 - Campaign radar sekarang memakai priority score berbasis relevance, recency, sisa budget, kemudahan materials/rules, dan competition proxy yang diberi label sebagai estimasi (bukan jumlah kompetitor nyata).
 - Status `new` diputuskan dari histori D1 (`first_seen_at`/`last_seen_at`), bukan dari file `campaigns.json`; migration tersedia di `cloudflare/migrations/0002_campaign_history.sql`.
+- Trial campaign kedua berhasil pada ForgeGUI: detail → rules snapshot → Drive asset intake → faster-whisper → candidate selection → vertical render → relevance validation → review queue. Catatan lengkap ada di `docs/TRIAL_FORGEGUI.md`.

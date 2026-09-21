@@ -68,6 +68,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+# Local campaign trial workspaces and rendered binary outputs
+data/trials/
+
 # Sphinx documentation
 docs/_build/
 

@@ -7,6 +7,7 @@ import re
 STOP = {"the", "and", "for", "with", "from", "your", "this", "that", "campaign", "content", "clipping", "video", "official", "brand", "views", "short", "form", "post", "posts", "social", "allowed"}
 KNOWN = {
     "boxabl": ("boxabl", "casita", "foldable home", "foldable homes", "modular home", "prefabricated home", "factory tour"),
+    "forgegui": ("forgegui", "forge g-u-i", "roblox", "roblox dev", "gui", "3d models", "ai tool"),
     "fundingpips": ("fundingpips", "forex", "trading", "trader"),
 }
 

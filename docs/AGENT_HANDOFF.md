@@ -34,6 +34,7 @@ Fitur yang sudah ada di branch `main`:
 - GitHub Actions worker untuk pengguna yang hanya memiliki HP.
 - Worker telah diubah untuk memproses seluruh video asset yang berhasil diambil, bukan hanya video pertama.
 - Worker memilih dan mengunggah maksimal **dua kandidat final per job**, setelah menggabungkan kandidat lintas semua sumber, menghapus kandidat yang gagal relevance, dan mengurutkan kandidat berdasarkan score.
+- Trial campaign kedua ForgeGUI didokumentasikan di `docs/TRIAL_FORGEGUI.md`; trial ini menambahkan regression vocabulary ForgeGUI/Roblox pada relevance gate.
 
 Commit penting:
 

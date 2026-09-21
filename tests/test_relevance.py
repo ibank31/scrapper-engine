@@ -15,6 +15,11 @@ class RelevanceTest(unittest.TestCase):
         result = check_candidate(self.plan, {"text": "Starbase and Starship are trying to reach orbit."})
         self.assertEqual(result["status"], "blocked")
 
+    def test_forgegui_roblox_topic_passes(self):
+        plan = {"campaign": {"title": "ForgeGUI Clipping", "brand": "BloxClips"}, "source_of_truth": {"description": "ForgeGUI is an AI tool for Roblox developers."}}
+        result = check_candidate(plan, {"text": "I will sketch my idea in forge G-U-I for my Roblox game and convert it into 3D."})
+        self.assertEqual(result["status"], "pass")
+
 
 if __name__ == "__main__":
     unittest.main()
