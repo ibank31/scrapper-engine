@@ -1,2 +1,4 @@
 requests>=2.31
 faster-whisper>=1.1
+yt-dlp>=2025.1
+gdown>=5.2

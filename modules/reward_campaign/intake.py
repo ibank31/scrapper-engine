@@ -11,6 +11,7 @@ import argparse
 import os
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -21,6 +22,42 @@ from core.job_workspace import create_workspace, now_iso, read_json, sha256_file
 
 DIRECT_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a", ".png", ".jpg", ".jpeg", ".webp", ".srt", ".ass"}
 MANUAL_HOSTS = ("dropbox.com", "drive.google.com", "docs.google.com", "frame.io", "youtube.com", "youtu.be", "vimeo.com", "tiktok.com")
+URL_RE = re.compile(r"https?://[^\s<>\]\)\"]+", re.I)
+
+
+def _reference_urls(url: str) -> list[str]:
+    """Expand a public Google Doc reference into URLs explicitly listed there."""
+    match = re.search(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", url)
+    if not match:
+        return []
+    try:
+        raw = fetch_bytes(f"https://docs.google.com/document/d/{match.group(1)}/export?format=txt", headers=DEFAULT_HEADERS, retries=2, timeout=60, min_bytes=1)
+        return [u.rstrip(".,;") for u in URL_RE.findall(raw.decode("utf-8", "ignore"))]
+    except Exception:
+        return []
+
+
+def download_youtube(url: str, destination: str) -> tuple[str, str | None]:
+    """Download one campaign-approved public YouTube source with yt-dlp."""
+    try:
+        command = [sys.executable, "-m", "yt_dlp", "--no-playlist", "--max-filesize", "800M", "--download-sections", "*0-300", "--force-keyframes-at-cuts", "-f", "bv*[height<=1080]+ba/b[height<=1080]", "--merge-output-format", "mp4", "-o", destination, url]
+        subprocess.run(command, check=True, text=True, timeout=900)
+        if os.path.exists(destination) and os.path.getsize(destination) > 0:
+            return "downloaded", None
+        return "failed", "yt-dlp produced no file"
+    except Exception as exc:
+        return "failed", str(exc)[:300]
+
+
+def download_drive(url: str, destination: str) -> tuple[str, str | None]:
+    """Download one public Google Drive file listed by the campaign."""
+    try:
+        subprocess.run([sys.executable, "-m", "gdown", url, "-O", destination, "-q"], check=True, text=True, timeout=900)
+        if os.path.exists(destination) and os.path.getsize(destination) > 0:
+            return "downloaded", None
+        return "failed", "gdown produced no file"
+    except Exception as exc:
+        return "failed", str(exc)[:300]
 
 
 def _filename(url: str, index: int) -> str:
@@ -73,6 +110,25 @@ def main() -> None:
         "",
     ]
     for index, url in enumerate(urls, 1):
+        expanded = [u for u in _reference_urls(url) if "youtube.com/" in u or "youtu.be/" in u or "drive.google.com/file/d/" in u]
+        if expanded:
+            source_url = next((u for u in expanded if "drive.google.com/file/d/" in u), expanded[0])
+            name = f"source-{index:02d}.mp4"
+            destination = os.path.join(ws["assets"], name)
+            if args.no_download:
+                status, error = "needs_manual_download", "download disabled by flag"
+            elif "drive.google.com/file/d/" in source_url:
+                status, error = download_drive(source_url, destination)
+            else:
+                status, error = download_youtube(source_url, destination)
+            record = {"index": index, "url": source_url, "source_reference": url, "created_at": now_iso(), "status": status, "path": os.path.relpath(destination, ws["path"]) if status == "downloaded" else None}
+            if status == "downloaded":
+                record.update({"bytes": os.path.getsize(destination), "sha256": sha256_file(destination)})
+            else:
+                record["reason"] = error
+                manual_lines += [f"{index}. `{source_url}`", f"   - Reason: {error}", f"   - Save as: `assets/{name}`", ""]
+            records.append(record)
+            continue
         record: dict[str, object] = {"index": index, "url": url, "created_at": now_iso()}
         reason = _manual_reason(url)
         name = _filename(url, index)
