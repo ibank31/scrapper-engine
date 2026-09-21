@@ -2,15 +2,30 @@ const cfg = window.CLIPPER_CONFIG || { API_BASE_URL: "", DEMO_MODE: true };
 const $ = (sel) => document.querySelector(sel);
 const state = { campaigns: [], jobs: [], reviews: [], pollTimer: null };
 const statusNames = { queued: "ANTRI", processing: "BERJALAN", review: "SIAP REVIEW", error: "GAGAL", blocked: "DIBLOKIR" };
+const readinessOrder = { siap: 0, ketat: 1, belum_siap: 2, lewati: 3 };
 const demoCampaigns = [
-  { id: "demo-ai-clips", title: "AI Founder Clips", brand: "Demo Studio", category: "technology", score: 86.5, rate_per_1k: 7, budget_left: 3850, platforms: ["tiktok", "youtube", "instagram"], type: "clipping", verified: true, description: "Use the provided podcast footage. Create native vertical clips with a clear hook and subtitles.", flags: [] },
-  { id: "demo-podcast", title: "Podcast Growth Campaign", brand: "North Star Media", category: "education", score: 78.2, rate_per_1k: 4, budget_left: 12400, platforms: ["youtube", "tiktok"], type: "clipping", verified: true, description: "Short educational clips from the official content library. No third-party watermark.", flags: ["9:16 required"] },
-  { id: "demo-music", title: "Artist Discovery Clips", brand: "Indie Records", category: "music", score: 69.4, rate_per_1k: 2.5, budget_left: 8200, platforms: ["tiktok", "instagram"], type: "clipping", verified: false, description: "Use official footage and attach the official sound when posting.", flags: ["official audio"] }
+  { id: "demo-ai-clips", title: "AI Founder Clips", brand: "Demo Studio", category: "technology", score: 86.5, rate_per_1k: 7, budget_left: 3850, platforms: ["tiktok", "youtube", "instagram"], type: "clipping", content_kind: "clipping", is_clipping: true, verified: true, description: "Use the provided podcast footage.", readiness_status: "siap", readiness_label: "Siap dikerjakan", readiness_reason: "Bahan resmi ada dan aturan sederhana (demo).", flags: [] },
+  { id: "demo-podcast", title: "Podcast Growth Campaign", brand: "North Star Media", category: "education", score: 78.2, rate_per_1k: 4, budget_left: 12400, platforms: ["youtube", "tiktok"], type: "clipping", content_kind: "clipping", is_clipping: true, verified: true, description: "Official content library.", readiness_status: "ketat", readiness_label: "Bisa, tapi ketat", readiness_reason: "Ada caption wajib dan watermark (demo).", flags: ["9:16 required"] },
+  { id: "demo-music", title: "Artist Discovery Clips", brand: "Indie Records", category: "music", score: 69.4, rate_per_1k: 2.5, budget_left: 8200, platforms: ["tiktok", "instagram"], type: "clipping", content_kind: "clipping", is_clipping: true, verified: false, description: "Official footage.", readiness_status: "belum_siap", readiness_label: "Belum siap", readiness_reason: "Bahan di portal berlogin (demo).", flags: ["official audio"] }
 ];
 function money(value) { return value == null ? "—" : `$${Number(value).toLocaleString()}`; }
-function escapeHtml(value) { return String(value ?? "").replace(/[&<>\"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c])); }
+function escapeHtml(value) { return String(value ?? "").replace(/[&<>\"]/g, (c) => ({ "&": "&", "<": "<", ">": ">", "\"": """ }[c])); }
 function showToast(message) { const el = $("#toast"); el.textContent = message; el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2800); }
 function api(path, options) { return fetch(`${cfg.API_BASE_URL || ""}${path}`, options).then((r) => { if (!r.ok) throw new Error(`API ${r.status}`); return r.json(); }); }
+function readinessClass(status) {
+  if (status === "siap") return "ready-siap";
+  if (status === "ketat") return "ready-ketat";
+  if (status === "belum_siap") return "ready-belum";
+  if (status === "lewati") return "ready-lewati";
+  return "ready-unknown";
+}
+function canStart(c) {
+  const s = c.readiness_status;
+  if (s === "lewati" || s === "belum_siap") return false;
+  if (s === "siap" || s === "ketat") return true;
+  // Before first sync classification: allow start if title looks like clipping
+  return String(c.title || "").toLowerCase().includes("clip");
+}
 async function loadCampaigns() {
   try {
     state.campaigns = cfg.DEMO_MODE ? demoCampaigns : (await api("/api/campaigns")).campaigns;
@@ -22,14 +37,55 @@ async function loadCampaigns() {
 }
 function renderCampaigns() {
   const q = $("#searchInput").value.toLowerCase(); const platform = $("#platformFilter").value; const sort = $("#sortSelect").value;
-  let rows = state.campaigns.filter((c) => (!q || `${c.title} ${c.brand} ${c.category}`.toLowerCase().includes(q)) && (!platform || (c.platforms || []).includes(platform)));
-  const metric = sort === "rate" ? "rate_per_1k" : sort === "budget" ? "budget_left" : sort === "recency" ? null : "score";
-  rows.sort((a, b) => metric ? Number(b[metric] || 0) - Number(a[metric] || 0) : Number(b.priority_components?.recency || 0) - Number(a.priority_components?.recency || 0));
-  $("#activeCount").textContent = state.campaigns.length; $("#campaignMeta").textContent = `${rows.length} campaign cocok`;
-  $("#campaignGrid").innerHTML = rows.map((c) => `<article class="campaign-card"><div class="card-top"><span class="category-pill">${escapeHtml(c.category)}</span><span class="card-labels">${c.new ? '<b class="new-badge">NEW</b>' : ''}${c.verified ? '<span class="verified">● Verified</span>' : ''}${c.ai_rules_status === "pass" ? '<span class="verified">● AI ready</span>' : '<span class="verified">● AI review</span>'}</span></div><h4>${escapeHtml(c.title)}</h4><p class="brand">${escapeHtml(c.brand)}</p><p class="description">${escapeHtml(c.description || "Campaign siap diproses oleh mesin.")}</p><div class="chips">${(c.platforms || []).map((p) => `<span>${escapeHtml(p)}</span>`).join("")}${(c.flags || []).map((f) => `<span class="flag">${escapeHtml(f)}</span>`).join("")}</div><div class="metrics"><div><small>Priority</small><strong>${Number(c.score || 0).toFixed(1)}</strong></div><div><small>Rate / 1K</small><strong>${money(c.rate_per_1k)}</strong></div><div><small>Competition</small><strong>${escapeHtml(c.competition_proxy?.risk || "proxy")}</strong></div></div><button class="primary-button start-button" data-id="${escapeHtml(c.id)}">Pilih campaign <span>→</span></button></article>`).join("") || '<div class="empty-state">Tidak ada campaign yang cocok.</div>';
-  document.querySelectorAll(".start-button").forEach((button) => button.addEventListener("click", () => openCampaign(button.dataset.id)));
+  let rows = state.campaigns.filter((c) => (!q || `${c.title} ${c.brand} ${c.category} ${c.readiness_label || ""}`.toLowerCase().includes(q)) && (!platform || (c.platforms || []).includes(platform)));
+  if (sort === "rate") rows.sort((a, b) => Number(b.rate_per_1k || 0) - Number(a.rate_per_1k || 0));
+  else if (sort === "budget") rows.sort((a, b) => Number(b.budget_left || 0) - Number(a.budget_left || 0));
+  else if (sort === "recency") rows.sort((a, b) => Number(b.priority_components?.recency || 0) - Number(a.priority_components?.recency || 0));
+  else rows.sort((a, b) => (readinessOrder[a.readiness_status] ?? 9) - (readinessOrder[b.readiness_status] ?? 9) || Number(b.readiness_ease || 0) - Number(a.readiness_ease || 0) || Number(b.score || 0) - Number(a.score || 0));
+  $("#activeCount").textContent = state.campaigns.length; $("#campaignMeta").textContent = `${rows.length} campaign · diurutkan mesin`;
+  $("#campaignGrid").innerHTML = rows.map((c) => {
+    const label = c.readiness_label || "Belum dinilai mesin";
+    const reason = c.readiness_reason || "Jalankan sync harian agar mesin menilai mudah/aman.";
+    const startable = canStart(c);
+    return `<article class="campaign-card ${readinessClass(c.readiness_status)}">
+      <div class="card-top"><span class="category-pill">${escapeHtml(c.category || "clipping")}</span>
+        <span class="readiness-badge ${readinessClass(c.readiness_status)}">${escapeHtml(label)}</span>
+      </div>
+      <h4>${escapeHtml(c.title)}</h4>
+      <p class="brand">${escapeHtml(c.brand)}</p>
+      <p class="readiness-reason">${escapeHtml(reason)}</p>
+      <div class="chips">${(c.platforms || []).map((p) => `<span>${escapeHtml(p)}</span>`).join("")}</div>
+      <div class="metrics">
+        <div><small>Bayaran / 1K</small><strong>${money(c.rate_per_1k)}</strong></div>
+        <div><small>Sisa budget</small><strong>${money(c.budget_left)}</strong></div>
+        <div><small>Jenis</small><strong>${escapeHtml(c.content_kind || c.type || "—")}</strong></div>
+      </div>
+      <button class="primary-button start-button" data-id="${escapeHtml(c.id)}" ${startable ? "" : "disabled"}>
+        ${startable ? "Mulai clipping <span>→</span>" : "Belum bisa dimulai"}
+      </button>
+    </article>`;
+  }).join("") || '<div class="empty-state">Tidak ada campaign yang cocok.</div>';
+  document.querySelectorAll(".start-button:not([disabled])").forEach((button) => button.addEventListener("click", () => openCampaign(button.dataset.id)));
 }
-function openCampaign(id) { const c = state.campaigns.find((x) => x.id === id); if (!c) return; $("#modalContent").innerHTML = `<p class="eyebrow">CAMPAIGN DETAIL</p><h2>${escapeHtml(c.title)}</h2><p class="modal-brand">${escapeHtml(c.brand)} · ${escapeHtml(c.type || "clipping")}</p><div class="rule-preview"><strong>Yang akan dikerjakan mesin</strong><span>Membaca rules dan asset campaign</span><span>Transkripsi dengan AI lokal cloud</span><span>Render 9:16 dengan subtitle</span><span>Validasi sebelum review</span></div><p class="modal-note">Posting tetap dikunci. Anda hanya menerima preview untuk diperiksa.</p><button class="primary-button" id="startJob">Mulai clipping otomatis <span>→</span></button>`; $("#detailModal").classList.remove("hidden"); $("#startJob").addEventListener("click", () => startJob(c)); }
+function openCampaign(id) {
+  const c = state.campaigns.find((x) => x.id === id); if (!c) return;
+  const label = c.readiness_label || "Belum dinilai";
+  const reason = c.readiness_reason || "—";
+  $("#modalContent").innerHTML = `<p class="eyebrow">DETAIL CAMPAIGN</p>
+    <h2>${escapeHtml(c.title)}</h2>
+    <p class="modal-brand">${escapeHtml(c.brand)} · ${escapeHtml(c.content_kind || "clipping")}</p>
+    <p class="readiness-badge ${readinessClass(c.readiness_status)}">${escapeHtml(label)}</p>
+    <p class="description">${escapeHtml(reason)}</p>
+    <div class="rule-preview"><strong>Yang akan dikerjakan mesin</strong>
+      <span>Membaca rules dan bahan resmi campaign</span>
+      <span>Memotong & merender preview vertical</span>
+      <span>Menyiapkan paket caption (bahasa Inggris) untuk review</span>
+    </div>
+    <p class="modal-note">Posting tetap manual. Anda hanya ACC preview lalu upload sendiri.</p>
+    <button class="primary-button" id="startJob">Mulai clipping otomatis <span>→</span></button>`;
+  $("#detailModal").classList.remove("hidden");
+  $("#startJob").addEventListener("click", () => startJob(c));
+}
 async function startJob(campaign) {
   $("#detailModal").classList.add("hidden");
   const localJob = { id: `local-${Date.now()}`, campaign_id: campaign.id, campaign_title: campaign.title, campaign_brand: campaign.brand, status: "queued", progress: 0, message: "Menyiapkan worker cloud…" };
