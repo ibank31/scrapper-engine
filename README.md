@@ -6,6 +6,10 @@ Engine scraping pribadi (ibank31). Dua misi:
 
 > Repo ini berisi data hasil scrape dan strategi pribadi. **Jaga tetap PRIVATE.**
 
+## Handoff untuk agent
+
+Agent atau maintainer baru wajib membaca [`AGENTS.md`](AGENTS.md), [`docs/AGENT_HANDOFF.md`](docs/AGENT_HANDOFF.md), dan [`STATUS.md`](STATUS.md) sebelum mengubah pipeline. Manual handoff menjelaskan arsitektur aktual, kontrak workspace/API, alur rules dan material harvesting, worker multi-source, pengujian, batasan, serta troubleshooting.
+
 ## Struktur
 
 ```

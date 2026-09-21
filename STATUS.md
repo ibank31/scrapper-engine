@@ -15,9 +15,11 @@ engine online
 - API dan UI progress sudah mendukung status `queued`, `processing`, `review`, dan `error`; workflow `.github/workflows/clipper-worker.yml` menjalankan pipeline pada GitHub runner dan mengunggah preview R2.
 - Mode deployment disederhanakan: Pages Function memakai binding R2 langsung, GitHub Actions mengambil job `queued` lewat schedule 5 menit, sehingga pengguna tidak perlu memberikan GitHub token atau R2 S3 key.
 - Auto-publish tetap disabled by design sampai pipeline render dan approval selesai.
+- Dokumentasi handoff lengkap tersedia di `AGENTS.md` dan `docs/AGENT_HANDOFF.md`; dokumen tersebut adalah pintu masuk wajib untuk agent berikutnya.
+- Material harvester sekarang menyimpan `RULES_SNAPSHOT.md`, membaca Google Docs publik, mengikuti sumber Drive/YouTube/direct media yang ditemukan dari materi campaign, dan memproses seluruh video source yang berhasil diambil.
 
 ## Next milestone
 
-Berikutnya: deploy Pages Function dari branch main, seed satu campaign fixture, lalu uji alur antre → worker → preview dari URL Pages.
+Berikutnya: deploy Pages Function dari branch main, seed satu campaign fixture, lalu uji alur antre → worker → preview dari URL Pages. Setelah itu, prioritas teknis berikutnya adalah visual relevance check untuk asset yang tidak menyebut brand di audio.
 
 - Pages deployment filter diperluas ke seluruh repository agar Pages Function ikut ter-deploy.
