@@ -19,6 +19,13 @@ def _text(plan: dict) -> str:
 
 
 def terms_for_plan(plan: dict) -> list[str]:
+    ai = plan.get("ai_rules") if isinstance(plan.get("ai_rules"), dict) else {}
+    ai_rule_set = ai.get("rules") if isinstance(ai.get("rules"), dict) else {}
+    ai_terms = [str(x).strip().lower() for x in (ai_rule_set.get("topic_terms") or []) if str(x).strip()]
+    if ai_terms:
+        campaign = plan.get("campaign") or {}
+        seed = [str(campaign.get("title") or "").lower(), str(campaign.get("brand") or "").lower()]
+        return list(dict.fromkeys(ai_terms + [x for x in seed if len(x) >= 3]))
     text = _text(plan)
     lower = text.lower()
     terms: list[str] = []

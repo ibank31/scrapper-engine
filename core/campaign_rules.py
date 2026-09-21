@@ -55,6 +55,8 @@ def _first_number(text: str, patterns: list[str]) -> float | None:
 def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     campaign = detail.get("campaign") or detail
     static = detail.get("staticDetails") or {}
+    ai_rules = detail.get("ai_rules") if isinstance(detail.get("ai_rules"), dict) else {}
+    ai_rule_set = ai_rules.get("rules") if isinstance(ai_rules.get("rules"), dict) else {}
     requirements = static.get("requirements") or []
     resources = static.get("resources") or []
     req_texts = [str(r.get("text") or "").strip() if isinstance(r, dict) else str(r).strip() for r in requirements if r]
@@ -108,6 +110,10 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             prohibited.append(label)
 
     tags = sorted(set(re.findall(r"@[A-Za-z0-9_.-]+", full_text)))
+    ai_handles = [str(x) for x in (ai_rule_set.get("handles") or []) if x]
+    ai_hashtags = [str(x) for x in (ai_rule_set.get("hashtags") or []) if x]
+    ai_disclosures = [str(x) for x in (ai_rule_set.get("disclosures") or []) if x]
+    topic_terms = [str(x).strip().lower() for x in (ai_rule_set.get("topic_terms") or []) if str(x).strip()]
     cta_urls = [u for u in urls if any(x in u.lower() for x in ("http://", "https://")) and not any(
         host in urlparse(u).netloc.lower() for host in ("dropbox.com", "drive.google.com", "youtube.com", "youtu.be", "tiktok.com")
     )]
@@ -139,8 +145,25 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
         {"id": "human_review", "required": True, "check": "human review completed before submission"},
     ]
 
+    ai_aspect_ratio = ai_rule_set.get("aspect_ratio")
+    if ai_aspect_ratio not in {"9:16", "16:9", "1:1"}:
+        ai_aspect_ratio = None
+    if ai_aspect_ratio == "9:16":
+        vertical_required = True
+    if not official_audio_required and ai_rule_set.get("official_audio_required") is not None:
+        official_audio_required = bool(ai_rule_set.get("official_audio_required"))
+    if not watermark_required and ai_rule_set.get("watermark_required"):
+        watermark_required = True
+    if not no_third_party_watermark and ai_rule_set.get("third_party_watermark_allowed") is False:
+        no_third_party_watermark = True
+    tags = list(dict.fromkeys(tags + ai_handles))
+    asset_urls = list(dict.fromkeys(asset_urls + [str(x) for x in (ai_rule_set.get("asset_sources") or []) if x]))
+    ai_confidence = float(ai_rules.get("confidence") or 0)
+    ai_ambiguities = list(ai_rules.get("ambiguities") or [])
+    ai_status = "pass" if ai_confidence >= 0.70 and not any("critical" in str(x).lower() for x in ai_ambiguities) else "needs_review"
+
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "campaign": {
             "id": campaign.get("id"),
             "title": campaign.get("title"),
@@ -150,10 +173,15 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             "campaign_type": campaign.get("campaignType") or campaign.get("type"),
         },
         "source_of_truth": {"description": description, "requirements": requirements, "normalized_requirements": normalized_requirements},
+        "ai_rules": ai_rules,
+        "ai_rules_status": ai_status if ai_rules else "unavailable",
         "production": {
             "provided_material_required": supplied_material_required,
             "asset_urls": asset_urls,
-            "aspect_ratio": "9:16" if vertical_required else None,
+            "aspect_ratio": ai_aspect_ratio or ("9:16" if vertical_required else None),
+            "min_duration_seconds": ai_rule_set.get("min_duration_seconds"),
+            "max_duration_seconds": ai_rule_set.get("max_duration_seconds"),
+            "subtitle_required": bool(ai_rule_set.get("subtitle_required")),
             "official_audio_required": official_audio_required,
             "watermark_required": watermark_required,
             "no_third_party_watermark": no_third_party_watermark,
@@ -161,11 +189,18 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             "cta_urls": cta_urls,
             "minimum_views": int(min_views) if min_views is not None else None,
             "maximum_payout": max_payout,
-            "prohibited": prohibited,
+            "prohibited": list(dict.fromkeys(prohibited + [str(x) for x in (ai_rule_set.get("prohibited_content") or []) if x])),
+            "allowed_content": [str(x) for x in (ai_rule_set.get("allowed_content") or []) if x],
+            "topic_terms": topic_terms,
+            "hashtags": ai_hashtags,
+            "disclosures": ai_disclosures,
+            "posting_rules": [str(x) for x in (ai_rule_set.get("posting_rules") or []) if x],
+            "account_rules": [str(x) for x in (ai_rule_set.get("account_rules") or []) if x],
+            "cta_text": ai_rule_set.get("cta_text"),
         },
         "gates": gates,
         "automation_policy": {
-            "render_allowed": True,
+            "render_allowed": bool(ai_rules) and ai_status == "pass",
             "publish_allowed": False,
             "reason": "Campaign rules must be validated and a human must approve before publishing.",
             "no_view_manipulation": no_bots,

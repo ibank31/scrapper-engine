@@ -18,10 +18,34 @@ function parse(row) {
   const detail = parseJson(row.detail_json, {});
   const priorityComponents = parseJson(row.priority_components_json || detail.priority_components_json, {});
   const competitionProxy = parseJson(row.competition_proxy_json || detail.competition_proxy_json, {});
-  return { ...row, platforms: parseJson(row.platforms_json, []), detail, plan: parseJson(row.plan_json, null), priority_components: priorityComponents, competition_proxy: competitionProxy, new: Boolean(row.first_seen_at && row.first_seen_at === row.last_seen_at), category: detail.category, type: detail.type, flags: detail.flags || [], link: detail.link, verified: Boolean(detail.verified), description: detail.description };
+  return { ...row, platforms: parseJson(row.platforms_json, []), detail, plan: parseJson(row.plan_json, null), ai_rules: parseJson(row.ai_rules_json, null), priority_components: priorityComponents, competition_proxy: competitionProxy, new: Boolean(row.first_seen_at && row.first_seen_at === row.last_seen_at), category: detail.category, type: detail.type, flags: detail.flags || [], link: detail.link, verified: Boolean(detail.verified), description: detail.description };
 }
 function workerAuthorized(request, env) {
   return Boolean(env.WORKER_TOKEN && request.headers.get("x-worker-token") === env.WORKER_TOKEN);
+}
+
+async function ensureSchema(db) {
+  const info = await db.prepare("PRAGMA table_info(campaigns)").all();
+  const existing = new Set((info.results || []).map((row) => row.name));
+  const columns = {
+    first_seen_at: "TEXT",
+    last_seen_at: "TEXT",
+    priority_components_json: "TEXT NOT NULL DEFAULT '{}'",
+    competition_proxy_json: "TEXT NOT NULL DEFAULT '{}'",
+    rules_hash: "TEXT",
+    ai_rules_json: "TEXT",
+    ai_rules_status: "TEXT NOT NULL DEFAULT 'unavailable'",
+    ai_analyzed_at: "TEXT",
+  };
+  for (const [name, definition] of Object.entries(columns)) {
+    if (!existing.has(name)) {
+      await db.prepare("ALTER TABLE campaigns ADD COLUMN " + name + " " + definition).run();
+    }
+  }
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_first_seen ON campaigns(first_seen_at)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_last_seen ON campaigns(last_seen_at)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_rules_hash ON campaigns(rules_hash)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status)").run();
 }
 
 export default {
@@ -31,18 +55,24 @@ export default {
     const parts = url.pathname.split("/").filter(Boolean);
     if (parts[0] !== "api") return json({ error: "not_found" }, 404);
     try {
+      await ensureSchema(env.DB);
       if (parts[1] === "campaigns" && parts[2] === "sync" && request.method === "POST") {
         if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now(); let synced = 0;
         for (const campaign of body.campaigns || []) {
           if (!campaign.id || !campaign.title) continue;
-          await env.DB.prepare("INSERT INTO campaigns (id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at,first_seen_at,last_seen_at,priority_components_json,competition_proxy_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,brand=excluded.brand,status=excluded.status,score=excluded.score,rate_per_1k=excluded.rate_per_1k,budget_left=excluded.budget_left,platforms_json=excluded.platforms_json,detail_json=excluded.detail_json,updated_at=excluded.updated_at,last_seen_at=excluded.last_seen_at,priority_components_json=excluded.priority_components_json,competition_proxy_json=excluded.competition_proxy_json").bind(String(campaign.id), campaign.title, campaign.brand || null, campaign.status || "active", campaign.score || 0, campaign.rate_per_1k || 0, campaign.budget_left || 0, JSON.stringify(campaign.platforms || []), JSON.stringify(campaign), null, timestamp, timestamp, timestamp, JSON.stringify(campaign.priority_components || {}), JSON.stringify(campaign.competition_proxy || {})).run();
+          await env.DB.prepare("INSERT INTO campaigns (id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at,first_seen_at,last_seen_at,priority_components_json,competition_proxy_json,rules_hash,ai_rules_json,ai_rules_status,ai_analyzed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,brand=excluded.brand,status=excluded.status,score=excluded.score,rate_per_1k=excluded.rate_per_1k,budget_left=excluded.budget_left,platforms_json=excluded.platforms_json,detail_json=excluded.detail_json,plan_json=excluded.plan_json,updated_at=excluded.updated_at,first_seen_at=COALESCE(campaigns.first_seen_at,excluded.first_seen_at),last_seen_at=excluded.last_seen_at,priority_components_json=excluded.priority_components_json,competition_proxy_json=excluded.competition_proxy_json,rules_hash=excluded.rules_hash,ai_rules_json=excluded.ai_rules_json,ai_rules_status=excluded.ai_rules_status,ai_analyzed_at=excluded.ai_analyzed_at").bind(String(campaign.id), campaign.title, campaign.brand || null, campaign.status || "active", campaign.score || 0, campaign.rate_per_1k || 0, campaign.budget_left || 0, JSON.stringify(campaign.platforms || []), JSON.stringify(campaign), null, timestamp, timestamp, timestamp, JSON.stringify(campaign.priority_components || {}), JSON.stringify(campaign.competition_proxy || {}), campaign.rules_hash || null, JSON.stringify(campaign.ai_rules || {}), campaign.ai_rules_status || "unavailable", campaign.ai_analyzed_at || null).run();
           synced += 1;
         }
         return json({ ok: true, synced, updated_at: timestamp });
       }
+      if (parts[1] === "campaign-intelligence" && request.method === "GET") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const result = await env.DB.prepare("SELECT id,rules_hash,ai_rules_json,ai_rules_status,ai_analyzed_at FROM campaigns WHERE status='active'").all();
+        return json({ campaigns: result.results || [] });
+      }
       if (parts[1] === "campaigns" && request.method === "GET" && !parts[2]) {
-        const result = await env.DB.prepare("SELECT id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at,first_seen_at,last_seen_at,priority_components_json,competition_proxy_json FROM campaigns WHERE status = 'active' ORDER BY score DESC LIMIT 50").all();
+        const result = await env.DB.prepare("SELECT id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at,first_seen_at,last_seen_at,priority_components_json,competition_proxy_json,rules_hash,ai_rules_json,ai_rules_status,ai_analyzed_at FROM campaigns WHERE status = 'active' ORDER BY score DESC LIMIT 50").all();
         return json({ campaigns: (result.results || []).map(parse) });
       }
       if (parts[1] === "campaigns" && parts[2] && request.method === "GET" && !parts[3]) {

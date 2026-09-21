@@ -1,0 +1,36 @@
+{
+  "preferred_topics": [
+    "technology",
+    "artificial intelligence",
+    "software",
+    "coding",
+    "developer",
+    "business",
+    "education",
+    "science",
+    "creator",
+    "podcast",
+    "gaming"
+  ],
+  "preferred_platforms": [
+    "tiktok",
+    "youtube",
+    "instagram"
+  ],
+  "preferred_workflow": [
+    "official footage",
+    "provided clips",
+    "content bank",
+    "approved campaign assets",
+    "short-form clipping"
+  ],
+  "excluded_topics": [
+    "gambling",
+    "casino",
+    "adult content",
+    "nicotine",
+    "illegal drugs",
+    "weapons",
+    "fraud"
+  ]
+}

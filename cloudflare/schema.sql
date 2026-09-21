@@ -13,7 +13,11 @@ CREATE TABLE IF NOT EXISTS campaigns (
   first_seen_at TEXT,
   last_seen_at TEXT,
   priority_components_json TEXT NOT NULL DEFAULT '{}',
-  competition_proxy_json TEXT NOT NULL DEFAULT '{}'
+  competition_proxy_json TEXT NOT NULL DEFAULT '{}',
+  rules_hash TEXT,
+  ai_rules_json TEXT,
+  ai_rules_status TEXT NOT NULL DEFAULT 'unavailable',
+  ai_analyzed_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS jobs (
@@ -46,5 +50,7 @@ CREATE TABLE IF NOT EXISTS previews (
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
 CREATE INDEX IF NOT EXISTS idx_campaigns_first_seen ON campaigns(first_seen_at);
 CREATE INDEX IF NOT EXISTS idx_campaigns_last_seen ON campaigns(last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_campaigns_rules_hash ON campaigns(rules_hash);
+CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_previews_job ON previews(job_id);

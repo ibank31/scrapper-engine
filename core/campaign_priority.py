@@ -87,7 +87,12 @@ def competition_proxy(campaign: Mapping[str, Any]) -> dict[str, Any]:
 
 def score_campaign(campaign: Mapping[str, Any], now: datetime | None = None) -> dict[str, Any]:
     """Return component scores and the final priority score (0..100)."""
-    relevance = max(0.0, min(1.0, _number(campaign.get("relevance")) or 0.0))
+    ai_fit = _number(campaign.get("ai_fit_score"))
+    if ai_fit is None:
+        ai_rules = campaign.get("ai_rules")
+        if isinstance(ai_rules, Mapping):
+            ai_fit = _number((ai_rules.get("campaign_fit") or {}).get("score"))
+    relevance = max(0.0, min(1.0, ai_fit if ai_fit is not None else (_number(campaign.get("relevance")) or 0.0)))
     recency = recency_score(campaign, now)
     budget_left = max(_number(campaign.get("budget_left")) or 0.0, 0.0)
     budget = min(budget_left, 50000.0) / 50000.0

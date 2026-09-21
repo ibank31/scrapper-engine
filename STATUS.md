@@ -27,3 +27,12 @@ Berikutnya: deploy Pages Function dari branch main, seed satu campaign fixture, 
 - Campaign radar sekarang memakai priority score berbasis relevance, recency, sisa budget, kemudahan materials/rules, dan competition proxy yang diberi label sebagai estimasi (bukan jumlah kompetitor nyata).
 - Status `new` diputuskan dari histori D1 (`first_seen_at`/`last_seen_at`), bukan dari file `campaigns.json`; migration tersedia di `cloudflare/migrations/0002_campaign_history.sql`.
 - Trial campaign kedua berhasil pada ForgeGUI: detail → rules snapshot → Drive asset intake → faster-whisper → candidate selection → vertical render → relevance validation → review queue. Catatan lengkap ada di `docs/TRIAL_FORGEGUI.md`.
+
+## Offline AI campaign intelligence
+
+- Qwen3-4B-Instruct-2507 Q4_K_M menjadi layer AI lokal untuk membaca rules dan memilih campaign tanpa API berbayar.
+- `campaign-sync-ai` melakukan scrape harian, detail hydration seluruh campaign aktif, rules extraction, AI fit scoring, plan compilation, dan sync ke D1.
+- `rules_hash` membuat AI tidak dipanggil ulang ketika rules campaign tidak berubah.
+- `ai_rules_status != pass` atau ambiguity kritis akan menghentikan produksi otomatis.
+- Production UI tidak lagi menampilkan fallback demo ketika API live gagal.
+- API melakukan schema self-healing untuk kolom history dan AI agar migration tertinggal tidak mematikan radar.

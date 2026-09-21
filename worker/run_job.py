@@ -74,6 +74,24 @@ def main() -> None:
             plan_path = Path(root) / "plan.json"
         plan_path = os.path.join(root, "plan.json")
         with open(plan_path, "w", encoding="utf-8") as fh: json.dump(plan, fh, ensure_ascii=False, indent=2)
+        ai_status = str(plan.get("ai_rules_status") or "")
+        ai_conf = float(((plan.get("ai_rules") or {}).get("confidence") or 0) or 0)
+        ai_ambiguities = (plan.get("ai_rules") or {}).get("ambiguities") or []
+        if ai_status != "pass" or ai_conf < 0.70 or any("critical" in str(x).lower() for x in ai_ambiguities):
+            update(
+                args.api_base,
+                args.job_id,
+                args.worker_token,
+                "blocked",
+                100,
+                "Rules campaign belum cukup dipahami AI untuk produksi otomatis",
+                "ai_rules_status=%s confidence=%.2f critical_ambiguities=%d" % (
+                    ai_status or "missing",
+                    ai_conf,
+                    sum(1 for x in ai_ambiguities if "critical" in str(x).lower()),
+                ),
+            )
+            return
         update(args.api_base, args.job_id, args.worker_token, "processing", 8, "Membaca rules campaign")
         workspace_root = os.path.join(root, "jobs")
         run([sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root])
