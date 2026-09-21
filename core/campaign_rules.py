@@ -57,7 +57,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     static = detail.get("staticDetails") or {}
     requirements = static.get("requirements") or []
     resources = static.get("resources") or []
-    req_texts = [str(r.get("text") or "").strip() for r in requirements if isinstance(r, dict)]
+    req_texts = [str(r.get("text") or "").strip() if isinstance(r, dict) else str(r).strip() for r in requirements if r]
     description = str(campaign.get("description") or "")
     full_text = _text(description, req_texts)
     urls = _find_urls(full_text)
@@ -114,6 +114,21 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     min_views = _first_number(full_text, [r"minimum floor\s*:?\s*([\d,]+)\s*views", r"minimum\s+([\d,]+)\s*views", r"min(?:imum)?\s+views?\s*:?\s*([\d,]+)"])
     max_payout = _first_number(full_text, [r"maximum cap\s*:?\s*\$?([\d,.]+)", r"max(?:imum)?\s+payout\s*:?\s*\$?([\d,.]+)"])
 
+    normalized_requirements = []
+    for item, text in zip(requirements, req_texts):
+        lower = text.lower()
+        normalized_requirements.append({
+            "id": "demographic_information" if _contains(lower, "demographic", "demografi") else
+                  "caption_hashtag" if _contains(lower, "hashtag", "caption", "tag") else
+                  "source_asset" if _contains(lower, "provided", "supplied", "raw asset", "content bank") else
+                  "watermark" if _contains(lower, "watermark") else
+                  "official_audio" if _contains(lower, "official audio", "official sound") else
+                  "cta" if _contains(lower, "call to action", "cta", "link in bio") else "custom",
+            "text": text,
+            "mandatory": bool(item.get("isMandatory", True)) if isinstance(item, dict) else True,
+            "platform": item.get("platform", "all") if isinstance(item, dict) else "all",
+        })
+
     gates = [
         {"id": "campaign_active", "required": True, "check": "campaign status is active"},
         {"id": "assets_available", "required": supplied_material_required, "check": "required campaign assets are downloaded or supplied"},
@@ -134,7 +149,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             "platforms": campaign.get("socialPlatforms") or campaign.get("platforms") or [],
             "campaign_type": campaign.get("campaignType") or campaign.get("type"),
         },
-        "source_of_truth": {"description": description, "requirements": requirements},
+        "source_of_truth": {"description": description, "requirements": requirements, "normalized_requirements": normalized_requirements},
         "production": {
             "provided_material_required": supplied_material_required,
             "asset_urls": asset_urls,

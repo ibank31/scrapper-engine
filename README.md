@@ -61,7 +61,7 @@ python run.py review_queue --plan data/jobs/<campaign-id>/plan.json --candidates
 python -m unittest discover -s tests -v
 ```
 
-`reward_intake` membuat workspace campaign dengan `plan.json`, `assets.json`, folder `assets/`, `outputs/`, dan `review/`. Link langsung yang aman dicoba otomatis dengan retry dan checksum. Link folder atau platform yang mungkin membutuhkan login dicatat di `MANUAL_ASSETS.md`; mesin tidak melakukan bypass akses.
+`reward_intake` membuat workspace campaign dengan `plan.json`, `assets.json`, folder `assets/`, `materials/`, `outputs/`, dan `review/`. Mesin menyimpan `RULES_SNAPSHOT.md`, membaca Google Docs publik yang dicantumkan campaign, mengikuti link Drive/YouTube/direct media yang memang ditemukan di materi campaign, lalu mengunduh asset publik dengan retry dan checksum. Link yang membutuhkan login atau tidak dapat dibaca tanpa bypass tetap dicatat di `MANUAL_ASSETS.md`; mesin tidak menembus kontrol akses.
 
 `review_queue` menyalin clip ke folder review, membuat thumbnail, membuat `INDEX.md`, `review.json`, caption draft, dan checklist manual per clip. Clip yang gagal validator diberi status `blocked`; clip lain tetap berstatus `pending_review` sampai Anda memeriksanya.
 

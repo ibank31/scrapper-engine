@@ -61,7 +61,7 @@ def main() -> None:
             detail_root = os.path.join(root, "campaign-detail")
             os.environ["CAMPAIGN_HOME"] = detail_root
             update(args.api_base, args.job_id, args.worker_token, "processing", 3, "Mengambil detail dan syarat campaign")
-            run([sys.executable, "run.py", "reward_detail", job["campaign_id"], "--no-translate", "--no-download"])
+            run([sys.executable, "run.py", "reward_detail", job["campaign_id"], "--no-translate"])
             details = list(Path(detail_root).rglob("detail.json"))
             if not details: raise RuntimeError("detail campaign tidak ditemukan")
             run([sys.executable, "run.py", "reward_plan", str(details[0])])
@@ -78,14 +78,36 @@ def main() -> None:
         if not workspace: raise RuntimeError("workspace asset tidak terbentuk")
         sources = [p for p in (workspace / "assets").rglob("*") if p.suffix.lower() in VIDEO_EXTENSIONS]
         if not sources: raise RuntimeError("tidak ada video asset langsung; periksa MANUAL_ASSETS.md")
-        source = sources[0]
-        update(args.api_base, args.job_id, args.worker_token, "processing", 24, "Bahan resmi sudah diambil")
-        transcript_dir = workspace / "transcript"
-        run([sys.executable, "run.py", "transcribe", str(source), "--out-dir", str(transcript_dir), "--model", args.whisper_model])
-        update(args.api_base, args.job_id, args.worker_token, "processing", 52, "Transkripsi AI selesai, memilih highlight")
-        run([sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"), "--limit", "10"])
+        update(args.api_base, args.job_id, args.worker_token, "processing", 24, f"{len(sources)} bahan resmi sudah diambil")
+        transcript_root = workspace / "transcripts"
         render_dir = workspace / "outputs"
-        run([sys.executable, "run.py", "render_clips", str(source), str(transcript_dir / "candidates.json"), "--transcript", str(transcript_dir / "transcript.json"), "--plan", plan_path, "--out-dir", str(render_dir)])
+        transcript_root.mkdir(exist_ok=True)
+        render_dir.mkdir(exist_ok=True)
+        all_candidates = []
+        global_rank = 1
+        for source_index, source in enumerate(sources, 1):
+            transcript_dir = transcript_root / f"source-{source_index:02d}"
+            run([sys.executable, "run.py", "transcribe", str(source), "--out-dir", str(transcript_dir), "--model", args.whisper_model])
+            run([sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"), "--limit", "10"])
+            local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
+            for local_item in local_candidates.get("candidates", []):
+                local_rank = int(local_item["rank"])
+                local_payload = {"schema_version": 1, "candidates": [dict(local_item, rank=1)]}
+                local_path = transcript_dir / f"candidate-{local_rank:03d}.json"
+                local_path.write_text(json.dumps(local_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+                local_render = transcript_dir / f"render-{local_rank:03d}"
+                run([sys.executable, "run.py", "render_clips", str(source), str(local_path), "--transcript", str(transcript_dir / "transcript.json"), "--plan", plan_path, "--out-dir", str(local_render)])
+                rendered = local_render / "clip-001.mp4"
+                if rendered.exists():
+                    target = render_dir / f"clip-{global_rank:03d}.mp4"
+                    shutil.copy2(rendered, target)
+                    all_candidates.append(dict(local_item, rank=global_rank, source=str(source)))
+                    global_rank += 1
+            update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)}")
+        if not all_candidates:
+            raise RuntimeError("tidak ada kandidat clip yang dapat dirender dari bahan campaign")
+        transcript_dir = transcript_root
+        (transcript_dir / "candidates.json").write_text(json.dumps({"schema_version": 1, "candidates": all_candidates}, ensure_ascii=False, indent=2), encoding="utf-8")
         update(args.api_base, args.job_id, args.worker_token, "processing", 78, "Video vertical selesai, menjalankan validasi")
         validation_path = workspace / "validation.json"
         run([sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)])

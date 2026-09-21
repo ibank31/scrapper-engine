@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Create a campaign workspace and safely intake campaign-provided assets.
-
-Only ordinary direct HTTP downloads are automated. Links that may require a
-login, folder navigation, or platform-specific action are recorded for manual
-handling instead of bypassing access controls.
-"""
+"""Harvest campaign rules and publicly authorized media into an auditable workspace."""
 from __future__ import annotations
 
 import argparse
@@ -18,27 +13,30 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from core.fetch import DEFAULT_HEADERS, FetchError, fetch_bytes
-from core.job_workspace import create_workspace, now_iso, read_json, sha256_file, slug, write_json
+from core.job_workspace import create_workspace, now_iso, read_json, sha256_file, write_json
 
 DIRECT_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a", ".png", ".jpg", ".jpeg", ".webp", ".srt", ".ass"}
-MANUAL_HOSTS = ("dropbox.com", "drive.google.com", "docs.google.com", "frame.io", "youtube.com", "youtu.be", "vimeo.com", "tiktok.com")
 URL_RE = re.compile(r"https?://[^\s<>\]\)\"]+", re.I)
+MAX_VIDEO_SOURCES = 3
+
+
+def _reference_text(url: str) -> tuple[str, str | None]:
+    match = re.search(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", url)
+    if not match:
+        return "", "not a public Google Doc"
+    try:
+        raw = fetch_bytes(f"https://docs.google.com/document/d/{match.group(1)}/export?format=txt", headers=DEFAULT_HEADERS, retries=2, timeout=60, min_bytes=1)
+        return raw.decode("utf-8", "ignore"), None
+    except Exception as exc:
+        return "", str(exc)[:300]
 
 
 def _reference_urls(url: str) -> list[str]:
-    """Expand a public Google Doc reference into URLs explicitly listed there."""
-    match = re.search(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", url)
-    if not match:
-        return []
-    try:
-        raw = fetch_bytes(f"https://docs.google.com/document/d/{match.group(1)}/export?format=txt", headers=DEFAULT_HEADERS, retries=2, timeout=60, min_bytes=1)
-        return [u.rstrip(".,;") for u in URL_RE.findall(raw.decode("utf-8", "ignore"))]
-    except Exception:
-        return []
+    text, _ = _reference_text(url)
+    return [u.rstrip(".,;") for u in URL_RE.findall(text)]
 
 
 def download_youtube(url: str, destination: str) -> tuple[str, str | None]:
-    """Download one campaign-approved public YouTube source with yt-dlp."""
     try:
         command = [sys.executable, "-m", "yt_dlp", "--no-playlist", "--max-filesize", "800M", "--download-sections", "*0-300", "--force-keyframes-at-cuts", "-f", "bv*[height<=1080]+ba/b[height<=1080]", "--merge-output-format", "mp4", "-o", destination, url]
         subprocess.run(command, check=True, text=True, timeout=900)
@@ -49,115 +47,130 @@ def download_youtube(url: str, destination: str) -> tuple[str, str | None]:
         return "failed", str(exc)[:300]
 
 
-def download_drive(url: str, destination: str) -> tuple[str, str | None]:
-    """Download one public Google Drive file listed by the campaign."""
+def download_drive(url: str, destination: str, folder: bool = False) -> tuple[str, str | None]:
     try:
-        subprocess.run([sys.executable, "-m", "gdown", url, "-O", destination, "-q"], check=True, text=True, timeout=900)
-        if os.path.exists(destination) and os.path.getsize(destination) > 0:
-            return "downloaded", None
-        return "failed", "gdown produced no file"
+        import gdown
+        if folder:
+            os.makedirs(destination, exist_ok=True)
+            gdown.download_folder(url=url, output=destination, quiet=True, use_cookies=False)
+            return ("downloaded", None) if any(Path(destination).rglob("*")) else ("failed", "empty Drive folder")
+        gdown.download(url=url, output=destination, quiet=True, fuzzy=True)
+        return ("downloaded", None) if os.path.exists(destination) and os.path.getsize(destination) > 0 else ("failed", "empty Drive file")
     except Exception as exc:
         return "failed", str(exc)[:300]
 
 
-def _filename(url: str, index: int) -> str:
-    parsed = urlparse(url)
-    name = os.path.basename(parsed.path)
-    name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
-    ext = Path(name).suffix.lower()
-    if not name or ext not in DIRECT_EXTENSIONS:
-        name = f"asset-{index:03d}.bin"
-    return name[:160]
-
-
-def _manual_reason(url: str) -> str | None:
-    host = urlparse(url).netloc.lower()
-    if any(h in host for h in MANUAL_HOSTS):
-        return "source may require login, folder navigation, ownership verification, or native platform action"
-    return None
-
-
 def download_direct(url: str, destination: str) -> tuple[str, str | None]:
-    """Download one ordinary direct URL and return (status, error)."""
     try:
         data = fetch_bytes(url, headers=DEFAULT_HEADERS, retries=3, timeout=180, min_bytes=1)
         with open(destination, "wb") as fh:
             fh.write(data)
-        if os.path.getsize(destination) < 1:
-            return "failed", "empty response"
-        return "downloaded", None
+        return ("downloaded", None) if os.path.getsize(destination) else ("failed", "empty response")
     except (FetchError, OSError, Exception) as exc:
         return "failed", str(exc)[:300]
 
 
+def _media_files(root: str) -> list[Path]:
+    return [p for p in Path(root).rglob("*") if p.is_file() and p.suffix.lower() in DIRECT_EXTENSIONS]
+
+
+def _record(path: Path, workspace: str, url: str, source_type: str, status: str = "downloaded", error: str | None = None) -> dict:
+    item = {"url": url, "source_type": source_type, "created_at": now_iso(), "status": status, "path": os.path.relpath(path, workspace) if status == "downloaded" and path.exists() else None}
+    if status == "downloaded" and path.exists():
+        item.update({"bytes": path.stat().st_size, "sha256": sha256_file(str(path))})
+    elif error:
+        item["reason"] = error
+    return item
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Campaign asset intake")
-    ap.add_argument("plan", help="campaign plan.json produced by reward_plan")
-    ap.add_argument("--workspace", default="data/jobs", help="root folder for job workspaces")
-    ap.add_argument("--no-download", action="store_true", help="only create manifest and manual instructions")
+    ap = argparse.ArgumentParser(description="Harvest campaign rules and assets")
+    ap.add_argument("plan", help="campaign plan.json")
+    ap.add_argument("--workspace", default="data/jobs")
+    ap.add_argument("--no-download", action="store_true", help="write rules/material manifest only")
+    ap.add_argument("--max-video-sources", type=int, default=MAX_VIDEO_SOURCES)
     args = ap.parse_args()
 
     plan = read_json(args.plan)
     ws = create_workspace(args.workspace, plan)
     write_json(os.path.join(ws["path"], "plan.json"), plan)
-    urls = (plan.get("production") or {}).get("asset_urls") or []
-    records: list[dict[str, object]] = []
-    manual_lines = [
-        f"# Manual asset actions — {plan.get('campaign', {}).get('title') or ws['job_id']}",
-        "",
-        "These links were not downloaded automatically because they may require login, folder selection, ownership verification, or native platform action.",
-        "Download only assets provided or authorized by the campaign, then copy them into the `assets/` folder and update `assets.json`.",
-        "",
-    ]
-    for index, url in enumerate(urls, 1):
-        expanded = [u for u in _reference_urls(url) if "youtube.com/" in u or "youtu.be/" in u or "drive.google.com/file/d/" in u]
-        if expanded:
-            source_url = next((u for u in expanded if "drive.google.com/file/d/" in u), expanded[0])
-            name = f"source-{index:02d}.mp4"
-            destination = os.path.join(ws["assets"], name)
-            if args.no_download:
-                status, error = "needs_manual_download", "download disabled by flag"
-            elif "drive.google.com/file/d/" in source_url:
-                status, error = download_drive(source_url, destination)
-            else:
-                status, error = download_youtube(source_url, destination)
-            record = {"index": index, "url": source_url, "source_reference": url, "created_at": now_iso(), "status": status, "path": os.path.relpath(destination, ws["path"]) if status == "downloaded" else None}
-            if status == "downloaded":
-                record.update({"bytes": os.path.getsize(destination), "sha256": sha256_file(destination)})
-            else:
-                record["reason"] = error
-                manual_lines += [f"{index}. `{source_url}`", f"   - Reason: {error}", f"   - Save as: `assets/{name}`", ""]
-            records.append(record)
-            continue
-        record: dict[str, object] = {"index": index, "url": url, "created_at": now_iso()}
-        reason = _manual_reason(url)
-        name = _filename(url, index)
-        destination = os.path.join(ws["assets"], name)
-        if args.no_download:
-            reason = reason or "download disabled by flag"
-        if reason:
-            record.update({"status": "needs_manual_download", "reason": reason, "path": None})
-            manual_lines += [f"{index}. `{url}`", f"   - Reason: {reason}", f"   - Save as: `assets/{name}`", ""]
-        else:
-            status, error = download_direct(url, destination)
-            record.update({"status": status, "path": os.path.relpath(destination, ws["path"]) if status == "downloaded" else None})
-            if status == "downloaded":
-                record["bytes"] = os.path.getsize(destination)
-                record["sha256"] = sha256_file(destination)
-            else:
-                record["error"] = error
-                manual_lines += [f"{index}. `{url}`", f"   - Reason: automated download failed: {error}", f"   - Save as: `assets/{name}`", ""]
-        records.append(record)
+    materials = os.path.join(ws["path"], "materials")
+    os.makedirs(materials, exist_ok=True)
+    records: list[dict] = []
+    discovered: list[str] = []
+    references = (plan.get("production") or {}).get("asset_urls") or []
+    for url in references:
+        discovered.append(url)
+        if "docs.google.com/document/" in url:
+            text, error = _reference_text(url)
+            name = f"reference-{len(list(Path(materials).glob('reference-*.txt'))) + 1:02d}.txt"
+            Path(materials, name).write_text(text if text else f"Unable to read reference: {error}\n", encoding="utf-8")
+            records.append(_record(Path(materials, name), ws["path"], url, "google_doc"))
+            if text:
+                discovered.extend(u for u in URL_RE.findall(text) if u not in discovered)
 
-    manifest = {"schema_version": 1, "job_id": ws["job_id"], "campaign": plan.get("campaign"), "updated_at": now_iso(), "assets": records}
+    media_sources: list[str] = []
+    for url in discovered:
+        host = urlparse(url).netloc.lower()
+        if "drive.google.com/file/d/" in url or "drive.google.com/open?id=" in url:
+            media_sources.append(url)
+        elif "/folders/" in url and "drive.google.com" in host:
+            media_sources.append(url)
+        elif "youtube.com/" in url or "youtu.be/" in url:
+            media_sources.append(url)
+        elif Path(urlparse(url).path).suffix.lower() in DIRECT_EXTENSIONS:
+            media_sources.append(url)
+    unique_sources = list(dict.fromkeys(media_sources))
+    # Prefer direct Drive files/folders over YouTube because they are more reliable in headless workers.
+    unique_sources.sort(key=lambda u: (0 if "drive.google.com" in u else 1, u))
+    video_count = 0
+    manual_lines = ["# Asset and rules intake", "", "Rules snapshot and discovered material are stored in `materials/` and `assets/`.", "", "## Authorized sources", ""]
+    for index, url in enumerate(unique_sources, 1):
+        if video_count >= max(1, args.max_video_sources) and ("youtube" in url or "youtu.be" in url or "/file/d/" in url):
+            continue
+        host = urlparse(url).netloc.lower()
+        label = f"source-{index:02d}"
+        if args.no_download:
+            records.append(_record(Path(ws["assets"], label + ".mp4"), ws["path"], url, "source", "needs_manual_download", "download disabled by flag"))
+            manual_lines += [f"- `{url}` — download disabled", ""]
+            continue
+        if "/folders/" in url and "drive.google.com" in host:
+            target = os.path.join(ws["assets"], label)
+            status, error = download_drive(url, target, folder=True)
+            folder_files = _media_files(target) if status == "downloaded" else []
+            if folder_files:
+                video_count += len([p for p in folder_files if p.suffix.lower() in {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}])
+                records.extend(_record(p, ws["path"], url, "google_drive_folder") for p in folder_files)
+            else:
+                records.append(_record(Path(target), ws["path"], url, "google_drive_folder", "failed", error or "no media files"))
+        else:
+            destination = os.path.join(ws["assets"], label + ".mp4")
+            if "youtube.com/" in url or "youtu.be/" in url:
+                status, error = download_youtube(url, destination)
+                source_type = "youtube_preapproved"
+            elif "drive.google.com" in host:
+                status, error = download_drive(url, destination)
+                source_type = "google_drive_file"
+            else:
+                status, error = download_direct(url, destination)
+                source_type = "direct_media"
+            records.append(_record(Path(destination), ws["path"], url, source_type, status, error))
+            if status == "downloaded":
+                video_count += 1
+            else:
+                manual_lines += [f"- `{url}` — {error}", ""]
+    rules = plan.get("source_of_truth") or {}
+    rules_path = Path(materials, "RULES_SNAPSHOT.md")
+    requirements = rules.get("requirements") or []
+    rules_path.write_text("# Campaign Rules Snapshot\n\n## Description\n\n" + str(rules.get("description") or "-") + "\n\n## Mandatory requirements\n\n" + "\n".join(f"- [{'x' if r.get('isMandatory') else ' '}] {r.get('text')}" for r in requirements) + "\n", encoding="utf-8")
+    records.append(_record(rules_path, ws["path"], "plan.source_of_truth", "rules_snapshot"))
+    manifest = {"schema_version": 2, "job_id": ws["job_id"], "campaign": plan.get("campaign"), "rules_snapshot": os.path.relpath(rules_path, ws["path"]), "assets": records, "updated_at": now_iso()}
     write_json(os.path.join(ws["path"], "assets.json"), manifest)
-    with open(os.path.join(ws["path"], "MANUAL_ASSETS.md"), "w", encoding="utf-8") as fh:
-        fh.write("\n".join(manual_lines).rstrip() + "\n")
+    Path(ws["path"], "MANUAL_ASSETS.md").write_text("\n".join(manual_lines) + "\n", encoding="utf-8")
     downloaded = sum(1 for r in records if r["status"] == "downloaded")
-    manual = sum(1 for r in records if r["status"] == "needs_manual_download")
     failed = sum(1 for r in records if r["status"] == "failed")
     print(f"OK: workspace {ws['path']}")
-    print(f"assets: {len(records)} | downloaded: {downloaded} | manual: {manual} | failed: {failed}")
+    print(f"records: {len(records)} | downloaded: {downloaded} | failed: {failed} | video_sources: {video_count}")
     raise SystemExit(1 if failed else 0)
 
 
