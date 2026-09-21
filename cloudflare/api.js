@@ -86,6 +86,45 @@ export default {
         await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Menunggu worker cloud", timestamp, timestamp).run();
         return json({ job: { id, campaign_id: parts[2], status: "queued", progress: 0, message: "Masuk antrean worker cloud", created_at: timestamp } }, 201);
       }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "run" && request.method === "POST") {
+        const jobId = parts[2];
+        const job = await env.DB.prepare("SELECT id,campaign_id,status FROM jobs WHERE id = ?").bind(jobId).first();
+        if (!job) return json({ error: "job_not_found" }, 404);
+        if (job.status !== "queued") return json({ error: "job_not_queued", status: job.status }, 409);
+
+        const githubToken = env.GITHUB_ACTIONS_TOKEN || env.GITHUB_TOKEN;
+        if (!githubToken) return json({ error: "github_dispatch_not_configured", message: "Cloudflare secret GITHUB_ACTIONS_TOKEN belum dikonfigurasi" }, 503);
+
+        const repo = env.GITHUB_REPOSITORY || "ibank31/scrapper-engine";
+        const workflow = env.GITHUB_WORKFLOW_FILE || "clipper-worker.yml";
+        const ref = env.GITHUB_WORKFLOW_REF || "main";
+        const githubUrl = `https://api.github.com/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`;
+        try {
+          const response = await fetch(githubUrl, {
+            method: "POST",
+            headers: {
+              "authorization": `Bearer ${githubToken}`,
+              "accept": "application/vnd.github+json",
+              "content-type": "application/json",
+              "x-github-api-version": "2022-11-28",
+              "user-agent": "clipper-engine"
+            },
+            body: JSON.stringify({ ref, inputs: { job_id: jobId } })
+          });
+          if (!response.ok) {
+            const detail = await response.text();
+            const message = detail.slice(0, 500) || `GitHub HTTP ${response.status}`;
+            await env.DB.prepare("UPDATE jobs SET message=?,error=?,updated_at=? WHERE id=?").bind("Gagal memicu worker GitHub", message, now(), jobId).run();
+            return json({ error: "github_dispatch_failed", message, github_status: response.status }, 502);
+          }
+          await env.DB.prepare("UPDATE jobs SET message=?,error=NULL,updated_at=? WHERE id=?").bind("Worker GitHub dipicu · menunggu runner", now(), jobId).run();
+          return json({ ok: true, dispatched: true, job_id: jobId, workflow, ref });
+        } catch (error) {
+          const message = String(error.message || error).slice(0, 500);
+          await env.DB.prepare("UPDATE jobs SET message=?,error=?,updated_at=? WHERE id=?").bind("Tidak dapat menghubungi GitHub Actions", message, now(), jobId).run();
+          return json({ error: "github_dispatch_network_error", message }, 502);
+        }
+      }
       if (parts[1] === "jobs" && request.method === "GET" && !parts[2]) {
         const result = await env.DB.prepare("SELECT j.id,j.campaign_id,j.status,j.progress,j.message,j.error,j.created_at,j.updated_at,c.title AS campaign_title,c.brand AS campaign_brand FROM jobs j JOIN campaigns c ON c.id=j.campaign_id ORDER BY j.updated_at DESC LIMIT 30").all();
         return json({ jobs: result.results || [] });
