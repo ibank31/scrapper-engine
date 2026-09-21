@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "0 17 * * *"
   workflow_dispatch:
+    inputs:
+      force_ai:
+        description: "Re-run Gemini analysis even when rules_hash is unchanged"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: campaign-sync-ai
@@ -33,4 +39,5 @@ jobs:
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLIPPER_AI_BATCH_SIZE: "4"
+          CLIPPER_FORCE_AI: ${{ inputs.force_ai || false }}
         run: python worker/sync_campaigns.py

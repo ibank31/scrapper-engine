@@ -208,6 +208,7 @@ def main() -> None:
     campaigns = hydrated + inactive
 
     existing = _fetch_existing(api, token)
+    force_ai = os.getenv("CLIPPER_FORCE_AI", "0").strip().lower() in {"1", "true", "yes"}
     candidates: list[dict[str, Any]] = []
     hashes: dict[str, str] = {}
     for c in campaigns:
@@ -217,7 +218,7 @@ def main() -> None:
         rh = rules_fingerprint(c)
         hashes[cid] = rh
         previous = existing.get(cid)
-        if previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json"):
+        if not force_ai and previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json"):
             _apply_ai(c, None, previous, rh)
         else:
             candidates.append(c)
