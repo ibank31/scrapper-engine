@@ -2,6 +2,7 @@ name: campaign-sync-ai
 
 on:
   schedule:
+    # GitHub cron is UTC: 17:00 UTC = 00:00 WIB, once per day.
     - cron: "0 17 * * *"
   workflow_dispatch:
     inputs:
@@ -32,6 +33,26 @@ jobs:
 
       - name: Install scraper dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Select daily Gemini model
+        shell: bash
+        run: |
+          set -euo pipefail
+          models=(
+            gemini-2.5-flash
+            gemini-2.5-flash-lite
+            gemini-3-flash
+            gemini-3.1-flash-lite
+            gemini-3.5-flash
+            gemini-3.5-flash-lite
+            gemini-3.6-flash
+            gemini-3.7-flash
+            gemini-3.8-flash
+          )
+          day=$(( $(date -u +%s) / 86400 ))
+          index=$(( day % ${#models[@]} ))
+          echo "GEMINI_MODEL=${models[$index]}" >> "$GITHUB_ENV"
+          echo "Selected daily Gemini model: ${models[$index]}"
 
       - name: Scrape, understand rules, score and sync campaigns
         env:
