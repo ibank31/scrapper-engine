@@ -18,7 +18,40 @@ function parse(row) {
   const detail = parseJson(row.detail_json, {});
   const priorityComponents = parseJson(row.priority_components_json || detail.priority_components_json, {});
   const competitionProxy = parseJson(row.competition_proxy_json || detail.competition_proxy_json, {});
-  return { ...row, platforms: parseJson(row.platforms_json, []), detail, plan: parseJson(row.plan_json, null), ai_rules: parseJson(row.ai_rules_json, null), priority_components: priorityComponents, competition_proxy: competitionProxy, new: Boolean(row.first_seen_at && row.first_seen_at === row.last_seen_at), category: detail.category, type: detail.type, flags: detail.flags || [], link: detail.link, verified: Boolean(detail.verified), description: detail.description };
+  const readinessStatus = detail.readiness_status || null;
+  return {
+    ...row,
+    platforms: parseJson(row.platforms_json, []),
+    detail,
+    plan: parseJson(row.plan_json, null),
+    ai_rules: parseJson(row.ai_rules_json, null),
+    priority_components: priorityComponents,
+    competition_proxy: competitionProxy,
+    new: Boolean(row.first_seen_at && row.first_seen_at === row.last_seen_at),
+    category: detail.category,
+    type: detail.type,
+    flags: detail.flags || [],
+    link: detail.link,
+    verified: Boolean(detail.verified),
+    description: detail.description,
+    // Phase 1 readiness (machine ranking for non-expert users)
+    content_kind: detail.content_kind || null,
+    is_clipping: detail.is_clipping === true || detail.content_kind === "clipping",
+    readiness_status: readinessStatus,
+    readiness_label: detail.readiness_label || null,
+    readiness_reason: detail.readiness_reason || null,
+    readiness_ease: detail.readiness_ease,
+    readiness_safety: detail.readiness_safety,
+    readiness_materials: detail.readiness_materials || null,
+    readiness_flags: detail.readiness_flags || [],
+  };
+}
+function readinessRank(status) {
+  if (status === "siap") return 0;
+  if (status === "ketat") return 1;
+  if (status === "belum_siap") return 2;
+  if (status === "lewati") return 3;
+  return 4;
 }
 function workerAuthorized(request, env) {
   return Boolean(env.WORKER_TOKEN && request.headers.get("x-worker-token") === env.WORKER_TOKEN);
@@ -73,8 +106,26 @@ export default {
         return json({ campaigns: result.results || [] });
       }
       if (parts[1] === "campaigns" && request.method === "GET" && !parts[2]) {
-        const result = await env.DB.prepare("SELECT id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at,first_seen_at,last_seen_at,priority_components_json,competition_proxy_json,rules_hash,ai_rules_json,ai_rules_status,ai_analyzed_at FROM campaigns WHERE status = 'active' ORDER BY score DESC LIMIT 50").all();
-        return json({ campaigns: (result.results || []).map(parse) });
+        const onlyClipping = url.searchParams.get("clipping") !== "0";
+        const result = await env.DB.prepare("SELECT id,title,brand,status,score,rate_per_1k,budget_left,platforms_json,detail_json,plan_json,updated_at,first_seen_at,last_seen_at,priority_components_json,competition_proxy_json,rules_hash,ai_rules_json,ai_rules_status,ai_analyzed_at FROM campaigns WHERE status = 'active' ORDER BY score DESC LIMIT 80").all();
+        let campaigns = (result.results || []).map(parse);
+        if (onlyClipping) {
+          // Keep clipping + unknown-with-materials; drop clear ugc/slideshow when classified
+          campaigns = campaigns.filter((c) => {
+            if (c.content_kind === "ugc" || c.content_kind === "slideshow") return false;
+            if (c.content_kind === "clipping") return true;
+            // Not yet classified by sync: keep if title suggests clipping
+            const t = String(c.title || "").toLowerCase();
+            if (t.includes("clip")) return true;
+            return c.content_kind == null;
+          });
+        }
+        campaigns.sort((a, b) => {
+          const d = readinessRank(a.readiness_status) - readinessRank(b.readiness_status);
+          if (d !== 0) return d;
+          return Number(b.readiness_ease || 0) - Number(a.readiness_ease || 0) || Number(b.score || 0) - Number(a.score || 0);
+        });
+        return json({ campaigns: campaigns.slice(0, 50) });
       }
       if (parts[1] === "campaigns" && parts[2] && request.method === "GET" && !parts[3]) {
         const row = await env.DB.prepare("SELECT * FROM campaigns WHERE id = ?").bind(parts[2]).first();
@@ -84,7 +135,6 @@ export default {
         const id = crypto.randomUUID(); const timestamp = now();
         const exists = await env.DB.prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active'").bind(parts[2]).first();
         if (!exists) return json({ error: "campaign_not_found" }, 404);
-        // Avoid duplicate open jobs for the same campaign
         const open = await env.DB.prepare("SELECT id FROM jobs WHERE campaign_id = ? AND status IN ('queued','processing') LIMIT 1").bind(parts[2]).first();
         if (open) return json({ job: { id: open.id, campaign_id: parts[2], status: "queued", progress: 0, message: "Job terbuka sudah ada", created_at: timestamp }, deduped: true }, 200);
         await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Menunggu worker cloud", timestamp, timestamp).run();
