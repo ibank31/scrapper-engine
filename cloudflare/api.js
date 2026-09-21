@@ -91,6 +91,8 @@ export default {
         const job = await env.DB.prepare("SELECT id,campaign_id,status FROM jobs WHERE id = ?").bind(jobId).first();
         if (!job) return json({ error: "job_not_found" }, 404);
         if (job.status !== "queued") return json({ error: "job_not_queued", status: job.status }, 409);
+        const current = await env.DB.prepare("SELECT message FROM jobs WHERE id = ?").bind(jobId).first();
+        if (String(current?.message || "").startsWith("Worker GitHub dipicu")) return json({ error: "job_already_dispatched" }, 409);
 
         const githubToken = env.GITHUB_ACTIONS_TOKEN || env.GITHUB_TOKEN;
         if (!githubToken) return json({ error: "github_dispatch_not_configured", message: "Cloudflare secret GITHUB_ACTIONS_TOKEN belum dikonfigurasi" }, 503);
