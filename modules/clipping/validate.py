@@ -10,6 +10,8 @@ import subprocess
 import sys
 from fractions import Fraction
 
+from core.relevance import check_candidate
+
 
 def probe(path: str) -> dict:
     command = ["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", path]
@@ -17,7 +19,7 @@ def probe(path: str) -> dict:
     return json.loads(result.stdout)
 
 
-def check_video(path: str, plan: dict | None) -> dict:
+def check_video(path: str, plan: dict | None, relevance: dict | None = None) -> dict:
     issues: list[str] = []
     review: list[str] = []
     try:
@@ -55,8 +57,13 @@ def check_video(path: str, plan: dict | None) -> dict:
         review.append("verify required handles/tags in native platform fields")
     if production.get("cta_urls"):
         review.append("verify CTA placement in bio, caption, or pinned comment as specified")
+    if relevance:
+        if relevance.get("status") == "blocked":
+            issues.append("campaign relevance failed: " + str(relevance.get("reason")))
+        elif relevance.get("status") == "uncertain":
+            review.append("campaign relevance is uncertain; human must verify topic and brand context")
     status = "fail" if issues else ("needs_review" if review else "pass")
-    return {"path": path, "status": status, "issues": issues, "review": review, "metadata": data.get("format", {})}
+    return {"path": path, "status": status, "issues": issues, "review": review, "relevance": relevance, "metadata": data.get("format", {})}
 
 
 def main() -> None:
@@ -65,14 +72,24 @@ def main() -> None:
     ap.add_argument("--video", action="append", default=[])
     ap.add_argument("--glob", dest="glob_pattern", default=None)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--candidates", default=None)
     args = ap.parse_args()
     plan = json.load(open(args.plan, encoding="utf-8")) if args.plan else None
+    candidates = json.load(open(args.candidates, encoding="utf-8")) if args.candidates else {"candidates": []}
+    relevance_by_rank = {int(x.get("rank", 0)): check_candidate(plan or {}, x) for x in candidates.get("candidates", [])}
     paths = list(args.video)
     if args.glob_pattern:
         paths.extend(sorted(glob.glob(args.glob_pattern)))
     if not paths:
         raise SystemExit("kasih --video PATH atau --glob PATTERN")
-    results = [check_video(path, plan) for path in paths]
+    results = []
+    for path in paths:
+        stem = os.path.basename(path).split(".", 1)[0].split("-")[-1]
+        try:
+            relevance = relevance_by_rank.get(int(stem))
+        except ValueError:
+            relevance = None
+        results.append(check_video(path, plan, relevance))
     payload = {"schema_version": 1, "plan": args.plan, "results": results}
     out = args.out or "validation.json"
     json.dump(payload, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=2)

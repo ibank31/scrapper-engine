@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""Campaign-aware transcript relevance checks before human review."""
+from __future__ import annotations
+
+import re
+
+STOP = {"the", "and", "for", "with", "from", "your", "this", "that", "campaign", "content", "clipping", "video", "official", "brand", "views", "short", "form", "post", "posts", "social", "allowed"}
+KNOWN = {
+    "boxabl": ("boxabl", "casita", "foldable home", "foldable homes", "modular home", "prefabricated home", "factory tour"),
+    "fundingpips": ("fundingpips", "forex", "trading", "trader"),
+}
+
+
+def _text(plan: dict) -> str:
+    source = plan.get("source_of_truth") or {}
+    campaign = plan.get("campaign") or {}
+    return " ".join(str(x) for x in (campaign.get("title"), campaign.get("brand"), source.get("description")) if x)
+
+
+def terms_for_plan(plan: dict) -> list[str]:
+    text = _text(plan)
+    lower = text.lower()
+    terms: list[str] = []
+    for key, values in KNOWN.items():
+        if key in lower:
+            terms.extend(values)
+    if terms:
+        return list(dict.fromkeys(terms))
+    for phrase in re.findall(r"\b[a-z][a-z-]{4,}(?:\s+[a-z][a-z-]{4,})?\b", lower):
+        if phrase not in STOP and phrase not in terms and phrase not in {"description", "provided", "required"}:
+            terms.append(phrase)
+    return list(dict.fromkeys(terms))
+
+
+def check_candidate(plan: dict, candidate: dict) -> dict:
+    text = str(candidate.get("text") or "").lower()
+    terms = terms_for_plan(plan)
+    matches = [term for term in terms if term in text]
+    # A plan with no extractable topical terms is not auto-rejected; require human review.
+    if not terms:
+        return {"status": "uncertain", "matches": [], "terms": [], "reason": "no reliable topical terms extracted; human review required"}
+    if matches:
+        return {"status": "pass", "matches": matches[:8], "terms": terms[:30], "reason": "candidate transcript matches campaign topic signals"}
+    return {"status": "blocked", "matches": [], "terms": terms[:30], "reason": "candidate transcript does not match campaign topic signals"}
