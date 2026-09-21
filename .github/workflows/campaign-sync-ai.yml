@@ -11,6 +11,11 @@ on:
         required: false
         type: boolean
         default: false
+      model_override:
+        description: "Optional text model override for controlled runs"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: campaign-sync-ai
@@ -49,10 +54,17 @@ jobs:
             gemini-3.7-flash
             gemini-3.8-flash
           )
-          day=$(( $(date -u +%s) / 86400 ))
-          index=$(( day % ${#models[@]} ))
-          echo "GEMINI_MODEL=${models[$index]}" >> "$GITHUB_ENV"
-          echo "Selected daily Gemini model: ${models[$index]}"
+          override="${{ inputs.model_override }}"
+          if [ -n "$override" ]; then
+            selected="$override"
+            echo "Selected manual Gemini model: $selected"
+          else
+            day=$(( $(date -u +%s) / 86400 ))
+            index=$(( day % ${#models[@]} ))
+            selected="${models[$index]}"
+            echo "Selected daily Gemini model: $selected"
+          fi
+          echo "GEMINI_MODEL=$selected" >> "$GITHUB_ENV"
 
       - name: Scrape, understand rules, score and sync campaigns
         env:
