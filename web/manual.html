@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Clipper Engine · Manual Demo</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">CE</div><div><strong>Clipper Engine</strong><span>Manual browser demo</span></div></div>
+      <nav>
+        <a class="nav-item active" href="#campaigns"><span>▦</span> Campaigns</a>
+        <a class="nav-item" href="#jobs"><span>◷</span> Processing queue <b id="queueCount">0</b></a>
+        <a class="nav-item" href="#review"><span>✓</span> Ready for review</a>
+      </nav>
+      <div class="sidebar-footer"><div class="worker-dot"></div><div><strong>Local demo</strong><span id="workerStatus">demo mode</span></div></div>
+    </aside>
+    <main class="main-content">
+      <header class="topbar"><div><p class="eyebrow">MANUAL SMOKE TEST</p><h1 id="pageTitle">Campaign radar</h1></div><button class="ghost-button" id="refreshButton">↻ Refresh</button></header>
+      <section id="campaignsView" class="view active-view">
+        <div class="hero-card"><div><p class="eyebrow light">BROWSER DEMO</p><h2>Test the workflow.<br><em>No production calls.</em></h2><p class="hero-copy">This page simulates campaign selection, queue progress, and review previews. It does not scrape, render, upload, or spend money.</p></div><div class="hero-stat"><span id="activeCount">—</span><small>demo campaigns</small></div></div>
+        <div class="toolbar"><div class="search-box"><span>⌕</span><input id="searchInput" placeholder="Search campaign, brand, category…" /></div><select id="platformFilter"><option value="">All platforms</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option></select><select id="sortSelect"><option value="score">Priority first</option><option value="rate">Highest rate</option><option value="budget">Budget left</option><option value="recency">Newest</option></select></div>
+        <div class="section-heading"><div><p class="eyebrow">DISCOVER</p><h3>Demo campaigns</h3></div><span class="muted" id="campaignMeta">Loading…</span></div>
+        <div id="campaignGrid" class="campaign-grid"></div>
+      </section>
+      <section id="jobsView" class="view hidden"><div class="section-heading"><div><p class="eyebrow">SIMULATION</p><h3>Processing queue</h3></div></div><div id="jobsList" class="jobs-list"></div></section>
+      <section id="reviewView" class="view hidden"><div class="section-heading"><div><p class="eyebrow">SIMULATION</p><h3>Ready for review</h3></div></div><div id="reviewGrid" class="review-grid"></div></section>
+    </main>
+  </div>
+  <div id="detailModal" class="modal hidden"><div class="modal-backdrop" data-close="true"></div><div class="modal-panel"><button class="modal-close" data-close="true">×</button><div id="modalContent"></div></div></div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="./manual-config.js"></script><script src="./app.js"></script>
+</body>
+</html>
