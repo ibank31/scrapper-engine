@@ -41,12 +41,64 @@ async function startJob(campaign) {
 async function triggerWorker(job) { if (!cfg.GITHUB_DISPATCH_URL) return; await fetch(cfg.GITHUB_DISPATCH_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ job_id: job.id, campaign_id: job.campaign_id }) }); }
 function simulateJob(job) { const steps = [["Mengantri di worker cloud", 5], ["Membaca rules campaign", 20], ["Mengambil bahan resmi", 38], ["Transkripsi dengan AI", 58], ["Render video vertical", 78], ["Validasi syarat", 94], ["Preview siap direview", 100]]; let i = 0; const tick = () => { if (i >= steps.length) { job.status = "review"; job.message = "2 preview siap direview"; state.reviews = [{ job, title: job.campaign_title, video: "", download_url: null }, { job, title: `${job.campaign_title} · Kandidat 2`, video: "", download_url: null }]; renderJobs(); renderReviews(); return; } job.status = i === 0 ? "queued" : i === steps.length - 1 ? "review" : "processing"; job.message = steps[i][0]; job.progress = steps[i][1]; renderJobs(); i++; setTimeout(tick, 850); }; tick(); }
 function statusText(status) { return statusNames[status] || String(status || "UNKNOWN").toUpperCase(); }
-function renderJobs() { $("#queueCount").textContent = state.jobs.filter((j) => j.status === "queued" || j.status === "processing").length; $("#jobsList").innerHTML = state.jobs.map((j) => `<article class="job-card"><div class="job-icon ${j.status === "processing" ? "spinning" : ""}">${j.status === "review" ? "✓" : j.status === "error" ? "!" : "◌"}</div><div class="job-main"><div class="job-head"><strong>${escapeHtml(j.campaign_title || j.campaign_id)}</strong><span class="status ${escapeHtml(j.status)}">${statusText(j.status)}</span></div><p><b>${escapeHtml(j.message || "Menunggu update…")}</b>${j.error ? ` · ${escapeHtml(j.error)}` : ""}</p><div class="progress"><i style="width:${j.progress || 0}%"></i></div></div><span class="progress-number">${j.progress || 0}%</span></article>`).join("") || '<div class="empty-state">Belum ada job. Pilih campaign untuk memulai.</div>'; }
+function formatAge(iso) {
+  if (!iso) return "belum ada update";
+  const age = Math.max(0, Date.now() - new Date(iso).getTime());
+  const seconds = Math.floor(age / 1000);
+  if (seconds < 60) return `${seconds}s lalu`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s lalu`;
+  return `${Math.floor(minutes / 60)}j ${minutes % 60}m lalu`;
+}
+function jobPhase(job) {
+  const p = Number(job.progress || 0);
+  const msg = String(job.message || "").toLowerCase();
+  if (job.status === "queued") return { label: "Menunggu runner", detail: "Job sudah masuk antrean dan menunggu worker cloud.", key: "queue" };
+  if (job.status === "review") return { label: "Selesai", detail: "Preview sudah diunggah dan siap diperiksa.", key: "done" };
+  if (job.status === "error") return { label: "Pipeline gagal", detail: job.error || "Worker berhenti karena error.", key: "error" };
+  if (job.status === "blocked") return { label: "Diblokir sebelum produksi", detail: job.message || "Rules campaign belum memenuhi syarat.", key: "blocked" };
+  if (msg.includes("detail") || msg.includes("syarat")) return { label: "Menganalisis campaign", detail: job.message, key: "analysis" };
+  if (p < 24) return { label: "Menyiapkan asset", detail: job.message || "Mengambil bahan resmi.", key: "assets" };
+  if (p < 78) return { label: "AI processing", detail: job.message || "Transkripsi dan pemilihan clip sedang berjalan.", key: "ai" };
+  if (p < 92) return { label: "Validasi video", detail: job.message || "Memeriksa hasil render terhadap rules.", key: "validate" };
+  return { label: "Mengunggah preview", detail: job.message || "Preview sedang dikirim ke storage.", key: "upload" };
+}
+function isStale(job) {
+  if (!job.updated_at || !["queued", "processing"].includes(job.status)) return false;
+  const age = Date.now() - new Date(job.updated_at).getTime();
+  return age > (job.status === "queued" ? 8 * 60 * 1000 : 5 * 60 * 1000);
+}
+function renderJobs() {
+  const active = state.jobs.filter((j) => j.status === "queued" || j.status === "processing").length;
+  const processing = state.jobs.filter((j) => j.status === "processing").length;
+  const queued = state.jobs.filter((j) => j.status === "queued").length;
+  const failed = state.jobs.filter((j) => ["error", "blocked"].includes(j.status)).length;
+  $("#queueCount").textContent = active;
+  const summary = $("#queueSummary");
+  if (summary) summary.innerHTML = `<div class="queue-live"><i></i><strong>${active ? "Live queue" : "Queue idle"}</strong><span>${active ? "memantau worker cloud" : "tidak ada job aktif"}</span></div><div class="queue-stats"><span><b>${processing}</b> berjalan</span><span><b>${queued}</b> antri</span><span class="${failed ? "has-alert" : ""}"><b>${failed}</b> gagal</span><span>sync <b id="queueSyncAge">baru saja</b></span></div>`;
+  $("#jobsList").innerHTML = state.jobs.map((j) => {
+    const phase = jobPhase(j);
+    const stale = isStale(j);
+    const progress = Math.max(0, Math.min(100, Number(j.progress || 0)));
+    const live = ["queued", "processing"].includes(j.status);
+    const icon = j.status === "review" ? "✓" : j.status === "error" ? "!" : j.status === "blocked" ? "!" : "◌";
+    return `<article class="job-card job-${escapeHtml(j.status)} ${stale ? "job-stale" : ""}">
+      <div class="job-icon ${j.status === "processing" ? "spinning" : ""} ${live ? "live-icon" : ""}">${icon}</div>
+      <div class="job-main">
+        <div class="job-head"><div class="job-title-wrap"><strong>${escapeHtml(j.campaign_title || j.campaign_id)}</strong><span class="job-phase">${escapeHtml(phase.label)}</span></div><span class="status ${escapeHtml(j.status)}">${statusText(j.status)}</span></div>
+        <p class="job-message"><b>${escapeHtml(j.message || phase.detail || "Menunggu update…")}</b>${j.error ? ` · ${escapeHtml(j.error)}` : ""}</p>
+        <div class="job-progress-row"><div class="progress"><i style="width:${progress}%"></i></div><span class="progress-number">${progress}%</span></div>
+        <div class="job-meta"><span>Update ${formatAge(j.updated_at)}</span><span>·</span><span>${escapeHtml(phase.detail || "")}</span>${stale ? '<span class="stale-warning">⚠ Tidak ada update terbaru</span>' : ""}</div>
+        ${live ? `<div class="phase-track" aria-label="Tahapan proses"><span class="done">${progress >= 24 ? "✓" : "1"}</span><span class="line ${progress >= 24 ? "done" : ""}"></span><span class="done">${progress >= 78 ? "✓" : "2"}</span><span class="line ${progress >= 78 ? "done" : ""}"></span><span class="done">${progress >= 92 ? "✓" : "3"}</span><span class="line ${progress >= 100 ? "done" : ""}"></span><span class="${progress >= 100 ? "done" : ""}">${progress >= 100 ? "✓" : "4"}</span></div><div class="phase-labels"><span>Asset</span><span>AI / Render</span><span>Validasi</span><span>Upload</span></div>` : ""}
+      </div>
+    </article>`;
+  }).join("") || '<div class="empty-state">Belum ada job. Pilih campaign untuk memulai.</div>';
+}
 async function loadJobs() { if (cfg.DEMO_MODE) return; try { const response = await api("/api/jobs"); state.jobs = response.jobs || []; renderJobs(); for (const job of state.jobs.filter((j) => j.status === "review")) await loadPreviews(job); } catch (error) { showToast("Status worker belum dapat diambil"); } }
 async function loadPreviews(job) { try { const response = await api(`/api/jobs/${encodeURIComponent(job.id)}/previews`); for (const preview of response.previews || []) state.reviews.push({ ...preview, title: `${job.campaign_title || "Campaign"} · Kandidat ${preview.rank}`, job }); renderReviews(); } catch (error) { /* keep job visible even if preview endpoint is late */ } }
-function startPolling() { if (cfg.DEMO_MODE || state.pollTimer) return; state.pollTimer = setInterval(async () => { await loadJobs(); if (!state.jobs.some((j) => j.status === "queued" || j.status === "processing")) { clearInterval(state.pollTimer); state.pollTimer = null; } }, 10000); }
+function startPolling() { if (cfg.DEMO_MODE || state.pollTimer) return; state.pollTimer = setInterval(async () => { await loadJobs(); if (!state.jobs.some((j) => j.status === "queued" || j.status === "processing")) { clearInterval(state.pollTimer); state.pollTimer = null; } }, 5000); }
 function renderReviews() { $("#reviewGrid").innerHTML = state.reviews.map((r, i) => `<article class="review-card">${r.video_url || r.download_url ? `<video class="review-video" controls preload="metadata" src="${escapeHtml(r.video_url || r.download_url)}"></video>` : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>'}<div class="review-body"><span class="status review">PENDING REVIEW</span><h4>${escapeHtml(r.title || "Clip")}</h4><p>Periksa video penuh dan checklist campaign sebelum download.</p><div class="review-actions">${r.download_url ? `<a class="primary-button download-link" href="${escapeHtml(r.download_url)}" download>Download MP4 <span>↓</span></a>` : '<button class="primary-button" onclick="showToast(\'Download aktif setelah worker mengunggah preview\')">Menunggu file <span>◌</span></button>'}<button class="ghost-button" onclick="showToast('Checklist ada di review manifest')">Checklist</button></div></div></article>`).join("") || '<div class="empty-state">Belum ada preview siap review.</div>'; }
 function showView(name) { document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden")); $(`#${name}View`).classList.remove("hidden"); $("#pageTitle").textContent = name === "campaigns" ? "Campaign radar" : name === "jobs" ? "Processing queue" : "Ready for review"; document.querySelectorAll(".nav-item").forEach((n) => n.classList.toggle("active", n.getAttribute("href") === `#${name}`)); }
 document.querySelectorAll(".nav-item").forEach((n) => n.addEventListener("click", (e) => { e.preventDefault(); showView(n.getAttribute("href").slice(1)); }));
 $("#refreshButton").addEventListener("click", async () => { await loadCampaigns(); await loadJobs(); showToast("Data diperbarui"); }); $("#searchInput").addEventListener("input", renderCampaigns); $("#platformFilter").addEventListener("change", renderCampaigns); $("#sortSelect").addEventListener("change", renderCampaigns); document.querySelectorAll("[data-close]").forEach((x) => x.addEventListener("click", () => $("#detailModal").classList.add("hidden")));
-$("#workerStatus").textContent = cfg.DEMO_MODE ? "demo mode" : "connected · polling 10s"; loadCampaigns(); loadJobs();
+$("#workerStatus").textContent = cfg.DEMO_MODE ? "demo mode" : "connected · polling 5s"; loadCampaigns(); loadJobs(); setInterval(() => { if (state.jobs.length) { renderJobs(); } }, 1000);
