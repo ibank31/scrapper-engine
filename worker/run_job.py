@@ -53,6 +53,8 @@ def main() -> None:
     ap.add_argument("--job-id", default=os.environ.get("JOB_ID"), required=False)
     ap.add_argument("--worker-token", default=os.environ.get("CLIPPER_WORKER_TOKEN"), required=False)
     ap.add_argument("--whisper-model", default=os.environ.get("CLIPPER_WHISPER_MODEL", "small"))
+    ap.add_argument("--whisper-beam", type=int, default=int(os.environ.get("CLIPPER_WHISPER_BEAM", "5")))
+    ap.add_argument("--max-video-sources", type=int, default=int(os.environ.get("CLIPPER_MAX_VIDEO_SOURCES", "3")))
     args = ap.parse_args()
     if not args.api_base or not args.worker_token:
         raise SystemExit("CLIPPER_API_URL dan CLIPPER_WORKER_TOKEN wajib tersedia")
@@ -117,12 +119,16 @@ def main() -> None:
             )
             return
 
-        update(args.api_base, args.job_id, args.worker_token, "processing", 8, "Membaca rules campaign")
+        max_sources = max(1, int(args.max_video_sources))
+        update(args.api_base, args.job_id, args.worker_token, "processing", 8, f"Membaca rules · max {max_sources} sumber video")
         workspace_root = os.path.join(root, "jobs")
-        run([sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root])
+        run([sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root, "--max-video-sources", str(max_sources)])
         workspace = next(Path(workspace_root).glob("*/"), None)
         if not workspace: raise RuntimeError("workspace asset tidak terbentuk")
         sources = [p for p in (workspace / "assets").rglob("*") if p.suffix.lower() in VIDEO_EXTENSIONS]
+        # Prefer smallest files first — faster whisper on free CPU runners.
+        sources.sort(key=lambda p: p.stat().st_size)
+        sources = sources[:max_sources]
         if not sources: raise RuntimeError("tidak ada video asset langsung; periksa MANUAL_ASSETS.md")
         update(args.api_base, args.job_id, args.worker_token, "processing", 24, f"{len(sources)} bahan resmi sudah diambil")
         transcript_root = workspace / "transcripts"
@@ -132,7 +138,12 @@ def main() -> None:
         all_candidates = []
         for source_index, source in enumerate(sources, 1):
             transcript_dir = transcript_root / f"source-{source_index:02d}"
-            run([sys.executable, "run.py", "transcribe", str(source), "--out-dir", str(transcript_dir), "--model", args.whisper_model])
+            run([
+                sys.executable, "run.py", "transcribe", str(source),
+                "--out-dir", str(transcript_dir),
+                "--model", args.whisper_model,
+                "--beam-size", str(max(1, int(args.whisper_beam))),
+            ])
             run([sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"), "--limit", "10"])
             local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
