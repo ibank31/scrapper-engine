@@ -40,6 +40,6 @@ jobs:
 
       - name: Scrape, understand rules, score and sync campaigns
         env:
-          CLIPPER_API_URL: \${{ secrets.CLIPPER_API_URL }}
-          CLIPPER_WORKER_TOKEN: \${{ secrets.CLIPPER_WORKER_TOKEN }}
+          CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
+          CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
         run: python worker/sync_campaigns.py
