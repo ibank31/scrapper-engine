@@ -159,7 +159,7 @@ def _gemini_generate(prompt: str, timeout: int = 120) -> str:
         "generationConfig": {
             "temperature": 0.1,
             "topP": 0.8,
-            "maxOutputTokens": 6500,
+            "maxOutputTokens": 12000,
             "responseMimeType": "application/json",
         },
     }
