@@ -115,7 +115,7 @@ def _urls_from(campaign: Mapping[str, Any]) -> list[str]:
     found: list[str] = []
     text = _blob(campaign)
     for m in re.finditer(r"https?://[^\s<>\]\"')]+", text, re.I):
-        u = m.group(0).rstrip(".,;:)"]}")
+        u = m.group(0).rstrip(".,;:)]}\"'")
         if u not in found:
             found.append(u)
     plan = campaign.get("plan_json") or campaign.get("plan") or {}

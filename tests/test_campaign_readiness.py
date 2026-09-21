@@ -68,7 +68,7 @@ class CampaignReadinessTests(unittest.TestCase):
             }
         )
         self.assertEqual(r["readiness_status"], STATUS_KETAT)
-        self.assertTrue(any("akun" in r["readiness_reason"].lower() or "ketat" in r["readiness_reason"].lower()))
+        self.assertTrue("akun" in r["readiness_reason"].lower() or "ketat" in r["readiness_reason"].lower())
 
     def test_lewati_ugc(self):
         r = assess_readiness(

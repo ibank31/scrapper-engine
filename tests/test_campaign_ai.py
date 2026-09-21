@@ -1,9 +1,48 @@
+import json
+import os
 import unittest
+from unittest.mock import patch
 
 from core.campaign_ai import normalize_ai_result, rules_fingerprint
+from core import campaign_ai
+
+
+class FakeGeminiResponse:
+    ok = True
+    status_code = 200
+
+    def json(self):
+        return {
+            "candidates": [{
+                "content": {"parts": [{"text": json.dumps({"campaigns": [{
+                    "campaign_id": "c-1",
+                    "campaign_fit": {"score": 0.9, "label": "high", "reason": "matches"},
+                    "rules": {"platforms": ["tiktok"], "min_duration_seconds": "15"},
+                    "confidence": 0.8,
+                }]})}]}
+            }]
+        }
 
 
 class CampaignAITests(unittest.TestCase):
+    def test_gemini_reads_required_environment_key_and_normalizes_response(self):
+        campaign = {"id": "c-1", "title": "Demo", "platforms": ["tiktok"]}
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-secret"}, clear=False), patch(
+            "core.campaign_ai.requests.post", return_value=FakeGeminiResponse()
+        ) as post:
+            result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
+
+        self.assertEqual(result["c-1"]["rules"]["min_duration_seconds"], 15)
+        headers = post.call_args.kwargs["headers"]
+        self.assertEqual(headers["x-goog-api-key"], "test-secret")
+        self.assertNotIn("test-secret", post.call_args.args[0])
+
+    def test_missing_gemini_key_fails_without_local_model_fallback(self):
+        campaign = {"id": "c-1", "title": "Demo"}
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(KeyError):
+                campaign_ai.analyze_campaigns([campaign])
+
     def test_normalize_ai_result(self):
         result = normalize_ai_result(
             {

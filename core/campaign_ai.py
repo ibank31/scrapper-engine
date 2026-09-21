@@ -1,29 +1,25 @@
 #!/usr/bin/env python3
-"""Offline campaign intelligence using a free local open-weight model."""
+"""Campaign intelligence using the Gemini API."""
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any, Iterable
 
 import requests
 
-MODEL_REPO = os.getenv("SCRAPPER_AI_MODEL_REPO", "mmnga/Qwen3-4B-Instruct-2507-gguf")
-MODEL_FILE = os.getenv("SCRAPPER_AI_MODEL_FILE", "Qwen3-4B-Instruct-2507-Q4_K_M.gguf")
-MODEL_SHA256 = os.getenv("SCRAPPER_AI_MODEL_SHA256", "01217501dd8c6741c544c32eb0d18b08e27b95475e1270e955da707fa2821e2c")
-MODEL_URL = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{MODEL_FILE}?download=true"
-CACHE_DIR = Path(os.getenv("SCRAPPER_AI_CACHE", Path.home() / ".cache" / "scrapper-engine"))
-MODEL_PATH = CACHE_DIR / MODEL_FILE
+GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 DEFAULT_PROFILE = {
-    "preferred_topics": ["technology","artificial intelligence","software","coding","developer","business","education","science","creator","podcast","gaming"],
-    "preferred_platforms": ["tiktok","youtube","instagram"],
-    "preferred_workflow": ["official footage","provided clips","content bank","approved campaign assets","short-form clipping"],
-    "excluded_topics": ["gambling","casino","adult content","nicotine","illegal drugs","weapons","fraud"],
+    "preferred_topics": ["technology", "artificial intelligence", "software", "coding", "developer", "business", "education", "science", "creator", "podcast", "gaming"],
+    "preferred_platforms": ["tiktok", "youtube", "instagram"],
+    "preferred_workflow": ["official footage", "provided clips", "content bank", "approved campaign assets", "short-form clipping"],
+    "excluded_topics": ["gambling", "casino", "adult content", "nicotine", "illegal drugs", "weapons", "fraud"],
 }
+
 
 def _load_profile() -> dict[str, Any]:
     path = Path(os.getenv("SCRAPPER_AI_PROFILE", "config/campaign_ai_profile.json"))
@@ -32,6 +28,7 @@ def _load_profile() -> dict[str, Any]:
         return obj if isinstance(obj, dict) else DEFAULT_PROFILE
     except Exception:
         return DEFAULT_PROFILE
+
 
 def rules_fingerprint(campaign: dict[str, Any]) -> str:
     payload = {
@@ -43,42 +40,11 @@ def rules_fingerprint(campaign: dict[str, Any]) -> str:
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
-def ensure_model() -> str:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    if MODEL_PATH.exists():
-        digest = hashlib.sha256()
-        with MODEL_PATH.open("rb") as fh:
-            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-                digest.update(chunk)
-        if digest.hexdigest() == MODEL_SHA256:
-            return str(MODEL_PATH)
-        MODEL_PATH.unlink(missing_ok=True)
-    tmp = MODEL_PATH.with_suffix(".download")
-    print(f"AI: downloading {MODEL_REPO}/{MODEL_FILE} (~2.5 GB, cached after first run)")
-    digest = hashlib.sha256()
-    response = requests.get(MODEL_URL, stream=True, timeout=60)
-    response.raise_for_status()
-    with tmp.open("wb") as fh:
-        for chunk in response.iter_content(1024 * 1024):
-            if not chunk:
-                continue
-            fh.write(chunk)
-            digest.update(chunk)
-    actual = digest.hexdigest()
-    if actual != MODEL_SHA256:
-        tmp.unlink(missing_ok=True)
-        raise RuntimeError(f"AI model checksum mismatch: {actual}")
-    tmp.replace(MODEL_PATH)
-    return str(MODEL_PATH)
 
-def load_llm():
-    try:
-        from llama_cpp import Llama
-    except ImportError as exc:
-        raise RuntimeError("llama-cpp-python belum terpasang") from exc
-    model_path = ensure_model()
-    threads = max(2, min(4, os.cpu_count() or 4))
-    return Llama(model_path=model_path, n_ctx=16384, n_threads=threads, n_batch=256, n_gpu_layers=0, verbose=False)
+def _gemini_api_key() -> str:
+    """Read the key only when an API call is needed; never print or include it in errors."""
+    return os.environ["GEMINI_API_KEY"]
+
 
 def _json_from_text(text: str) -> Any:
     clean = text.strip()
@@ -105,15 +71,18 @@ def _json_from_text(text: str) -> Any:
             continue
     raise ValueError("AI output contains no valid JSON object")
 
+
 def _num(value: Any, default: float | None = None) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
         return default
 
+
 def _int_or_none(value: Any) -> int | None:
     number = _num(value)
     return int(number) if number is not None else None
+
 
 def normalize_ai_result(item: dict[str, Any], campaign_id: str) -> dict[str, Any]:
     rules = item.get("rules") if isinstance(item.get("rules"), dict) else {}
@@ -153,6 +122,7 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str) -> dict[str, Any
         "confidence": confidence,
     }
 
+
 def _campaign_prompt_payload(campaign: dict[str, Any]) -> dict[str, Any]:
     return {
         "campaign_id": campaign.get("id"), "title": campaign.get("title"), "brand": campaign.get("brand"),
@@ -160,6 +130,7 @@ def _campaign_prompt_payload(campaign: dict[str, Any]) -> dict[str, Any]:
         "description": campaign.get("description") or "", "requirements": campaign.get("requirements") or [],
         "resources": campaign.get("resources") or [], "payouts": campaign.get("payouts") or [],
     }
+
 
 def _prompt(batch: Iterable[dict[str, Any]]) -> str:
     profile = _load_profile()
@@ -180,24 +151,41 @@ Return ONLY JSON in this shape:
 Campaigns:
 """ + json.dumps([_campaign_prompt_payload(x) for x in batch], ensure_ascii=False)
 
+
+def _gemini_generate(prompt: str, timeout: int = 120) -> str:
+    url = f"{GEMINI_API_BASE.rstrip('/')}/models/{GEMINI_MODEL}:generateContent"
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.1,
+            "topP": 0.8,
+            "maxOutputTokens": 6500,
+            "responseMimeType": "application/json",
+        },
+    }
+    response = requests.post(
+        url,
+        headers={"content-type": "application/json", "x-goog-api-key": _gemini_api_key()},
+        json=payload,
+        timeout=timeout,
+    )
+    if not response.ok:
+        raise RuntimeError(f"Gemini API request failed with HTTP {response.status_code}")
+    body = response.json()
+    try:
+        return "".join(part["text"] for part in body["candidates"][0]["content"]["parts"])
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError("Gemini API returned no text candidate") from exc
+
+
 def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> dict[str, dict[str, Any]]:
     if not campaigns:
         return {}
-    llm = load_llm()
     results: dict[str, dict[str, Any]] = {}
     batch_size = max(1, batch_size)
     for start in range(0, len(campaigns), batch_size):
         batch = campaigns[start:start + batch_size]
-        response = llm.create_chat_completion(
-            messages=[
-                {"role": "system", "content": "Return strict JSON only. Do not explain outside JSON."},
-                {"role": "user", "content": _prompt(batch)},
-            ],
-            temperature=0.1, top_p=0.8,
-            max_tokens=min(6500, max(900, len(batch) * 800)),
-            response_format={"type": "json_object"},
-        )
-        parsed = _json_from_text(response["choices"][0]["message"]["content"])
+        parsed = _json_from_text(_gemini_generate(_prompt(batch)))
         items = parsed.get("campaigns", []) if isinstance(parsed, dict) else []
         for raw in items:
             if not isinstance(raw, dict):
@@ -224,5 +212,6 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
                     "ambiguities": ["CRITICAL: AI omitted this campaign"], "evidence": [], "confidence": 0.0,
                 }
     return results
+
 
 __all__ = ["analyze_campaigns", "normalize_ai_result", "rules_fingerprint"]

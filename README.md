@@ -88,12 +88,12 @@ Urutan kandidat di manifest = urutan prioritas:
 
 **Bot-wall (Akamai dll) tidak dilawan.** Kalau kena 403: ganti sumber di manifest, jangan tambah teknik bypass. Kasus nyata: www.jbl.com 403 -> id.jbl.com + jblstore.co.id sukses.
 
-## Offline AI campaign intelligence
+## Gemini campaign intelligence
 
-`campaign-sync-ai` adalah jalur scraping harian yang menjalankan model lokal Qwen3-4B-Instruct-2507 Q4_K_M melalui `llama-cpp-python`; tidak ada API AI berbayar. Detail setiap campaign aktif diambil, aturan dan material disnapshot, AI mengubah rules tidak terstruktur menjadi `ai_rules`, lalu plan dikompilasi dan disimpan ke D1.
+`campaign-sync-ai` adalah jalur scraping harian yang memakai Gemini API melalui `GEMINI_API_KEY`. Detail setiap campaign aktif diambil, aturan dan material disnapshot, AI mengubah rules tidak terstruktur menjadi `ai_rules`, lalu plan dikompilasi dan disimpan ke D1. Kunci hanya dipasang sebagai environment variable GitHub Actions dan tidak ditulis ke source atau log.
 
 AI hanya dijalankan untuk campaign baru atau `rules_hash` yang berubah. Hasil AI berisi campaign-fit, sumber asset, platform, aspect ratio, durasi, subtitle, watermark, audio, CTA, handle/hashtag, disclosure, topic terms, allowed/prohibited content, posting/account rules, evidence, ambiguities, dan confidence.
 
 Campaign yang hasil AI-nya belum cukup yakin tidak boleh masuk produksi otomatis. Worker akan menghentikan job tersebut sebelum asset intake sehingga mesin tidak mengarang aturan campaign.
 
-Model diunduh dari Hugging Face saat pertama kali dibutuhkan dan diverifikasi SHA-256, kemudian dicache oleh GitHub Actions. Repository public menggunakan standard GitHub-hosted runner yang gratis.
+Workflow tidak mengunduh model lokal; runner hanya memasang dependency scraper lalu memanggil Gemini dengan output JSON terstruktur.

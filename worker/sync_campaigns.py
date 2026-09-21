@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Daily live campaign sync + offline AI + readiness ranking + optional auto-queue."""
+"""Daily live campaign sync + Gemini AI + readiness ranking + optional auto-queue."""
 from __future__ import annotations
 import concurrent.futures
 import json
@@ -229,7 +229,7 @@ def main() -> None:
             batch_size = max(2, min(10, int(os.getenv("CLIPPER_AI_BATCH_SIZE", "8"))))
             ai_results = analyze_campaigns(candidates, batch_size=batch_size)
         except Exception as exc:
-            print("(!) local AI unavailable:", str(exc)[:300])
+            print("(!) Gemini AI unavailable:", str(exc)[:300])
 
     readiness_counts: dict[str, int] = {}
     for c in campaigns:

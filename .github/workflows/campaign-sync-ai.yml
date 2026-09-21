@@ -24,22 +24,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Cache local AI model
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/scrapper-engine
-          key: scrapper-qwen3-4b-instruct-2507-q4km-v1
-
       - name: Install scraper dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
-
-      - name: Install free local AI runtime
-        env:
-          CMAKE_ARGS: "-DGGML_NATIVE=OFF"
-        run: pip install -r requirements-ai.txt
 
       - name: Scrape, understand rules, score and sync campaigns
         env:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python worker/sync_campaigns.py
