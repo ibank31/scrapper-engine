@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
-"""Daily live campaign sync + offline AI campaign intelligence + auto-queue."""
+"""Daily live campaign sync + offline AI + readiness ranking + optional auto-queue."""
 from __future__ import annotations
 import concurrent.futures
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from core.fetch import fetch_text
+from core.fetch import fetch_text, fetch_bytes
 from core.nextjs_flight import decode_blob
 from core.campaign_ai import analyze_campaigns, rules_fingerprint
 from core.campaign_priority import score_campaign
+from core.campaign_readiness import STATUS_KETAT, STATUS_SIAP, apply_readiness, readiness_sort_key
 from core.campaign_rules import compile_plan
 from modules.reward_campaign.pull_detail import extract_detail
+
+DOC_ID_RE = re.compile(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", re.I)
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -38,6 +43,33 @@ def _fetch_detail(campaign: dict[str, Any]) -> tuple[str, dict[str, Any] | None,
     except Exception as exc:
         return cid, None, str(exc)[:300]
 
+def _collect_doc_ids(campaign: dict[str, Any]) -> list[str]:
+    blob_parts: list[str] = [json.dumps(campaign.get("resources") or [], ensure_ascii=False)]
+    blob_parts.append(str(campaign.get("description") or ""))
+    for req in campaign.get("requirements") or []:
+        blob_parts.append(json.dumps(req, ensure_ascii=False) if isinstance(req, dict) else str(req))
+    text = "\n".join(blob_parts)
+    return list(dict.fromkeys(DOC_ID_RE.findall(text)))[:3]
+
+def _fetch_public_docs(campaign: dict[str, Any]) -> None:
+    """Best-effort public Google Docs export for rules text (no login)."""
+    chunks: list[str] = []
+    for doc_id in _collect_doc_ids(campaign):
+        try:
+            raw = fetch_bytes(
+                f"https://docs.google.com/document/d/{doc_id}/export?format=txt",
+                retries=1,
+                timeout=45,
+                min_bytes=20,
+            )
+            text = raw.decode("utf-8", "ignore").strip()
+            if text:
+                chunks.append(text[:12000])
+        except Exception as exc:
+            chunks.append(f"FAIL {doc_id}: {str(exc)[:120]}")
+    if chunks:
+        campaign["docs_text"] = "\n\n".join(chunks)
+
 def _hydrate(campaign: dict[str, Any]) -> dict[str, Any]:
     _, detail, error = _fetch_detail(campaign)
     if detail:
@@ -47,8 +79,14 @@ def _hydrate(campaign: dict[str, Any]) -> dict[str, Any]:
         campaign["requirements"] = static.get("requirements") or []
         campaign["resources"] = static.get("resources") or []
         campaign["payouts"] = static.get("payouts") or []
+        # Prefer explicit content type from live payload when present
+        for key in ("contentType", "campaignContentType", "content_type"):
+            if dc.get(key):
+                campaign["content_type"] = dc.get(key)
+                break
         campaign["detail_fetched_at"] = _now()
         campaign.pop("detail_fetch_error", None)
+        _fetch_public_docs(campaign)
     else:
         campaign["detail_fetch_error"] = error or "unknown detail error"
         campaign.setdefault("requirements", [])
@@ -108,45 +146,22 @@ def _apply_ai(campaign: dict[str, Any], ai: dict[str, Any] | None, previous: dic
     campaign["rules_hash"] = rh
     campaign["ai_fit_score"] = None
 
-def _has_public_material_hint(campaign: dict[str, Any]) -> bool:
-    """Heuristic: campaign lists Drive/YouTube/direct media or Google Docs links."""
-    blobs: list[str] = []
-    for key in ("resources", "requirements"):
-        for item in campaign.get(key) or []:
-            if isinstance(item, dict):
-                blobs.append(json.dumps(item, ensure_ascii=False))
-            else:
-                blobs.append(str(item))
-    plan = campaign.get("plan_json") or {}
-    prod = plan.get("production") if isinstance(plan, dict) else {}
-    for url in (prod or {}).get("asset_urls") or []:
-        blobs.append(str(url))
-    text = " ".join(blobs).lower()
-    markers = (
-        "drive.google.com",
-        "docs.google.com",
-        "youtube.com",
-        "youtu.be",
-        ".mp4",
-        ".mov",
-        "frame.io",
-        "dropbox.com",
-    )
-    return any(m in text for m in markers)
-
 def _auto_queue(api: str, token: str, campaigns: list[dict[str, Any]]) -> None:
-    """Queue top scored campaigns that look processable — human only reviews later."""
-    if os.getenv("CLIPPER_AUTO_QUEUE", "1").strip() in {"0", "false", "no"}:
-        print("Auto-queue disabled by CLIPPER_AUTO_QUEUE")
+    """Optional: queue only siap/ketat clipping. Default off for user-driven flow."""
+    if os.getenv("CLIPPER_AUTO_QUEUE", "0").strip() in {"0", "false", "no", ""}:
+        print("Auto-queue off (user chooses campaign). Set CLIPPER_AUTO_QUEUE=1 to enable.")
         return
     max_jobs = max(0, min(3, int(os.getenv("CLIPPER_AUTO_QUEUE_MAX", "1"))))
     if max_jobs == 0:
         return
-    # Prefer high score + material hints; skip explicit AI hard-fail.
     ranked = sorted(
-        [c for c in campaigns if str(c.get("status") or "active").lower() == "active"],
-        key=lambda c: float(c.get("score") or 0),
-        reverse=True,
+        [
+            c for c in campaigns
+            if str(c.get("status") or "active").lower() == "active"
+            and c.get("is_clipping")
+            and c.get("readiness_status") in {STATUS_SIAP, STATUS_KETAT}
+        ],
+        key=readiness_sort_key,
     )
     queued = 0
     for c in ranked:
@@ -155,17 +170,8 @@ def _auto_queue(api: str, token: str, campaigns: list[dict[str, Any]]) -> None:
         cid = str(c.get("id") or "")
         if not cid:
             continue
-        ai_status = str(c.get("ai_rules_status") or "").lower()
-        if ai_status in {"fail", "rejected", "blocked"}:
-            continue
-        if not _has_public_material_hint(c):
-            continue
         try:
-            r = requests.post(
-                f"{api}/api/campaigns/{cid}/jobs",
-                headers=_headers(token),
-                timeout=30,
-            )
+            r = requests.post(f"{api}/api/campaigns/{cid}/jobs", headers=_headers(token), timeout=30)
             if r.status_code not in (200, 201):
                 print(f"(!) queue create failed {cid}: HTTP {r.status_code} {r.text[:120]}")
                 continue
@@ -177,13 +183,8 @@ def _auto_queue(api: str, token: str, campaigns: list[dict[str, Any]]) -> None:
             if body.get("deduped"):
                 print(f"skip already open job for {cid}: {job_id}")
                 continue
-            # Dispatch GitHub worker immediately when possible
-            d = requests.post(
-                f"{api}/api/jobs/{job_id}/run",
-                headers=_headers(token),
-                timeout=30,
-            )
-            print(f"auto-queued {cid} job={job_id} dispatch={d.status_code}")
+            d = requests.post(f"{api}/api/jobs/{job_id}/run", headers=_headers(token), timeout=30)
+            print(f"auto-queued {cid} status={c.get('readiness_status')} job={job_id} dispatch={d.status_code}")
             queued += 1
         except Exception as exc:
             print(f"(!) auto-queue error {cid}: {str(exc)[:200]}")
@@ -203,7 +204,7 @@ def main() -> None:
     detail_workers = max(1, min(6, int(os.getenv("CLIPPER_DETAIL_WORKERS", "5"))))
     with concurrent.futures.ThreadPoolExecutor(max_workers=detail_workers) as pool:
         hydrated = list(pool.map(_hydrate, active))
-    inactive = [c for c in campaigns if c not in active]
+    inactive = [c for c in campaigns if str(c.get("status") or "active").lower() != "active"]
     campaigns = hydrated + inactive
 
     existing = _fetch_existing(api, token)
@@ -230,25 +231,31 @@ def main() -> None:
         except Exception as exc:
             print("(!) local AI unavailable:", str(exc)[:300])
 
+    readiness_counts: dict[str, int] = {}
     for c in campaigns:
         cid = str(c.get("id") or "")
         if not cid:
             continue
         previous = existing.get(cid)
         if cid in ai_results:
-            _apply_ai(c, ai_results[cid], previous, hashes[cid])
+            _apply_ai(c, ai_results[cid], previous, hashes.get(cid, ""))
         elif not c.get("ai_rules"):
-            _apply_ai(c, None, previous, hashes[cid])
+            _apply_ai(c, None, previous, hashes.get(cid, ""))
 
         detail = _build_detail(c)
         plan = compile_plan(detail)
-        plan["rules_hash"] = hashes[cid]
+        plan["rules_hash"] = hashes.get(cid)
         plan["ai_rules_status"] = c.get("ai_rules_status")
         c["plan_json"] = plan
         c.update(score_campaign(c))
+        apply_readiness(c)
+        readiness_counts[c.get("readiness_status") or "?"] = readiness_counts.get(c.get("readiness_status") or "?", 0) + 1
 
         if c.get("detail_fetch_error"):
             c["flags"] = list(dict.fromkeys((c.get("flags") or []) + ["DETAIL:needs_review"]))
+
+    campaigns.sort(key=readiness_sort_key)
+    print("Readiness:", readiness_counts)
 
     data["updated"] = _now()
     data["campaigns"] = campaigns
@@ -258,7 +265,6 @@ def main() -> None:
     response.raise_for_status()
     print("Synced campaigns:", response.json())
 
-    # Machine path: after intelligence is fresh, queue top processable campaigns.
     _auto_queue(api, token, campaigns)
 
 if __name__ == "__main__":
