@@ -9,7 +9,7 @@ on:
         type: string
 
 concurrency:
-  group: clipper-worker
+  group: clipper-worker-${{ inputs.job_id }}
   cancel-in-progress: false
 
 jobs:
