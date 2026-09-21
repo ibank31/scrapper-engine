@@ -173,7 +173,15 @@ def _gemini_generate(prompt: str, timeout: int = 120) -> str:
         timeout=timeout,
     )
     if not response.ok:
-        raise GeminiApiError(f"Gemini API request failed with HTTP {response.status_code}")
+        reason = "unspecified"
+        try:
+            error_body = response.json()
+            if isinstance(error_body, dict) and isinstance(error_body.get("error"), dict):
+                reason = str(error_body["error"].get("message") or reason)
+        except (ValueError, TypeError):
+            pass
+        reason = re.sub(r"AIza[0-9A-Za-z_-]{12,}", "[redacted]", reason)[:240]
+        raise GeminiApiError(f"Gemini API request failed with HTTP {response.status_code}: {reason}")
     body = response.json()
     candidates = body.get("candidates") if isinstance(body, dict) else None
     candidates = candidates if isinstance(candidates, list) else []
