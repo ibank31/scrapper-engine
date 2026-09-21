@@ -32,13 +32,37 @@ function renderCampaigns() {
 function openCampaign(id) { const c = state.campaigns.find((x) => x.id === id); if (!c) return; $("#modalContent").innerHTML = `<p class="eyebrow">CAMPAIGN DETAIL</p><h2>${escapeHtml(c.title)}</h2><p class="modal-brand">${escapeHtml(c.brand)} · ${escapeHtml(c.type || "clipping")}</p><div class="rule-preview"><strong>Yang akan dikerjakan mesin</strong><span>Membaca rules dan asset campaign</span><span>Transkripsi dengan AI lokal cloud</span><span>Render 9:16 dengan subtitle</span><span>Validasi sebelum review</span></div><p class="modal-note">Posting tetap dikunci. Anda hanya menerima preview untuk diperiksa.</p><button class="primary-button" id="startJob">Mulai clipping otomatis <span>→</span></button>`; $("#detailModal").classList.remove("hidden"); $("#startJob").addEventListener("click", () => startJob(c)); }
 async function startJob(campaign) {
   $("#detailModal").classList.add("hidden");
-  const localJob = { id: `local-${Date.now()}`, campaign_id: campaign.id, campaign_title: campaign.title, campaign_brand: campaign.brand, status: "queued", progress: 0, message: "Menunggu worker cloud" }; state.jobs.unshift(localJob); renderJobs(); showView("jobs");
+  const localJob = { id: `local-${Date.now()}`, campaign_id: campaign.id, campaign_title: campaign.title, campaign_brand: campaign.brand, status: "queued", progress: 0, message: "Menyiapkan worker cloud…" };
+  state.jobs.unshift(localJob); renderJobs(); showView("jobs");
   try {
-    if (!cfg.DEMO_MODE) { const response = await api(`/api/campaigns/${encodeURIComponent(campaign.id)}/jobs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ campaign_id: campaign.id }) }); Object.assign(localJob, response.job); localJob.campaign_title = campaign.title; localJob.campaign_brand = campaign.brand; await triggerWorker(localJob); startPolling(); }
-    else simulateJob(localJob);
-  } catch (error) { localJob.status = "error"; localJob.message = "Tidak bisa menghubungi worker cloud"; localJob.error = error.message; renderJobs(); }
+    if (!cfg.DEMO_MODE) {
+      const response = await api(`/api/campaigns/${encodeURIComponent(campaign.id)}/jobs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ campaign_id: campaign.id }) });
+      Object.assign(localJob, response.job);
+      localJob.campaign_title = campaign.title;
+      localJob.campaign_brand = campaign.brand;
+      renderJobs();
+      await triggerWorker(localJob);
+      localJob.message = "Worker GitHub sudah dipicu · menunggu runner";
+      renderJobs();
+      startPolling();
+    } else simulateJob(localJob);
+  } catch (error) {
+    localJob.status = "error";
+    localJob.message = "Gagal memulai workflow";
+    localJob.error = error.message;
+    renderJobs();
+    showToast(error.message || "Workflow gagal dimulai");
+  }
 }
-async function triggerWorker(job) { if (!cfg.GITHUB_DISPATCH_URL) return; await fetch(cfg.GITHUB_DISPATCH_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ job_id: job.id, campaign_id: job.campaign_id }) }); }
+async function triggerWorker(job) {
+  const response = await api(`/api/jobs/${encodeURIComponent(job.id)}/run`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ campaign_id: job.campaign_id })
+  });
+  if (!response.dispatched) throw new Error(response.error || "Worker tidak berhasil dipicu");
+  return response;
+}
 function simulateJob(job) { const steps = [["Mengantri di worker cloud", 5], ["Membaca rules campaign", 20], ["Mengambil bahan resmi", 38], ["Transkripsi dengan AI", 58], ["Render video vertical", 78], ["Validasi syarat", 94], ["Preview siap direview", 100]]; let i = 0; const tick = () => { if (i >= steps.length) { job.status = "review"; job.message = "2 preview siap direview"; state.reviews = [{ job, title: job.campaign_title, video: "", download_url: null }, { job, title: `${job.campaign_title} · Kandidat 2`, video: "", download_url: null }]; renderJobs(); renderReviews(); return; } job.status = i === 0 ? "queued" : i === steps.length - 1 ? "review" : "processing"; job.message = steps[i][0]; job.progress = steps[i][1]; renderJobs(); i++; setTimeout(tick, 850); }; tick(); }
 function statusText(status) { return statusNames[status] || String(status || "UNKNOWN").toUpperCase(); }
 function formatAge(iso) {
@@ -53,7 +77,7 @@ function formatAge(iso) {
 function jobPhase(job) {
   const p = Number(job.progress || 0);
   const msg = String(job.message || "").toLowerCase();
-  if (job.status === "queued") return { label: "Menunggu runner", detail: "Job sudah masuk antrean dan menunggu worker cloud.", key: "queue" };
+  if (job.status === "queued") return { label: job.error ? "Gagal dispatch" : "Menunggu runner", detail: job.error || (job.message || "Job sudah masuk antrean dan menunggu worker cloud."), key: job.error ? "dispatch-error" : "queue" };
   if (job.status === "review") return { label: "Selesai", detail: "Preview sudah diunggah dan siap diperiksa.", key: "done" };
   if (job.status === "error") return { label: "Pipeline gagal", detail: job.error || "Worker berhenti karena error.", key: "error" };
   if (job.status === "blocked") return { label: "Diblokir sebelum produksi", detail: job.message || "Rules campaign belum memenuhi syarat.", key: "blocked" };
