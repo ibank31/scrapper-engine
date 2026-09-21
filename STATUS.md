@@ -24,3 +24,5 @@ engine online
 Berikutnya: deploy Pages Function dari branch main, seed satu campaign fixture, lalu uji alur antre → worker → preview dari URL Pages. Setelah itu, prioritas teknis berikutnya adalah visual relevance check untuk asset yang tidak menyebut brand di audio.
 
 - Pages deployment filter diperluas ke seluruh repository agar Pages Function ikut ter-deploy.
+- Campaign radar sekarang memakai priority score berbasis relevance, recency, sisa budget, kemudahan materials/rules, dan competition proxy yang diberi label sebagai estimasi (bukan jumlah kompetitor nyata).
+- Status `new` diputuskan dari histori D1 (`first_seen_at`/`last_seen_at`), bukan dari file `campaigns.json`; migration tersedia di `cloudflare/migrations/0002_campaign_history.sql`.

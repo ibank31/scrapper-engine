@@ -24,7 +24,7 @@ Cloudflare Workers Free is suitable for a light API, not video rendering. The cu
 ## Initial setup
 
 1. Create a Pages project from the `web/` directory. The site can be deployed through Git integration so pushes to GitHub create automatic deployments.
-2. Create a D1 database and apply `schema.sql`.
+2. Create a D1 database and apply `schema.sql`. For an existing database, also apply `migrations/0002_campaign_history.sql`; it adds `first_seen_at`, `last_seen_at`, and priority component columns without deleting campaign rows.
 3. Create an R2 standard bucket for `clips`.
 4. Deploy the Worker API and bind D1 as `DB` and R2 as `CLIPS`.
 5. Set a random `WORKER_TOKEN` secret for local worker status updates. Do not commit it.

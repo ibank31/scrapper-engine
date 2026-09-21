@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from core.fetch import fetch_text, FetchError
 from core.nextjs_flight import decode_blob, parse_balanced, build_refmap
 from core.textutil import money
+from core.campaign_priority import score_campaign
 
 URL = "https://contentrewards.com/discover"
 OUT_DIR = os.path.join("data", "reward_campaign")
@@ -54,7 +55,7 @@ def extract_campaigns(blob):
         if cid not in by_id or len(c) > len(by_id[cid]): by_id[cid] = c
     return list(by_id.values())
 
-def normalize(c, refmap, prev_ids):
+def normalize(c, refmap):
     desc = c.get("description") or ""
     if isinstance(desc, str):
         m = re.fullmatch(r'\$([0-9a-f]{1,4})', desc)
@@ -69,34 +70,36 @@ def normalize(c, refmap, prev_ids):
     blocked = [b for b in BLOCK if b in hay]
     kw = [k for k in KW_BONUS if k in hay]
     rel = min(1.0, CAT_W.get(cat, 0.4) + min(len(kw) * 0.05, 0.25))
-    rate_s = min(rate or 0, 15) / 15
-    budget_s = min(left or 0, 50000) / 50000
-    inter = MY_PLATFORMS & set(plats)
-    plat_s = 1.0 if inter else (0.7 if not plats else 0.3)
-    score = round(100 * (0.45 * rel + 0.25 * rate_s + 0.20 * budget_s + 0.10 * plat_s)
-                  + (5 if c.get("isVerified") else 0), 1)
     flags = []
     if re.search(r'tier[ -]?1|usa only|us only|english[ -]speaking', hay): flags.append("EN/Tier-1")
     if blocked: flags.append("EXCLUDED:" + ",".join(sorted(set(blocked))[:2]))
-    return {
+    normalized = {
         "id": c.get("id"), "title": c.get("title"), "brand": c.get("brand"),
         "category": cat, "type": c.get("campaignType") or c.get("type") or "cpm", "status": c.get("status") or "active",
         "verified": bool(c.get("isVerified")), "rate_per_1k": rate,
         "budget_total": total, "budget_left": left,
         "progress_pct": round(c.get("progressPercentage") or 0, 1),
-        "platforms": plats, "relevance": round(rel, 2), "score": score,
+        "platforms": plats, "relevance": round(rel, 2),
         "flags": flags, "excluded": bool(blocked),
         "link": ("https://contentrewards.com/discover/" + str(c.get("id"))) if c.get("id") else None,
-        "new": c.get("id") not in prev_ids,
         "description": desc[:400],
     }
+    priority = score_campaign({**normalized, "updatedAt": c.get("updatedAt") or c.get("updated_at"),
+                               "createdAt": c.get("createdAt") or c.get("created_at"),
+                               "startDate": c.get("startDate") or c.get("start_date"),
+                               "resources": c.get("resources"), "requirements": c.get("requirements")})
+    normalized.update(priority)
+    # `new` is intentionally assigned by D1 using first_seen_at/last_seen_at.
+    # The local artifact is a source payload, not the source of truth for history.
+    normalized["new"] = False
+    return normalized
 
 def fmt_money(v):
     return "-" if v is None else "$" + format(v, ",.0f")
 
 def row(c):
     t = (c["title"] or "")[:42].replace("|", "/")
-    nb = "NEW " if c["new"] else ""
+    nb = "NEW " if c.get("new") else ""
     plat = ",".join(p[:2] for p in c["platforms"]) or "?"
     link = "[detail](" + c["link"] + ")" if c["link"] else "-"
     fl = " ".join(f for f in c["flags"] if not f.startswith("EXCLUDED"))
@@ -117,13 +120,8 @@ def main():
     else:
         blob = decode_blob(fetch())
     refmap = build_refmap(blob)
-    prev_ids = set()
     prev_path = os.path.join(OUT_DIR, "campaigns.json")
-    if os.path.exists(prev_path):
-        try:
-            prev_ids = set(c["id"] for c in json.load(open(prev_path))["campaigns"])
-        except Exception: pass
-    cams = [normalize(c, refmap, prev_ids) for c in extract_campaigns(blob)]
+    cams = [normalize(c, refmap) for c in extract_campaigns(blob)]
     active = [c for c in cams if c["status"] == "active" and c["progress_pct"] < 97]
     ok = [c for c in active if not c["excluded"]]
     ok = [c for c in ok if (MY_PLATFORMS & set(c["platforms"])) and str(c["type"] or "").lower() in ("clipping", "both", "cpm", "per_post", "per-post", "retainer")]
@@ -132,12 +130,12 @@ def main():
                       key=lambda x: -((x["rate_per_1k"] or 0) * min((x["budget_left"] or 0), 50000)))
     excluded = [c for c in active if c["excluded"]]
     wib = datetime.now(timezone(timedelta(hours=7)))
-    n_new = sum(1 for c in active if c["new"])
+    n_new = sum(1 for c in active if c.get("new"))
     lines = [
         "# Reward Campaign Radar - " + wib.strftime("%d %b %Y %H:%M") + " WIB",
         "",
         "Sumber: " + URL + " | Total: **" + str(len(cams)) + "** | Aktif: **" + str(len(active))
-        + "** | Baru sejak run terakhir: **" + str(n_new) + "**",
+        + "** | Baru: **" + str(n_new) + "** (ditentukan D1 dari first_seen_at)",
         "",
         "> WARM-UP RULE BinB: campaign clipping = arsip/referensi sampai accountPhase=mature. Jangan produksi campaign clip selama warm-up. Cek aturan tiap campaign (submission window, boosting, min views) sebelum eksekusi.",
         "",
