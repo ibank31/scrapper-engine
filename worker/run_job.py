@@ -13,7 +13,10 @@ from pathlib import Path
 
 import requests
 
+from core.relevance import check_candidate
+
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+MAX_REVIEW_CANDIDATES = 2
 
 
 def api_call(base: str, path: str, token: str, method: str = "GET", payload: dict | None = None) -> dict:
@@ -84,28 +87,37 @@ def main() -> None:
         transcript_root.mkdir(exist_ok=True)
         render_dir.mkdir(exist_ok=True)
         all_candidates = []
-        global_rank = 1
         for source_index, source in enumerate(sources, 1):
             transcript_dir = transcript_root / f"source-{source_index:02d}"
             run([sys.executable, "run.py", "transcribe", str(source), "--out-dir", str(transcript_dir), "--model", args.whisper_model])
             run([sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"), "--limit", "10"])
             local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
-                local_rank = int(local_item["rank"])
-                local_payload = {"schema_version": 1, "candidates": [dict(local_item, rank=1)]}
-                local_path = transcript_dir / f"candidate-{local_rank:03d}.json"
-                local_path.write_text(json.dumps(local_payload, ensure_ascii=False, indent=2), encoding="utf-8")
-                local_render = transcript_dir / f"render-{local_rank:03d}"
-                run([sys.executable, "run.py", "render_clips", str(source), str(local_path), "--transcript", str(transcript_dir / "transcript.json"), "--plan", plan_path, "--out-dir", str(local_render)])
-                rendered = local_render / "clip-001.mp4"
-                if rendered.exists():
-                    target = render_dir / f"clip-{global_rank:03d}.mp4"
-                    shutil.copy2(rendered, target)
-                    all_candidates.append(dict(local_item, rank=global_rank, source=str(source)))
-                    global_rank += 1
+                relevance = check_candidate(plan, local_item)
+                if relevance.get("status") == "blocked":
+                    continue
+                all_candidates.append({"candidate": dict(local_item), "source": str(source), "transcript": str(transcript_dir / "transcript.json"), "relevance": relevance})
             update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)}")
         if not all_candidates:
             raise RuntimeError("tidak ada kandidat clip yang dapat dirender dari bahan campaign")
+        all_candidates.sort(key=lambda item: (-float(item["candidate"].get("score", 0)), item["candidate"].get("start", 0)))
+        selected = all_candidates[:MAX_REVIEW_CANDIDATES]
+        final_candidates = []
+        for global_rank, item in enumerate(selected, 1):
+            local_item = item["candidate"]
+            local_payload = {"schema_version": 1, "candidates": [dict(local_item, rank=1)]}
+            candidate_path = Path(item["transcript"]).parent / f"final-candidate-{global_rank:03d}.json"
+            candidate_path.write_text(json.dumps(local_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            local_render = Path(item["transcript"]).parent / f"final-render-{global_rank:03d}"
+            run([sys.executable, "run.py", "render_clips", item["source"], str(candidate_path), "--transcript", item["transcript"], "--plan", plan_path, "--out-dir", str(local_render)])
+            rendered = local_render / "clip-001.mp4"
+            if rendered.exists():
+                target = render_dir / f"clip-{global_rank:03d}.mp4"
+                shutil.copy2(rendered, target)
+                final_candidates.append(dict(local_item, rank=global_rank, source=item["source"], relevance=item["relevance"]))
+        all_candidates = final_candidates
+        if not all_candidates:
+            raise RuntimeError("dua kandidat terbaik tidak berhasil dirender")
         transcript_dir = transcript_root
         (transcript_dir / "candidates.json").write_text(json.dumps({"schema_version": 1, "candidates": all_candidates}, ensure_ascii=False, indent=2), encoding="utf-8")
         update(args.api_base, args.job_id, args.worker_token, "processing", 78, "Video vertical selesai, menjalankan validasi")

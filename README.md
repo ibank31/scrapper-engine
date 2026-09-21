@@ -69,6 +69,8 @@ python -m unittest discover -s tests -v
 
 `review_queue` menyalin clip ke folder review, membuat thumbnail, membuat `INDEX.md`, `review.json`, caption draft, dan checklist manual per clip. Clip yang gagal validator diberi status `blocked`; clip lain tetap berstatus `pending_review` sampai Anda memeriksanya.
 
+Worker produksi menggabungkan kandidat dari seluruh video asset campaign, menjalankan relevance gate, lalu hanya merender dan mengunggah **maksimal dua kandidat terbaik** per job. Perintah `select_clips` juga memakai default limit dua; gunakan `--limit` lebih besar hanya untuk diagnostik internal.
+
 ## Cloudflare Pages dashboard
 
 Dashboard awal tersedia di `web/`. Ia memiliki menu campaign radar, filter, detail campaign, tombol mulai otomatis, processing queue, review preview, dan download. Mode awal adalah demo agar UI dapat diuji tanpa kredensial. Arsitektur produksi memakai Cloudflare Pages untuk UI, Worker untuk API kecil, D1 untuk metadata, dan R2 untuk MP4/thumbnail. FFmpeg dan faster-whisper tetap berjalan pada worker Python lokal karena proses video berat tidak cocok dijalankan di Pages/Workers Free. Lihat `cloudflare/README.md` sebelum deployment.

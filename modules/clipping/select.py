@@ -17,7 +17,7 @@ def main() -> None:
     ap.add_argument("--plan", default=None, help="optional campaign plan.json")
     ap.add_argument("--min-seconds", type=float, default=20)
     ap.add_argument("--max-seconds", type=float, default=60)
-    ap.add_argument("--limit", type=int, default=10)
+    ap.add_argument("--limit", type=int, default=2)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     transcript = json.load(open(args.transcript, encoding="utf-8"))

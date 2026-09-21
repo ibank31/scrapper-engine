@@ -33,6 +33,7 @@ Fitur yang sudah ada di branch `main`:
 - D1 untuk metadata/job dan R2 untuk preview sementara.
 - GitHub Actions worker untuk pengguna yang hanya memiliki HP.
 - Worker telah diubah untuk memproses seluruh video asset yang berhasil diambil, bukan hanya video pertama.
+- Worker memilih dan mengunggah maksimal **dua kandidat final per job**, setelah menggabungkan kandidat lintas semua sumber, menghapus kandidat yang gagal relevance, dan mengurutkan kandidat berdasarkan score.
 
 Commit penting:
 
@@ -218,7 +219,7 @@ Model lebih kecil lebih cepat tetapi dapat menurunkan akurasi. Jangan mengganti 
 
 ### 4.7 Candidate selection
 
-`core/clip_candidates.py` memberi skor berdasarkan hook, signal words, pertanyaan, angka konkret, dan kepadatan spoken content. Scoring ini adalah ranking awal, bukan keputusan final.
+`core/clip_candidates.py` memberi skor berdasarkan hook, signal words, pertanyaan, angka konkret, dan kepadatan spoken content. Scoring ini adalah ranking awal, bukan keputusan final. Worker mengumpulkan kandidat dari semua sumber, membuang kandidat yang sudah gagal relevance, lalu hanya merender **dua kandidat dengan score tertinggi**. Dengan demikian, `review.json`, upload R2, dan dashboard tidak dipenuhi kandidat duplikat atau lemah.
 
 Kandidat wajib melewati relevance gate. Candidate scoring tidak boleh meloloskan clip hanya karena menarik atau memiliki angka jika topiknya tidak berhubungan dengan campaign.
 

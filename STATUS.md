@@ -17,6 +17,7 @@ engine online
 - Auto-publish tetap disabled by design sampai pipeline render dan approval selesai.
 - Dokumentasi handoff lengkap tersedia di `AGENTS.md` dan `docs/AGENT_HANDOFF.md`; dokumen tersebut adalah pintu masuk wajib untuk agent berikutnya.
 - Material harvester sekarang menyimpan `RULES_SNAPSHOT.md`, membaca Google Docs publik, mengikuti sumber Drive/YouTube/direct media yang ditemukan dari materi campaign, dan memproses seluruh video source yang berhasil diambil.
+- Output review dibatasi maksimal dua kandidat final per job. Kandidat dipilih lintas semua sumber setelah relevance gate, lalu diurutkan berdasarkan score terbaik.
 
 ## Next milestone
 
