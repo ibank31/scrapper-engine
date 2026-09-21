@@ -1,15 +1,20 @@
 name: clipper-worker
 
 on:
+  # Drain queued jobs without human click (free path).
+  schedule:
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       job_id:
-        description: "Cloudflare job ID"
-        required: true
+        description: "Cloudflare job ID (optional — empty = ambil satu job queued)"
+        required: false
         type: string
+        default: ""
 
 concurrency:
-  group: clipper-worker-${{ inputs.job_id }}
+  # One runner at a time for free-tier safety.
+  group: clipper-worker
   cancel-in-progress: false
 
 jobs:

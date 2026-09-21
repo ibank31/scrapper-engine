@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Daily live campaign sync + offline AI campaign intelligence."""
+"""Daily live campaign sync + offline AI campaign intelligence + auto-queue."""
 from __future__ import annotations
 import concurrent.futures
 import json
@@ -108,6 +108,87 @@ def _apply_ai(campaign: dict[str, Any], ai: dict[str, Any] | None, previous: dic
     campaign["rules_hash"] = rh
     campaign["ai_fit_score"] = None
 
+def _has_public_material_hint(campaign: dict[str, Any]) -> bool:
+    """Heuristic: campaign lists Drive/YouTube/direct media or Google Docs links."""
+    blobs: list[str] = []
+    for key in ("resources", "requirements"):
+        for item in campaign.get(key) or []:
+            if isinstance(item, dict):
+                blobs.append(json.dumps(item, ensure_ascii=False))
+            else:
+                blobs.append(str(item))
+    plan = campaign.get("plan_json") or {}
+    prod = plan.get("production") if isinstance(plan, dict) else {}
+    for url in (prod or {}).get("asset_urls") or []:
+        blobs.append(str(url))
+    text = " ".join(blobs).lower()
+    markers = (
+        "drive.google.com",
+        "docs.google.com",
+        "youtube.com",
+        "youtu.be",
+        ".mp4",
+        ".mov",
+        "frame.io",
+        "dropbox.com",
+    )
+    return any(m in text for m in markers)
+
+def _auto_queue(api: str, token: str, campaigns: list[dict[str, Any]]) -> None:
+    """Queue top scored campaigns that look processable — human only reviews later."""
+    if os.getenv("CLIPPER_AUTO_QUEUE", "1").strip() in {"0", "false", "no"}:
+        print("Auto-queue disabled by CLIPPER_AUTO_QUEUE")
+        return
+    max_jobs = max(0, min(3, int(os.getenv("CLIPPER_AUTO_QUEUE_MAX", "1"))))
+    if max_jobs == 0:
+        return
+    # Prefer high score + material hints; skip explicit AI hard-fail.
+    ranked = sorted(
+        [c for c in campaigns if str(c.get("status") or "active").lower() == "active"],
+        key=lambda c: float(c.get("score") or 0),
+        reverse=True,
+    )
+    queued = 0
+    for c in ranked:
+        if queued >= max_jobs:
+            break
+        cid = str(c.get("id") or "")
+        if not cid:
+            continue
+        ai_status = str(c.get("ai_rules_status") or "").lower()
+        if ai_status in {"fail", "rejected", "blocked"}:
+            continue
+        if not _has_public_material_hint(c):
+            continue
+        try:
+            r = requests.post(
+                f"{api}/api/campaigns/{cid}/jobs",
+                headers=_headers(token),
+                timeout=30,
+            )
+            if r.status_code not in (200, 201):
+                print(f"(!) queue create failed {cid}: HTTP {r.status_code} {r.text[:120]}")
+                continue
+            body = r.json()
+            job = body.get("job") or {}
+            job_id = job.get("id")
+            if not job_id:
+                continue
+            if body.get("deduped"):
+                print(f"skip already open job for {cid}: {job_id}")
+                continue
+            # Dispatch GitHub worker immediately when possible
+            d = requests.post(
+                f"{api}/api/jobs/{job_id}/run",
+                headers=_headers(token),
+                timeout=30,
+            )
+            print(f"auto-queued {cid} job={job_id} dispatch={d.status_code}")
+            queued += 1
+        except Exception as exc:
+            print(f"(!) auto-queue error {cid}: {str(exc)[:200]}")
+    print(f"Auto-queue finished: {queued} job(s)")
+
 def main() -> None:
     api = os.environ["CLIPPER_API_URL"].rstrip("/")
     token = os.environ["CLIPPER_WORKER_TOKEN"]
@@ -176,6 +257,9 @@ def main() -> None:
     response = requests.post(api + "/api/campaigns/sync", headers=_headers(token), json={"campaigns": campaigns}, timeout=180)
     response.raise_for_status()
     print("Synced campaigns:", response.json())
+
+    # Machine path: after intelligence is fresh, queue top processable campaigns.
+    _auto_queue(api, token, campaigns)
 
 if __name__ == "__main__":
     main()
