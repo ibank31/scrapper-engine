@@ -32,6 +32,8 @@ def main() -> None:
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--no-subtitles", action="store_true")
     ap.add_argument("--static-crop", action="store_true", help="disable face tracking for troubleshooting")
+    ap.add_argument("--preset", default=os.environ.get("CLIPPER_FFMPEG_PRESET", "medium"), help="x264 preset (veryfast/faster/medium)")
+    ap.add_argument("--crf", default=os.environ.get("CLIPPER_FFMPEG_CRF", "19"), help="x264 CRF quality (higher=faster/smaller)")
     args = ap.parse_args()
     payload = json.load(open(args.candidates, encoding="utf-8"))
     transcript = json.load(open(args.transcript, encoding="utf-8")) if args.transcript else None
@@ -65,7 +67,7 @@ def main() -> None:
                 command += ["-filter_complex", complex_filter, "-map", "[v]", "-map", "0:a?", "-shortest"]
             else:
                 command += ["-vf", ",".join(filters)]
-            command += ["-r", "30", "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", output]
+            command += ["-r", "30", "-c:v", "libx264", "-preset", str(args.preset), "-crf", str(args.crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", output]
             try:
                 _run(command)
                 print("OK:", output)

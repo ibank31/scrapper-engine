@@ -15,7 +15,9 @@ concurrency:
 jobs:
   process:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Free path target: under ~15–20 minutes wall time for typical campaign assets.
+    # Hard stop at 35 minutes so a hung download/transcribe never burns a full hour.
+    timeout-minutes: 35
     permissions:
       contents: read
     steps:
@@ -26,6 +28,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
+
+      - name: Cache faster-whisper models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-base-int8-v1
+          restore-keys: |
+            whisper-base-int8-
+            whisper-
 
       - name: Install FFmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
@@ -39,4 +51,10 @@ jobs:
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
           JOB_ID: ${{ inputs.job_id }}
           PYTHONPATH: ${{ github.workspace }}
+          # Fast free defaults for GitHub-hosted CPU runners
+          CLIPPER_WHISPER_MODEL: base
+          CLIPPER_WHISPER_BEAM: "1"
+          CLIPPER_MAX_VIDEO_SOURCES: "1"
+          CLIPPER_FFMPEG_PRESET: veryfast
+          CLIPPER_FFMPEG_CRF: "23"
         run: python worker/run_job.py
