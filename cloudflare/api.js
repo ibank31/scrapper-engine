@@ -186,7 +186,7 @@ export default {
 
         const githubToken = env.GITHUB_ACTIONS_TOKEN || env.GITHUB_TOKEN;
         if (!githubToken) {
-          const message = "Cloudflare secret GITHUB_ACTIONS_TOKEN belum dikonfigurasi";
+          const message = "Cloudflare Pages Production secret GITHUB_ACTIONS_TOKEN belum tersedia; Preview secret tidak diwariskan ke Production";
           await env.DB.prepare("UPDATE jobs SET message=?,error=?,updated_at=? WHERE id=?").bind("Worker belum dikonfigurasi", message, now(), jobId).run();
           return json({ error: "github_dispatch_not_configured", message }, 503);
         }
