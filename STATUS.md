@@ -30,7 +30,7 @@ Candidate generation now groups Whisper words into sentence/turn units using pun
 
 ## Verification
 
-The repository regression suite passes **50 tests**. The latest quality changes are committed in `0ac33ab`; the semantic-stage changes are the current handoff implementation to be committed after final verification.
+The repository regression suite passes **53 tests**. The latest quality loop is committed in `3f4fd58`; the semantic ranker and workflow foundation are in `18246e9`.
 
 ## Next milestone
 

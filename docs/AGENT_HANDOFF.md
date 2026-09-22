@@ -3,7 +3,7 @@
 **Updated:** 22 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Production branch:** `main`
-**Latest implementation commit:** `18246e9` — local subtitle semantic clipping ranker, optional Qwen GGUF workflow, current documentation, and historical archive.
+**Latest implementation commit:** `3f4fd58` — sentence-aware semantic quality loop, evaluation corpus, and semantic metadata in review UI.
 
 ## Product contract
 
@@ -16,7 +16,7 @@ campaign selection
   -> campaign detail and plan compiler
   -> official Drive/YouTube/direct asset intake
   -> faster-whisper word timestamps
-  -> deterministic candidate windows
+  -> sentence/turn candidate windows
   -> optional local Qwen subtitle semantic ranking
   -> campaign relevance and duration gates
   -> FFmpeg vertical render with face-aware crop
@@ -39,11 +39,11 @@ Implemented in the current working change:
 - `modules/clipping/validate.py`: campaign-aware duration validation;
 - `modules/clipping/render.py`: subtitle output only when required by the campaign or explicitly forced;
 - `core/clip_candidates.py`: stronger boundary and payoff scoring;
-- `tests/test_semantic_ranker.py`: fallback semantic regression tests.
+- `tests/test_semantic_ranker.py`: fallback semantic regression tests and evaluation corpus execution.
 - `tests/fixtures/semantic_cases.json`: evaluation corpus for complete, incomplete, short-cap, and mid-thought candidates.
 - Review queue and dashboard now expose semantic decision, hook/context/payoff/completeness scores, and the model reason.
 
-The full suite currently passes: **50 tests**.
+The full suite currently passes: **53 tests**.
 
 ## Model and fallback policy
 
@@ -85,7 +85,7 @@ Do not trigger a production job merely to test code when the known source is onl
 
 1. Add optional silence and scene-change signals to the semantic candidate payload.
 2. Add active-speaker heuristics for two-person podcast framing.
-3. Add a small fixture from a long approved source and run one controlled end-to-end worker test.
+3. Add a small fixture from a long approved source and run one controlled end-to-end worker test, including the Qwen path on GitHub Actions.
 4. Re-enable worker authentication only after quality behavior is stable, because the current branch previously disabled it temporarily for debugging.
 
 ## Guardrails
