@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from core.media_signals import candidate_signals, media_score_adjustment, source_quality_preflight
+from core.visual_crop import visual_speaker_signal
 
 
 class MediaSignalsTest(unittest.TestCase):
@@ -22,6 +23,12 @@ class MediaSignalsTest(unittest.TestCase):
         self.assertEqual(result["reason"], "source_unavailable")
         self.assertIn("budget_seconds", result)
         self.assertFalse(result["budget_exceeded"])
+        self.assertEqual(result["visual_active_speaker"]["framing_recommendation"], "wide-unknown")
+
+    def test_visual_speaker_unavailable_is_wide_and_non_blocking(self):
+        result = visual_speaker_signal("/does/not/exist.mp4")
+        self.assertEqual(result["framing_recommendation"], "wide-unknown")
+        self.assertEqual(result["confidence"], 0.0)
 
     def test_preflight_records_audio_resolution_hash_and_density(self):
         with tempfile.NamedTemporaryFile() as fh:

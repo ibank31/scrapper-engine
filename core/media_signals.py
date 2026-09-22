@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.visual_crop import visual_speaker_signal
+
 
 def _run(command: list[str], timeout: int = 45) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
@@ -118,7 +120,7 @@ def candidate_signals(path: str | None, candidate: dict[str, Any], transcript: d
     budget_seconds = max(0.5, float(os.environ.get("CLIPPER_MEDIA_SIGNAL_BUDGET_SECONDS", "8")))
     active = _speaker_signal(candidate, transcript)
     if not path or not Path(path).exists():
-        return {"schema_version": 1, "available": False, "reason": "source_unavailable", "active_speaker": active, "runtime_ms": 0, "budget_seconds": budget_seconds, "budget_exceeded": False}
+        return {"schema_version": 1, "available": False, "reason": "source_unavailable", "active_speaker": active, "visual_active_speaker": {"available": False, "reason": "source_unavailable", "framing_recommendation": "wide-unknown", "confidence": 0.0}, "runtime_ms": 0, "budget_seconds": budget_seconds, "budget_exceeded": False}
     start, duration = float(candidate.get("start") or 0), float(candidate.get("duration") or 0)
     ffmpeg_timeout = max(1, int(budget_seconds) + 1)
     silence = _silence_signal(path, start, duration, timeout=ffmpeg_timeout)
@@ -129,7 +131,16 @@ def candidate_signals(path: str | None, candidate: dict[str, Any], transcript: d
     else:
         scene = _scene_signal(path, start, duration, timeout=max(1, int(budget_seconds - elapsed) + 1))
         budget_exceeded = (time.perf_counter() - started) >= budget_seconds
-    return {"schema_version": 1, "available": True, "silence_voice_activity": silence, "scene_change": scene, "active_speaker": active, "runtime_ms": round((time.perf_counter() - started) * 1000, 1), "budget_seconds": budget_seconds, "budget_exceeded": budget_exceeded}
+    visual_enabled = os.environ.get("CLIPPER_VISUAL_SPEAKER_ENABLED", "auto").lower() not in {"0", "false", "off"}
+    if not visual_enabled:
+        visual = {"available": False, "reason": "visual_speaker_disabled", "framing_recommendation": "wide-unknown", "confidence": 0.0}
+    elif time.perf_counter() - started >= budget_seconds:
+        visual = {"available": False, "reason": "signal_budget_exceeded", "framing_recommendation": "wide-unknown", "confidence": 0.0}
+        budget_exceeded = True
+    else:
+        visual = visual_speaker_signal(path, start, duration, max_samples=4)
+        budget_exceeded = budget_exceeded or (time.perf_counter() - started >= budget_seconds)
+    return {"schema_version": 1, "available": True, "silence_voice_activity": silence, "scene_change": scene, "active_speaker": active, "visual_active_speaker": visual, "runtime_ms": round((time.perf_counter() - started) * 1000, 1), "budget_seconds": budget_seconds, "budget_exceeded": budget_exceeded}
 
 
 def media_score_adjustment(signals: dict[str, Any] | None) -> tuple[float, list[str]]:
