@@ -3,7 +3,7 @@
 **Updated:** 22 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Production branch:** `main`
-**Latest implementation commit:** `3f4fd58` — sentence-aware semantic quality loop, evaluation corpus, and semantic metadata in review UI.
+**Latest implementation commit:** `00648bc` — optional source-quality, silence/scene, and speaker-framing signals with review metadata and regression fixtures.
 
 ## Product contract
 
@@ -42,8 +42,11 @@ Implemented in the current working change:
 - `tests/test_semantic_ranker.py`: fallback semantic regression tests and evaluation corpus execution.
 - `tests/fixtures/semantic_cases.json`: evaluation corpus for complete, incomplete, short-cap, and mid-thought candidates.
 - Review queue and dashboard now expose semantic decision, hook/context/payoff/completeness scores, and the model reason.
+- `core/media_signals.py`: optional local FFmpeg/ffprobe signals for source quality, silence/voice activity, scene changes, duplicate hashes, sponsor/bumper hints, and transcript-label speaker framing.
+- Candidate, validation, and review artifacts now retain the media signal payload. Missing tools or source media produce explicit `available: false` metadata and do not stop deterministic clipping.
+- `tests/fixtures/media_signal_cases.json` and `tests/test_media_signals.py`: regression coverage for two-speaker wide framing, dominant-speaker framing, unavailable sources, and source preflight measurements.
 
-The full suite currently passes: **53 tests**.
+The full suite currently passes: **56 tests**. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
 
 ## Model and fallback policy
 
@@ -85,8 +88,9 @@ Do not trigger a production job merely to test code when the known source is onl
 
 1. Add optional silence and scene-change signals to the semantic candidate payload.
 2. Add active-speaker heuristics for two-person podcast framing.
-3. Add a small fixture from a long approved source and run one controlled end-to-end worker test, including the Qwen path on GitHub Actions.
-4. Re-enable worker authentication only after quality behavior is stable, because the current branch previously disabled it temporarily for debugging.
+3. Add a small fixture from a long approved source and run one controlled end-to-end worker test, including the Qwen path on GitHub Actions. This was intentionally not run in the local sandbox because no approved long source was available and production jobs are not a debugging fixture.
+4. Improve active-speaker confidence with optional visual evidence; the current heuristic requires transcript speaker labels and recommends a wide frame when confidence is low.
+5. Re-enable worker authentication only after quality behavior is stable, because the current branch previously disabled it temporarily for debugging.
 
 ## Guardrails
 
