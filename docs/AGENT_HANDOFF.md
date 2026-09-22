@@ -3,7 +3,7 @@
 **Updated:** 22 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Production branch:** `main`
-**Latest implementation commit:** `0ac33ab` before semantic stage; semantic implementation is the current working change until committed below.
+**Latest implementation commit:** `18246e9` — local subtitle semantic clipping ranker, optional Qwen GGUF workflow, current documentation, and historical archive.
 
 ## Product contract
 
