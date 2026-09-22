@@ -103,6 +103,43 @@ class CampaignAITests(unittest.TestCase):
         self.assertNotIn("private campaign prompt", diagnostic)
         self.assertNotIn("test-secret", diagnostic)
 
+
+    def test_transient_503_retries_then_succeeds(self):
+        campaign = {"id": "c-1", "title": "Demo"}
+        body = {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": json.dumps(valid_payload())}]}}]}
+        responses = [
+            FakeResponse({"error": {"message": "temporarily overloaded"}}, status_code=503, ok=False),
+            FakeResponse(body),
+        ]
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-secret", "GEMINI_MAX_RETRIES": "2", "GEMINI_RETRY_BASE_SECONDS": "0.1"}, clear=False), patch(
+            "core.campaign_ai.requests.post", side_effect=responses
+        ) as post, patch("core.campaign_ai.time.sleep") as sleep:
+            result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
+        self.assertEqual(result["c-1"]["confidence"], 0.8)
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once()
+
+    def test_non_transient_400_does_not_retry(self):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-secret", "GEMINI_MAX_RETRIES": "2"}, clear=False), patch(
+            "core.campaign_ai.requests.post",
+            return_value=FakeResponse({"error": {"message": "bad request"}}, status_code=400, ok=False),
+        ) as post, patch("core.campaign_ai.time.sleep") as sleep:
+            with self.assertRaisesRegex(campaign_ai.GeminiApiError, "HTTP 400"):
+                campaign_ai._gemini_generate("safe test")
+        self.assertEqual(post.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_failed_batch_isolated_and_following_batch_survives(self):
+        campaigns = [{"id": "c-1", "title": "One"}, {"id": "c-2", "title": "Two"}]
+        with patch(
+            "core.campaign_ai._gemini_generate",
+            side_effect=[campaign_ai.GeminiApiError("HTTP 503"), json.dumps(valid_payload(("c-2",)))],
+        ):
+            result = campaign_ai.analyze_campaigns(campaigns, batch_size=1)
+        self.assertEqual(result["c-1"]["confidence"], 0.0)
+        self.assertIn("CRITICAL:", result["c-1"]["ambiguities"][0])
+        self.assertEqual(result["c-2"]["confidence"], 0.8)
+
     def test_batch_size_one_and_two_call_each_batch(self):
         campaigns = [{"id": "c-1", "title": "One"}, {"id": "c-2", "title": "Two"}]
         with patch("core.campaign_ai._gemini_generate", side_effect=[json.dumps(valid_payload(("c-1",))), json.dumps(valid_payload(("c-2",)))]) as generate:
