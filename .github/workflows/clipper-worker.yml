@@ -1,9 +1,7 @@
 name: clipper-worker
 
 on:
-  # Drain queued jobs without human click (free path).
-  schedule:
-    - cron: "*/5 * * * *"
+  # Clipping runs only when started manually from the homepage.
   workflow_dispatch:
     inputs:
       job_id:
@@ -18,8 +16,8 @@ on:
         default: ""
 
 concurrency:
-  # Serialize retries for the same job without blocking unrelated jobs.
-  group: clipper-worker-${{ inputs.job_id || 'scheduled' }}
+  # Serialize retries for the same manually started job.
+  group: clipper-worker-${{ inputs.job_id || github.run_id }}
   cancel-in-progress: false
 
 jobs:

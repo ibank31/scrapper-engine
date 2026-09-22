@@ -50,7 +50,7 @@ The final deep audit is recorded in `docs/AGENT_HANDOFF.md`. Do not start anothe
 
 P0 reliability slice completed after the audit: worker-token authentication now fails closed; manual dispatch has an atomic `dispatch_token` claim; every worker atomically claims a queued job before asset intake; and 75 regression tests pass. P1 reliability now adds a partial unique index for one queued/processing job per campaign, runner identity on claims, a 1-hour bounded lease, authenticated stale-claim recovery, structured D1 stage events, and a sanitized durable R2 manifest with preview artifact keys. Remaining P1 work is a known-good non-production end-to-end fixture and live manual trial verification.
 
-Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolves `env.GITHUB_ACTIONS_TOKEN` as empty. Manual dispatch therefore now degrades safely to the queued scheduler path instead of marking a new campaign as API 503; the worker schedule runs every five minutes. This prevents a Pages secret propagation mismatch from becoming a user-visible pipeline failure.
+Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolves `env.GITHUB_ACTIONS_TOKEN` as empty. Clipping is intentionally **manual-only** through the homepage; only `campaign-sync-ai.yml` runs daily at 00:00 WIB. Until the Pages Function receives the token at runtime, the API reports a configuration error and does not leave a job waiting for a nonexistent clipping schedule.
 
 ## Documentation entry points
 
