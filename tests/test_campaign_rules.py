@@ -44,6 +44,16 @@ class CampaignRulesTest(unittest.TestCase):
         self.assertIn("## Mandatory gates", markdown)
         self.assertIn("human_review", markdown)
 
+    def test_extracts_clip_length_from_fetched_document(self):
+        detail = {
+            "campaign": {"title": "Ryan Zofay", "description": "Provided podcast footage."},
+            "docs_text": "Raw footage supplied. Clip Length: 15–60 seconds. English content only.",
+            "staticDetails": {},
+        }
+        production = compile_plan(detail)["production"]
+        self.assertEqual(production["min_duration_seconds"], 15.0)
+        self.assertEqual(production["max_duration_seconds"], 60.0)
+
 
 if __name__ == "__main__":
     unittest.main()

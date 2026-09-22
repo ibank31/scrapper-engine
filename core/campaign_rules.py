@@ -52,6 +52,26 @@ def _first_number(text: str, patterns: list[str]) -> float | None:
     return None
 
 
+def _duration_bounds(text: str) -> tuple[float | None, float | None]:
+    """Extract explicit clip/video duration rules, including en-dash ranges."""
+    range_patterns = [
+        r"(?:clip|video|content|post)\s*(?:length|duration)\s*:?\s*(\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b",
+        r"\b(\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b",
+    ]
+    for pattern in range_patterns:
+        match = re.search(pattern, text, re.I)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+    minimum = _first_number(text, [
+        r"(?:minimum|min(?:imum)?|at least)\s+(?:clip|video|content|post)?\s*(?:length|duration)?\s*:?[ ]*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b",
+        r"(?:clip|video|content|post)\s*(?:length|duration)\s*:?\s*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b",
+    ])
+    maximum = _first_number(text, [
+        r"(?:maximum|max(?:imum)?|up to)\s+(?:clip|video|content|post)?\s*(?:length|duration)?\s*:?[ ]*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b",
+    ])
+    return minimum, maximum
+
+
 def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     campaign = detail.get("campaign") or detail
     static = detail.get("staticDetails") or {}
@@ -61,7 +81,8 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     resources = static.get("resources") or []
     req_texts = [str(r.get("text") or "").strip() if isinstance(r, dict) else str(r).strip() for r in requirements if r]
     description = str(campaign.get("description") or "")
-    full_text = _text(description, req_texts)
+    docs_text = str(campaign.get("docs_text") or detail.get("docs_text") or "")
+    full_text = _text(description, req_texts, docs_text)
     urls = _find_urls(full_text)
 
     asset_urls: list[str] = []
@@ -119,6 +140,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     )]
     min_views = _first_number(full_text, [r"minimum floor\s*:?\s*([\d,]+)\s*views", r"minimum\s+([\d,]+)\s*views", r"min(?:imum)?\s+views?\s*:?\s*([\d,]+)"])
     max_payout = _first_number(full_text, [r"maximum cap\s*:?\s*\$?([\d,.]+)", r"max(?:imum)?\s+payout\s*:?\s*\$?([\d,.]+)"])
+    parsed_min_duration, parsed_max_duration = _duration_bounds(full_text)
 
     normalized_requirements = []
     for item, text in zip(requirements, req_texts):
@@ -179,8 +201,8 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             "provided_material_required": supplied_material_required,
             "asset_urls": asset_urls,
             "aspect_ratio": ai_aspect_ratio or ("9:16" if vertical_required else None),
-            "min_duration_seconds": ai_rule_set.get("min_duration_seconds"),
-            "max_duration_seconds": ai_rule_set.get("max_duration_seconds"),
+            "min_duration_seconds": ai_rule_set.get("min_duration_seconds") or parsed_min_duration,
+            "max_duration_seconds": ai_rule_set.get("max_duration_seconds") or parsed_max_duration,
             "subtitle_required": bool(ai_rule_set.get("subtitle_required")),
             "official_audio_required": official_audio_required,
             "watermark_required": watermark_required,

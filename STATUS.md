@@ -23,6 +23,8 @@ Daily campaign sync now applies `core/campaign_exclusions.py` before detail hydr
 
 The first end-to-end trial was audited against the exact source URLs. Both official videos were healthy vertical assets (21.333 s and 20.833 s, 1080×1920, HEVC video plus AAC audio). The block was editorial: one source produced a 9.44-second candidate ending mid-thought and hit deterministic `unfinished_sentence`/`short_clip` gates; the other produced no complete candidate from its transcript. The worker now checks live campaign status before downloading assets and records source/transcription/raw-candidate/semantic/hard-policy/relevance counts in zero-candidate errors instead of emitting a generic duration message.
 
+The Ryan Zofay baseline exposed a separate rule-compilation bug: its prior 5.419-second preview passed because the campaign's `Clip Length: 15–60 seconds` instruction existed only in fetched `docs_text`, which was not included in `compile_plan`. The compiler now includes fetched document text and extracts explicit duration ranges, so the campaign minimum and maximum reach `plan.json` and validation.
+
 ## Rules and quality behavior
 
 - `plan.json` and `source_of_truth` are authoritative.
@@ -34,7 +36,7 @@ The first end-to-end trial was audited against the exact source URLs. Both offic
 
 ## Verification
 
-The repository regression suite passes **70 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
+The repository regression suite passes **71 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
 
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
