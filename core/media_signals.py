@@ -27,12 +27,16 @@ def _probe(path: str) -> dict[str, Any]:
     return json.loads(result.stdout or "{}")
 
 
-def _sha256(path: str, chunk_size: int = 1024 * 1024) -> str | None:
+def _sha256(path: str, chunk_size: int = 4 * 1024 * 1024) -> str | None:
     try:
         digest = hashlib.sha256()
         with open(path, "rb") as fh:
-            while chunk := fh.read(chunk_size):
-                digest.update(chunk)
+            size = os.fstat(fh.fileno()).st_size
+            digest.update(str(size).encode("ascii"))
+            digest.update(fh.read(chunk_size))
+            if size > chunk_size:
+                fh.seek(max(0, size - chunk_size))
+                digest.update(fh.read(chunk_size))
         return digest.hexdigest()
     except OSError:
         return None
