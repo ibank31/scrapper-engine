@@ -13,3 +13,5 @@ bucket_name = "REPLACE_WITH_R2_BUCKET_NAME"
 
 [vars]
 # Do not put WORKER_TOKEN here. Set it with: wrangler secret put WORKER_TOKEN
+# Set a random value with: wrangler secret put PREVIEW_SIGNING_SECRET
+# Set a random value with: wrangler secret put REVIEW_TOKEN until the dashboard is protected by Access.

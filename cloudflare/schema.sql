@@ -43,8 +43,23 @@ CREATE TABLE IF NOT EXISTS previews (
   validation_json TEXT NOT NULL DEFAULT '{}',
   caption_draft TEXT,
   checklist_json TEXT NOT NULL DEFAULT '[]',
+  review_reason TEXT,
+  reviewed_by TEXT,
+  reviewed_at TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (job_id) REFERENCES jobs(id)
+);
+
+CREATE TABLE IF NOT EXISTS preview_events (
+  id TEXT PRIMARY KEY,
+  preview_id TEXT NOT NULL,
+  from_status TEXT,
+  to_status TEXT NOT NULL,
+  action TEXT NOT NULL,
+  reason TEXT,
+  actor TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (preview_id) REFERENCES previews(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
@@ -54,3 +69,4 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_rules_hash ON campaigns(rules_hash);
 CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_previews_job ON previews(job_id);
+CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at);

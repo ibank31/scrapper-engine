@@ -42,6 +42,10 @@ Because the user only has a phone, the Python worker must not be assumed to run 
 - `POST /api/campaigns/:id/jobs` — create a queued clipping job.
 - `GET /api/jobs/:id` — job status.
 - `GET /api/jobs/:id/previews` — preview metadata and protected URLs.
+- `POST /api/previews/:id/review` — approve, reject, or request rerender for a preview.
+- `GET /api/previews/:id/events` — review audit events for a preview.
 - `PATCH /api/jobs/:id` — worker-only status update.
 
-The current API is intentionally small. Authentication and R2 signed URL issuance must be completed before public deployment.
+Review actions accept `approve`, `reject`, or `request_rerender`. Rejection and rerender requests require a reason, and the API records the transition in `preview_events`. Set the Worker secret `REVIEW_TOKEN` until the dashboard is protected by Cloudflare Access or application authentication; the UI can send the token through `REVIEW_TOKEN` only in a controlled internal deployment and must never commit it to the Pages bundle.
+
+The current API is intentionally small. R2 bucket privacy, authenticated ownership checks, and signed or proxied preview URL issuance must be completed before public deployment. The review state machine is an internal P0 foundation, not a substitute for production authentication.

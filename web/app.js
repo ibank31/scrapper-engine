@@ -216,6 +216,7 @@ async function loadJobs() {
   try {
     const response = await api("/api/jobs");
     state.jobs = response.jobs || [];
+    state.reviews = [];
     renderJobs();
     for (const job of state.jobs.filter((j) => j.status === "review")) await loadPreviews(job);
   } catch (error) {
@@ -225,9 +226,36 @@ async function loadJobs() {
 async function loadPreviews(job) {
   try {
     const response = await api("/api/jobs/" + encodeURIComponent(job.id) + "/previews");
-    for (const preview of response.previews || []) state.reviews.push(Object.assign({}, preview, { title: (job.campaign_title || "Campaign") + " · Kandidat " + preview.rank, job: job }));
+    for (const preview of response.previews || []) {
+      try {
+        const fresh = await api("/api/previews/" + encodeURIComponent(preview.id) + "/url");
+        if (fresh.url) preview.download_url = fresh.url;
+      } catch (_) { /* keep legacy URL or show a waiting state */ }
+      state.reviews.push(Object.assign({}, preview, { title: (job.campaign_title || "Campaign") + " · Kandidat " + preview.rank, job: job }));
+    }
     renderReviews();
   } catch (error) { /* keep job visible */ }
+}
+async function reviewPreview(preview, action) {
+  const labels = { approve: "ACC untuk upload manual", reject: "Tolak preview", request_rerender: "Minta render ulang" };
+  const needsReason = action !== "approve";
+  const reason = needsReason ? window.prompt("Alasan " + (labels[action] || action) + " (wajib):", "") : "";
+  if (needsReason && !String(reason || "").trim()) return;
+  try {
+    const headers = { "content-type": "application/json" };
+    if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/review", {
+      method: "POST", headers,
+      body: JSON.stringify({ action, reason: String(reason || "").trim(), reviewer: cfg.REVIEWER || "manual-user" })
+    });
+    const updated = response.preview || {};
+    Object.assign(preview, updated);
+    renderReviews();
+    showToast(labels[action] + " berhasil disimpan");
+    await loadJobs();
+  } catch (error) {
+    showToast("Review gagal disimpan: " + error.message);
+  }
 }
 function startPolling() {
   if (cfg.DEMO_MODE || state.pollTimer) return;
@@ -242,14 +270,29 @@ function startPolling() {
 function renderReviews() {
   $("#reviewGrid").innerHTML = state.reviews.map((r) => {
     const src = r.video_url || r.download_url;
+    let validation = {};
+    try { validation = typeof r.validation_json === "string" ? JSON.parse(r.validation_json) : (r.validation_json || {}); } catch (_) { validation = {}; }
+    const status = String(r.status || "pending_review");
+    const actionButtons = status === "pending_review" || status === "changes_requested" ?
+      '<button class="secondary-button review-action" data-review-action="request_rerender">Minta render ulang</button>' +
+      '<button class="secondary-button review-action danger" data-review-action="reject">Tolak</button>' +
+      '<button class="primary-button review-action" data-review-action="approve">ACC upload manual <span>✓</span></button>' :
+      '<span class="review-decision">' + escapeHtml(status.replaceAll("_", " ")) + (r.review_reason ? " · " + escapeHtml(r.review_reason) : "") + "</span>";
     return '<article class="review-card">' +
       (src ? '<video class="review-video" controls preload="metadata" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
-      '<div class="review-body"><span class="status review">PENDING REVIEW</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
-      '<p>Periksa video penuh dan checklist campaign sebelum download.</p>' +
+      '<div class="review-body"><span class="status review">' + escapeHtml(status.replaceAll("_", " ").toUpperCase()) + '</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
+      '<p>Periksa video penuh, validasi, dan checklist campaign sebelum mengambil keputusan.</p>' +
+      '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       '<div class="review-actions">' +
-      (r.download_url ? '<a class="primary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a>' : '<button class="primary-button" type="button">Menunggu file <span>◌</span></button>') +
+      (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a>' : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
   }).join("") || '<div class="empty-state">Belum ada preview siap review.</div>';
+  document.querySelectorAll(".review-action").forEach((button) => button.addEventListener("click", () => {
+    const card = button.closest(".review-card");
+    const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card);
+    const preview = state.reviews[index];
+    if (preview) reviewPreview(preview, button.dataset.reviewAction);
+  }));
 }
 function showView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));

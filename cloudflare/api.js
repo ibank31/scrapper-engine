@@ -79,6 +79,40 @@ async function ensureSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_last_seen ON campaigns(last_seen_at)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_rules_hash ON campaigns(rules_hash)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status)").run();
+  const previewInfo = await db.prepare("PRAGMA table_info(previews)").all();
+  const previewColumns = new Set((previewInfo.results || []).map((row) => row.name));
+  for (const [name, definition] of Object.entries({ review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT" })) {
+    if (!previewColumns.has(name)) await db.prepare("ALTER TABLE previews ADD COLUMN " + name + " " + definition).run();
+  }
+  await db.prepare("CREATE TABLE IF NOT EXISTS preview_events (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, from_status TEXT, to_status TEXT NOT NULL, action TEXT NOT NULL, reason TEXT, actor TEXT, created_at TEXT NOT NULL)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at)").run();
+}
+
+function reviewActor(request, body) {
+  return String(request.headers.get("cf-access-authenticated-user-email") || body.reviewer || "manual-user").slice(0, 200);
+}
+
+function reviewAuthorized(request, env) {
+  if (!env.REVIEW_TOKEN) return true;
+  const bearer = request.headers.get("authorization") || "";
+  return request.headers.get("x-review-token") === env.REVIEW_TOKEN || bearer === `Bearer ${env.REVIEW_TOKEN}`;
+}
+
+function hex(bytes) {
+  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function previewSignature(secret, key, expires) {
+  const cryptoKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return hex(await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(`${key}:${expires}`)));
+}
+
+async function previewUrl(request, env, key, ttlSeconds = 900) {
+  const url = new URL(request.url);
+  if (!env.PREVIEW_SIGNING_SECRET) return `${url.origin}/api/files?key=${encodeURIComponent(key)}`;
+  const expires = Math.floor(Date.now() / 1000) + Math.min(3600, Math.max(60, ttlSeconds));
+  const signature = await previewSignature(env.PREVIEW_SIGNING_SECRET, key, expires);
+  return `${url.origin}/api/files?key=${encodeURIComponent(key)}&exp=${expires}&sig=${signature}`;
 }
 
 export default {
@@ -192,8 +226,39 @@ export default {
         return json({ job: row });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
+        const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         return json({ previews: result.results || [] });
+      }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "url" && request.method === "GET") {
+        const preview = await env.DB.prepare("SELECT id,status,video_key FROM previews WHERE id = ?").bind(parts[2]).first();
+        if (!preview || !preview.video_key) return json({ error: "preview_not_found" }, 404);
+        if (!["pending_review", "changes_requested", "approved_for_manual_post"].includes(preview.status)) return json({ error: "preview_not_available", status: preview.status }, 409);
+        return json({ preview_id: parts[2], url: await previewUrl(request, env, preview.video_key) });
+      }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "review" && request.method === "POST") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const body = await request.json();
+        const action = String(body.action || "").toLowerCase();
+        const transitions = { approve: "approved_for_manual_post", reject: "rejected", request_rerender: "changes_requested" };
+        if (!Object.prototype.hasOwnProperty.call(transitions, action)) return json({ error: "invalid_review_action" }, 400);
+        const reason = String(body.reason || "").trim().slice(0, 1000);
+        if ((action === "reject" || action === "request_rerender") && !reason) return json({ error: "review_reason_required" }, 400);
+        const current = await env.DB.prepare("SELECT id,status,job_id FROM previews WHERE id = ?").bind(parts[2]).first();
+        if (!current) return json({ error: "preview_not_found" }, 404);
+        if (!["pending_review", "changes_requested"].includes(current.status)) return json({ error: "preview_not_reviewable", status: current.status }, 409);
+        const next = transitions[action];
+        const timestamp = now();
+        const actor = reviewActor(request, body);
+        const eventId = crypto.randomUUID();
+        await env.DB.batch([
+          env.DB.prepare("UPDATE previews SET status=?,review_reason=?,reviewed_by=?,reviewed_at=? WHERE id=? AND status IN ('pending_review','changes_requested')").bind(next, reason || null, actor, timestamp, parts[2]),
+          env.DB.prepare("INSERT INTO preview_events (id,preview_id,from_status,to_status,action,reason,actor,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(eventId, parts[2], current.status, next, action, reason || null, actor, timestamp),
+        ]);
+        return json({ ok: true, preview: { id: parts[2], job_id: current.job_id, status: next, review_reason: reason || null, reviewed_by: actor, reviewed_at: timestamp } });
+      }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "events" && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT id,preview_id,from_status,to_status,action,reason,actor,created_at FROM preview_events WHERE preview_id = ? ORDER BY created_at").bind(parts[2]).all();
+        return json({ events: result.results || [] });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "cancel" && request.method === "POST") {
         const job = await env.DB.prepare("SELECT id,status,progress FROM jobs WHERE id = ?").bind(parts[2]).first();
@@ -216,11 +281,17 @@ export default {
         if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
         const form = await request.formData(); const file = form.get("file"); const key = String(form.get("key") || "");
         if (!file || !key || !env.CLIPS) return json({ error: "upload_invalid" }, 400);
-        await env.CLIPS.put(key, file.stream(), { httpMetadata: { contentType: file.type || "application/octet-stream", cacheControl: "public,max-age=3600" } });
-        return json({ ok: true, key, download_url: `${url.origin}/api/files?key=${encodeURIComponent(key)}` });
+        await env.CLIPS.put(key, file.stream(), { httpMetadata: { contentType: file.type || "application/octet-stream", cacheControl: "private,no-store" } });
+        return json({ ok: true, key, download_url: await previewUrl(request, env, key) });
       }
       if (parts[1] === "files" && request.method === "GET") {
         const key = url.searchParams.get("key"); if (!key || !env.CLIPS) return json({ error: "file_not_found" }, 404);
+        if (env.PREVIEW_SIGNING_SECRET) {
+          const expires = Number(url.searchParams.get("exp") || 0);
+          const provided = url.searchParams.get("sig") || "";
+          const expected = expires > Math.floor(Date.now() / 1000) ? await previewSignature(env.PREVIEW_SIGNING_SECRET, key, expires) : "";
+          if (!expected || provided.length !== expected.length || provided !== expected) return json({ error: "preview_url_expired" }, 403);
+        }
         const object = await env.CLIPS.get(key); if (!object) return json({ error: "file_not_found" }, 404);
         const headers = new Headers(cors); object.writeHttpMetadata(headers); headers.set("etag", object.httpEtag); return new Response(object.body, { headers });
       }
