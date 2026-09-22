@@ -36,8 +36,8 @@ def update(base: str, job_id: str, token: str, status: str, progress: int, messa
     api_call(base, f"/api/jobs/{job_id}", token, "PATCH", {"status": status, "progress": progress, "message": message, "error": error})
 
 
-def run(command: list[str], cwd: str | None = None) -> None:
-    subprocess.run(command, check=True, cwd=cwd, text=True)
+def run(command: list[str], cwd: str | None = None, check: bool = True) -> None:
+    subprocess.run(command, check=check, cwd=cwd, text=True)
 
 
 def source_priority(path: Path) -> tuple[float, int]:
@@ -208,7 +208,9 @@ def main() -> None:
         (transcript_dir / "candidates.json").write_text(json.dumps({"schema_version": 1, "candidates": all_candidates}, ensure_ascii=False, indent=2), encoding="utf-8")
         update(args.api_base, args.job_id, args.worker_token, "processing", 78, "Video vertical selesai, menjalankan validasi")
         validation_path = workspace / "validation.json"
-        run([sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)])
+        # Validation is per-preview: keep usable outputs in the review queue even
+        # when another candidate fails a technical gate.
+        run([sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)], check=False)
         validation = json.loads(validation_path.read_text(encoding="utf-8"))
         results = validation.get("results") or []
         if results and all(item.get("status") == "fail" for item in results) and any((item.get("relevance") or {}).get("status") == "blocked" for item in results):
