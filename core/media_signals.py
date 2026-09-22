@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -70,11 +71,11 @@ def source_quality_preflight(path: str, transcript: dict[str, Any] | None = None
         return result
 
 
-def _silence_signal(path: str, start: float, duration: float) -> dict[str, Any]:
+def _silence_signal(path: str, start: float, duration: float, timeout: int = 90) -> dict[str, Any]:
     if duration <= 0:
         return _unavailable("invalid_candidate_duration")
     try:
-        result = _run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{max(0.0, start):.3f}", "-t", f"{duration:.3f}", "-i", path, "-af", "silencedetect=noise=-35dB:d=0.35", "-f", "null", "-"], timeout=90)
+        result = _run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{max(0.0, start):.3f}", "-t", f"{duration:.3f}", "-i", path, "-af", "silencedetect=noise=-35dB:d=0.35", "-f", "null", "-"], timeout=timeout)
         log = result.stderr or ""
         total = sum(float(x) for x in re.findall(r"silence_duration:\s*([0-9.]+)", log))
         ratio = min(1.0, total / duration)
@@ -83,9 +84,9 @@ def _silence_signal(path: str, start: float, duration: float) -> dict[str, Any]:
         return _unavailable(f"silence_probe_failed: {type(exc).__name__}")
 
 
-def _scene_signal(path: str, start: float, duration: float) -> dict[str, Any]:
+def _scene_signal(path: str, start: float, duration: float, timeout: int = 90) -> dict[str, Any]:
     try:
-        result = _run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{max(0.0, start):.3f}", "-t", f"{duration:.3f}", "-i", path, "-vf", "select='gt(scene,0.25)',showinfo", "-an", "-f", "null", "-"], timeout=90)
+        result = _run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{max(0.0, start):.3f}", "-t", f"{duration:.3f}", "-i", path, "-vf", "select='gt(scene,0.25)',showinfo", "-an", "-f", "null", "-"], timeout=timeout)
         count = len(re.findall(r"showinfo", result.stderr or ""))
         return {"available": True, "scene_change_count": count, "scene_change_score": round(min(1.0, count / max(1.0, duration / 8.0)), 3)}
     except Exception as exc:
@@ -113,11 +114,22 @@ def _speaker_signal(candidate: dict[str, Any], transcript: dict[str, Any] | None
 
 def candidate_signals(path: str | None, candidate: dict[str, Any], transcript: dict[str, Any] | None = None) -> dict[str, Any]:
     """Compute advisory candidate signals; never raises into the clipping path."""
+    started = time.perf_counter()
+    budget_seconds = max(0.5, float(os.environ.get("CLIPPER_MEDIA_SIGNAL_BUDGET_SECONDS", "8")))
     active = _speaker_signal(candidate, transcript)
     if not path or not Path(path).exists():
-        return {"schema_version": 1, "available": False, "reason": "source_unavailable", "active_speaker": active}
+        return {"schema_version": 1, "available": False, "reason": "source_unavailable", "active_speaker": active, "runtime_ms": 0, "budget_seconds": budget_seconds, "budget_exceeded": False}
     start, duration = float(candidate.get("start") or 0), float(candidate.get("duration") or 0)
-    return {"schema_version": 1, "available": True, "silence_voice_activity": _silence_signal(path, start, duration), "scene_change": _scene_signal(path, start, duration), "active_speaker": active}
+    ffmpeg_timeout = max(1, int(budget_seconds) + 1)
+    silence = _silence_signal(path, start, duration, timeout=ffmpeg_timeout)
+    elapsed = time.perf_counter() - started
+    if elapsed >= budget_seconds:
+        scene = _unavailable("signal_budget_exceeded")
+        budget_exceeded = True
+    else:
+        scene = _scene_signal(path, start, duration, timeout=max(1, int(budget_seconds - elapsed) + 1))
+        budget_exceeded = (time.perf_counter() - started) >= budget_seconds
+    return {"schema_version": 1, "available": True, "silence_voice_activity": silence, "scene_change": scene, "active_speaker": active, "runtime_ms": round((time.perf_counter() - started) * 1000, 1), "budget_seconds": budget_seconds, "budget_exceeded": budget_exceeded}
 
 
 def media_score_adjustment(signals: dict[str, Any] | None) -> tuple[float, list[str]]:

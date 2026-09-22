@@ -20,6 +20,8 @@ class MediaSignalsTest(unittest.TestCase):
         result = candidate_signals("/does/not/exist.mp4", {"start": 0, "duration": 10}, None)
         self.assertFalse(result["available"])
         self.assertEqual(result["reason"], "source_unavailable")
+        self.assertIn("budget_seconds", result)
+        self.assertFalse(result["budget_exceeded"])
 
     def test_preflight_records_audio_resolution_hash_and_density(self):
         with tempfile.NamedTemporaryFile() as fh:

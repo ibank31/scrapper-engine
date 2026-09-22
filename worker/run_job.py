@@ -158,12 +158,13 @@ def main() -> None:
             source_hash = quality.get("duplicate_hash")
             if source_hash and source_hash in seen_hashes:
                 record["duplicate_of"] = seen_hashes[source_hash]
+                record["excluded_before_transcription"] = True
             elif source_hash:
                 seen_hashes[source_hash] = str(source)
             preflight_records.append(record)
-            if quality.get("available") and quality.get("has_video") and quality.get("has_audio") and float(quality.get("duration_seconds") or 0) >= 1.5:
+            if not record.get("duplicate_of") and quality.get("available") and quality.get("has_video") and quality.get("has_audio") and float(quality.get("duration_seconds") or 0) >= 1.5:
                 usable_sources.append(source)
-            else:
+            elif not record.get("excluded_before_transcription"):
                 record["excluded_before_transcription"] = True
         (workspace / "source-preflight.json").write_text(json.dumps({"schema_version": 1, "sources": preflight_records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         sources = usable_sources
