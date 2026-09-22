@@ -32,11 +32,11 @@ Candidate generation now groups Whisper words into sentence/turn units using pun
 
 The repository regression suite passes **57 tests**. Phase A evaluation and fallback observability are committed in `c36e535`; media signals are in `00648bc`; the sentence-aware quality loop is in `3f4fd58`. The deterministic golden fixture currently reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
 
-The actual Qwen GGUF path was **not run in this local sandbox or against a production job**. A separate manual `semantic-fixture.yml` workflow now installs Qwen, verifies the model file/hash, runs the golden fixture, and uploads the result without touching production. Local tests exercise the deterministic fallback and verify that unavailable optional signals remain explicit rather than silently passing.
+The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
 ## Next milestone
 
-Run the manual Qwen fixture workflow and record its result. Then implement Phase B: source preflight before transcription, followed by conservative silence/scene ranking penalties without changing timestamps. Improve active-speaker detection with visual evidence only after those changes are measured. Do not use a five-second incomplete source as a quality benchmark.
+Implement Phase B: source preflight before transcription, followed by conservative silence/scene ranking penalties without changing timestamps. Keep measuring Qwen against the golden fixture after each change; do not promote it to an automatic decision authority while it trails deterministic baseline. Improve active-speaker detection with visual evidence only after those changes are measured. Do not use a five-second incomplete source as a quality benchmark.
 
 ## Documentation entry points
 

@@ -48,11 +48,11 @@ Implemented in the current working change:
 - `scripts/evaluate_semantic_fixture.py`: reproducible decision/risk accuracy report against the checked-in semantic corpus.
 - `.github/workflows/semantic-fixture.yml`: manual Qwen verification path that does not dispatch or process a production job.
 
-The full suite currently passes: **57 tests**. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
+The full suite currently passes: **60 tests**. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
 
 ## Model and fallback policy
 
-The worker uses `Qwen/Qwen2.5-1.5B-Instruct-GGUF`, Q4_K_M, through `llama-cpp-python` when the optional package and model are available. The model is Apache-2.0 according to its official Hugging Face card. If installation, model download, or inference fails, the worker falls back to deterministic ranking and continues. This keeps the free pipeline available and makes failures observable rather than fatal.
+The worker uses `Qwen/Qwen2.5-1.5B-Instruct-GGUF`, Q4_K_M, through `llama-cpp-python` when the optional package and model are available. The model is Apache-2.0 according to its official Hugging Face card. If installation, model download, inference, or structured output validation fails, the worker falls back to deterministic ranking and continues. Because the Qwen fixture trails the deterministic baseline, Qwen remains advisory for ranking/review; local structural and campaign gates remain authoritative.
 
 Relevant environment variables:
 
@@ -90,7 +90,7 @@ Do not trigger a production job merely to test code when the known source is onl
 
 1. Add optional silence and scene-change signals to the semantic candidate payload.
 2. Add active-speaker heuristics for two-person podcast framing.
-3. Run the manual Qwen fixture workflow and inspect its uploaded metrics before using Qwen in an end-to-end worker job.
+3. Keep the manual Qwen fixture as a regression check; do not promote Qwen to automatic decision authority while it trails the deterministic baseline.
 4. Add Phase B source preflight before Whisper, then use silence/scene only as conservative ranking signals; do not change timestamps yet.
 5. Improve active-speaker confidence with optional visual evidence; the current heuristic requires transcript speaker labels and recommends a wide frame when confidence is low.
 6. Re-enable worker authentication only after quality behavior is stable, because the current branch previously disabled it temporarily for debugging.
