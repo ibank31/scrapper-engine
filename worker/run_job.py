@@ -184,6 +184,10 @@ def main() -> None:
                 sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
                 "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", f"{adaptive_max:.3f}", "--limit", "10",
             ])
+            run([
+                sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
+                "--plan", plan_path,
+            ])
             local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             # A source below the editorial floor is reported as unsuitable rather
             # than forced into a three-second preview.
@@ -192,8 +196,15 @@ def main() -> None:
                     sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
                     "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", "60", "--limit", "10",
                 ])
+                run([
+                    sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
+                    "--plan", plan_path,
+                ])
                 local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
+                semantic = local_item.get("semantic") or {}
+                if semantic.get("decision") == "reject":
+                    continue
                 relevance = check_candidate(plan, local_item)
                 if relevance.get("status") == "blocked":
                     continue

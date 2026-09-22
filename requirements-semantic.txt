@@ -1,0 +1,3 @@
+# Optional local subtitle semantic ranker; the pipeline falls back deterministically if absent.
+huggingface-hub>=0.25
+llama-cpp-python>=0.3.0

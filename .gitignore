@@ -70,6 +70,8 @@ instance/
 
 # Local campaign trial workspaces and rendered binary outputs
 data/trials/
+audit/
+video_clip-*_analysis_*.md
 
 # Sphinx documentation
 docs/_build/

@@ -1,38 +1,45 @@
-engine online
+# Scrapper Engine Status
+
+**Updated:** 22 September 2026
+**Branch:** `main`
 
 ## Current milestone
 
-- Campaign radar dan detail puller tersedia.
-- Campaign rule compiler tersedia melalui `python run.py reward_plan ...`.
-- Compiler mendeteksi asset URL, syarat 9:16, audio resmi, watermark, CTA, handle, minimum views, larangan, dan gate human review.
-- Campaign asset intake tersedia melalui `python run.py reward_intake ...` dengan workspace terisolasi, manifest, checksum, retry, dan fallback manual.
-- Worker video lokal tersedia: `transcribe`, `select_clips`, dan `render_clips`; transkripsi memakai faster-whisper dan render memakai FFmpeg.
-- Validator clip tersedia melalui `validate_clips`; ia membedakan `pass`, `needs_review`, dan `fail` untuk pemeriksaan teknis serta tindakan manual campaign.
-- Review queue tersedia melalui `review_queue`; ia membuat thumbnail, `INDEX.md`, `review.json`, caption draft, dan checklist manual per clip.
-- Dashboard Cloudflare Pages awal tersedia di `web/`, dengan mode demo dan kontrak API Worker/D1/R2 di `cloudflare/`.
-- Kebijakan gratis D1/R2 ditetapkan di `cloudflare/FREE_COST_POLICY.md`: raw video lokal, R2 hanya preview sementara, D1 hanya metadata, dan guard harian sebelum upload/query.
-- Asumsi komputer lokal dicabut; untuk pengguna HP, compute video diarahkan ke GitHub Actions standard runner pada repository public. Detail ada di `cloudflare/PHONE_ONLY_ARCHITECTURE.md`.
-- API dan UI progress sudah mendukung status `queued`, `processing`, `review`, dan `error`; workflow `.github/workflows/clipper-worker.yml` menjalankan pipeline pada GitHub runner dan mengunggah preview R2.
-- Mode deployment disederhanakan: Pages Function memakai binding R2 langsung, GitHub Actions mengambil job `queued` lewat schedule 5 menit, sehingga pengguna tidak perlu memberikan GitHub token atau R2 S3 key.
-- Auto-publish tetap disabled by design sampai pipeline render dan approval selesai.
-- Dokumentasi handoff lengkap tersedia di `AGENTS.md` dan `docs/AGENT_HANDOFF.md`; dokumen tersebut adalah pintu masuk wajib untuk agent berikutnya.
-- Material harvester sekarang menyimpan `RULES_SNAPSHOT.md`, membaca Google Docs publik, mengikuti sumber Drive/YouTube/direct media yang ditemukan dari materi campaign, dan memproses seluruh video source yang berhasil diambil.
-- Output review dibatasi maksimal dua kandidat final per job. Kandidat dipilih lintas semua sumber setelah relevance gate, lalu diurutkan berdasarkan score terbaik.
+The campaign-aware clipping pipeline is operational through manual review. It supports campaign radar/detail hydration, rules compilation, isolated material intake, Google Drive/YouTube/direct media sources, faster-whisper transcription, deterministic candidate selection, optional local subtitle semantic ranking, FFmpeg vertical rendering, face-aware crop, campaign-aware validation, review queue generation, and Cloudflare Pages/D1/R2 preview delivery.
+
+The current quality path is:
+
+```text
+campaign plan -> official assets -> Whisper word timestamps -> candidate windows
+-> Qwen subtitle semantic ranker when available -> rules/relevance gates
+-> vertical render -> technical/editorial validation -> manual review
+```
+
+The optional semantic model is Qwen2.5-1.5B-Instruct-GGUF Q4_K_M through `llama-cpp-python`. If the model or dependency is unavailable, the deterministic fallback in `core/semantic_ranker.py` keeps the worker running.
+
+## Rules and quality behavior
+
+- `plan.json` and `source_of_truth` are authoritative.
+- Campaign duration bounds override defaults.
+- Without campaign bounds, the default editorial floor is 8 seconds and the ceiling is 60 seconds.
+- Mid-thought, unfinished, and structurally incomplete candidates are rejected before rendering.
+- Subtitle rendering follows `production.subtitle_required` rather than a global default.
+- Human approval and manual posting remain mandatory; auto-publish is disabled.
+
+## Verification
+
+The repository regression suite passes **50 tests**. The latest quality changes are committed in `0ac33ab`; the semantic-stage changes are the current handoff implementation to be committed after final verification.
 
 ## Next milestone
 
-Berikutnya: deploy Pages Function dari branch main, seed satu campaign fixture, lalu uji alur antre → worker → preview dari URL Pages. Setelah itu, prioritas teknis berikutnya adalah visual relevance check untuk asset yang tidak menyebut brand di audio.
+Run one controlled end-to-end job using a sufficiently long approved source and inspect semantic metadata in the review queue. Then improve sentence/turn segmentation and add optional silence, scene-change, and active-speaker signals. Do not use a five-second incomplete source as a quality benchmark.
 
-- Pages deployment filter diperluas ke seluruh repository agar Pages Function ikut ter-deploy.
-- Campaign radar sekarang memakai priority score berbasis relevance, recency, sisa budget, kemudahan materials/rules, dan competition proxy yang diberi label sebagai estimasi (bukan jumlah kompetitor nyata).
-- Status `new` diputuskan dari histori D1 (`first_seen_at`/`last_seen_at`), bukan dari file `campaigns.json`; migration tersedia di `cloudflare/migrations/0002_campaign_history.sql`.
-- Trial campaign kedua berhasil pada ForgeGUI: detail → rules snapshot → Drive asset intake → faster-whisper → candidate selection → vertical render → relevance validation → review queue. Catatan lengkap ada di `docs/TRIAL_FORGEGUI.md`.
+## Documentation entry points
 
-## Gemini campaign intelligence
+- `docs/AGENT_HANDOFF.md` — current implementation and operating instructions.
+- `docs/SEMANTIC_CLIPPING_LOCAL.md` — semantic ranker design, model, fallback, and configuration.
+- `docs/google-drive-integration.md` — Drive OAuth and campaign asset intake.
+- `cloudflare/PHONE_ONLY_ARCHITECTURE.md` — phone-only operating model.
+- `cloudflare/FREE_COST_POLICY.md` — free-tier limits and storage policy.
 
-- Gemini API menjadi layer AI untuk membaca rules dan memilih campaign melalui `GEMINI_API_KEY`; auto-publish tetap disabled.
-- `campaign-sync-ai` melakukan scrape harian, detail hydration seluruh campaign aktif, rules extraction, AI fit scoring, plan compilation, dan sync ke D1.
-- `rules_hash` membuat AI tidak dipanggil ulang ketika rules campaign tidak berubah.
-- `ai_rules_status != pass` atau ambiguity kritis akan menghentikan produksi otomatis.
-- Production UI tidak lagi menampilkan fallback demo ketika API live gagal.
-- API melakukan schema self-healing untuk kolom history dan AI agar migration tertinggal tidak mematikan radar.
+Historical design notes and superseded trial/research reports are under `docs/archive/2026-09-22/`.

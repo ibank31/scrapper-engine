@@ -8,6 +8,7 @@ Usage:
   python run.py reward_intake <plan.json> [--workspace data/jobs]
   python run.py transcribe <video> [--model small]
   python run.py select_clips <transcript.json>
+  python run.py semantic_rank <candidates.json> --plan plan.json
   python run.py render_clips <video> <candidates.json> [--transcript transcript.json]
   python run.py validate_clips --plan plan.json --glob 'renders/*.mp4'
   python run.py review_queue --plan plan.json --candidates candidates.json --validation validation.json --rendered-dir renders --out-dir review
@@ -23,6 +24,7 @@ MODULES = {
     "reward_intake": "modules/reward_campaign/intake.py",
     "transcribe": "modules/clipping/transcribe.py",
     "select_clips": "modules/clipping/select.py",
+    "semantic_rank": "modules/clipping/semantic_rank.py",
     "render_clips": "modules/clipping/render.py",
     "validate_clips": "modules/clipping/validate.py",
     "review_queue": "modules/clipping/review_queue.py",
