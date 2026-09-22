@@ -108,7 +108,9 @@ async function startJob(campaign) {
       localJob.campaign_brand = campaign.brand;
       renderJobs();
       await triggerWorker(localJob);
-      localJob.message = "Worker GitHub sudah dipicu · menunggu runner";
+      localJob.message = localJob._scheduledFallback
+        ? "Masuk antrean worker terjadwal · menunggu runner"
+        : "Worker GitHub sudah dipicu · menunggu runner";
       renderJobs();
       startPolling();
     } else simulateJob(localJob);
@@ -126,7 +128,8 @@ async function triggerWorker(job) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ campaign_id: job.campaign_id })
   });
-  if (!response.dispatched) throw new Error(response.error || "Worker tidak berhasil dipicu");
+  if (response.queued && response.dispatch_mode === "scheduled_fallback") job._scheduledFallback = true;
+  if (!response.dispatched && !response.queued) throw new Error(response.error || "Worker tidak berhasil dipicu");
   return response;
 }
 function simulateJob(job) {

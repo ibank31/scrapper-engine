@@ -3,7 +3,7 @@ name: clipper-worker
 on:
   # Drain queued jobs without human click (free path).
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       job_id:
