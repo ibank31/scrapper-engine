@@ -30,13 +30,13 @@ Candidate generation now groups Whisper words into sentence/turn units using pun
 
 ## Verification
 
-The repository regression suite passes **56 tests**. The latest media-signal implementation is committed in `00648bc`; the sentence-aware quality loop is in `3f4fd58`, and the semantic ranker/workflow foundation is in `18246e9`. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
+The repository regression suite passes **57 tests**. Phase A evaluation and fallback observability are committed in `c36e535`; media signals are in `00648bc`; the sentence-aware quality loop is in `3f4fd58`. The deterministic golden fixture currently reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
 
-The actual Qwen GGUF path was **not run in this local sandbox or against a production job**. GitHub Actions remains configured to install and load it on a sufficiently long controlled source. Local tests exercise the deterministic fallback and verify that unavailable optional signals remain explicit rather than silently passing.
+The actual Qwen GGUF path was **not run in this local sandbox or against a production job**. A separate manual `semantic-fixture.yml` workflow now installs Qwen, verifies the model file/hash, runs the golden fixture, and uploads the result without touching production. Local tests exercise the deterministic fallback and verify that unavailable optional signals remain explicit rather than silently passing.
 
 ## Next milestone
 
-Run one controlled end-to-end GitHub Actions job using a sufficiently long approved source, confirm Qwen load/inference diagnostics, and inspect media/semantic metadata in the review queue. Improve active-speaker detection with visual evidence when an optional vision dependency is available; current framing advice is transcript-label based. Do not use a five-second incomplete source as a quality benchmark.
+Run the manual Qwen fixture workflow and record its result. Then implement Phase B: source preflight before transcription, followed by conservative silence/scene ranking penalties without changing timestamps. Improve active-speaker detection with visual evidence only after those changes are measured. Do not use a five-second incomplete source as a quality benchmark.
 
 ## Documentation entry points
 
