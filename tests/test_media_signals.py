@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from core.media_signals import candidate_signals, source_quality_preflight
+from core.media_signals import candidate_signals, media_score_adjustment, source_quality_preflight
 
 
 class MediaSignalsTest(unittest.TestCase):
@@ -34,6 +34,19 @@ class MediaSignalsTest(unittest.TestCase):
         self.assertEqual(result["resolution_class"], "hd")
         self.assertEqual(result["speech_density_words_per_second"], 0.25)
         self.assertTrue(result["duplicate_hash"])
+        self.assertTrue(result["has_video"])
+
+    def test_media_score_adjustment_is_bounded_and_advisory(self):
+        delta, reasons = media_score_adjustment({
+            "available": True,
+            "silence_voice_activity": {"available": True, "silence_ratio": 0.7},
+            "scene_change": {"available": True, "scene_change_score": 0.8},
+        })
+        self.assertEqual(delta, -0.08)
+        self.assertIn("high silence ratio", reasons)
+
+    def test_unavailable_media_has_no_score_adjustment(self):
+        self.assertEqual(media_score_adjustment({"available": False}), (0.0, []))
 
 
 if __name__ == "__main__":

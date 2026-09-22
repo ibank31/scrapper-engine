@@ -53,6 +53,7 @@ def source_quality_preflight(path: str, transcript: dict[str, Any] | None = None
         result.update({
             "available": True,
             "duration_seconds": round(duration, 3),
+            "has_video": bool(video),
             "has_audio": bool(audio),
             "speech_density_words_per_second": speech_density,
             "resolution": {"width": width, "height": height},
@@ -119,7 +120,29 @@ def candidate_signals(path: str | None, candidate: dict[str, Any], transcript: d
     return {"schema_version": 1, "available": True, "silence_voice_activity": _silence_signal(path, start, duration), "scene_change": _scene_signal(path, start, duration), "active_speaker": active}
 
 
-__all__ = ["candidate_signals", "source_quality_preflight"]
+def media_score_adjustment(signals: dict[str, Any] | None) -> tuple[float, list[str]]:
+    """Return a small advisory score delta; never hard-reject a candidate."""
+    if not signals or not signals.get("available"):
+        return 0.0, []
+    delta = 0.0
+    reasons: list[str] = []
+    silence = signals.get("silence_voice_activity") or {}
+    if silence.get("available"):
+        ratio = float(silence.get("silence_ratio") or 0)
+        if ratio >= 0.55:
+            delta -= 0.12
+            reasons.append("high silence ratio")
+        elif ratio <= 0.10:
+            delta += 0.03
+            reasons.append("strong voice activity")
+    scene = signals.get("scene_change") or {}
+    if scene.get("available") and float(scene.get("scene_change_score") or 0) >= 0.25:
+        delta += 0.04
+        reasons.append("useful scene change")
+    return round(max(-0.12, min(0.07, delta)), 4), reasons
+
+
+__all__ = ["candidate_signals", "media_score_adjustment", "source_quality_preflight"]
 
 if __name__ == "__main__":
     import argparse

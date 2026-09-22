@@ -1,6 +1,8 @@
 import json
 import os
+import tempfile
 import unittest
+from unittest import mock
 
 from core.clip_candidates import segment_transcript, select_candidates
 
@@ -68,6 +70,19 @@ class ClipCandidatesTest(unittest.TestCase):
             cases = json.load(fh)
         self.assertGreaterEqual(len(cases), 4)
         self.assertTrue(all(case.get("candidate", {}).get("text") for case in cases))
+
+    def test_media_adjustment_does_not_change_candidate_interval(self):
+        transcript = {"segments": [
+            {"start": 0, "end": 10, "text": "Here is the biggest business problem."},
+            {"start": 10, "end": 25, "text": "The answer is a complete solution."},
+        ]}
+        with tempfile.NamedTemporaryFile() as source, mock.patch("core.clip_candidates.source_quality_preflight", return_value={"available": True}), mock.patch(
+            "core.clip_candidates.candidate_signals",
+            return_value={"available": True, "silence_voice_activity": {"available": True, "silence_ratio": 0.7}, "scene_change": {"available": True, "scene_change_score": 0.0}},
+        ):
+            candidates = select_candidates(transcript, min_seconds=20, max_seconds=30, limit=1, source_path=source.name)
+        self.assertEqual((candidates[0]["start"], candidates[0]["end"]), (0.0, 25.0))
+        self.assertEqual(candidates[0]["media_score_adjustment"], -0.12)
 
 
 if __name__ == "__main__":

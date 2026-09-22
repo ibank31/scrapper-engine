@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from core.media_signals import candidate_signals, source_quality_preflight
+from core.media_signals import candidate_signals, media_score_adjustment, source_quality_preflight
 
 HOOKS = ("how", "why", "what", "the truth", "nobody", "most people", "the biggest", "here's", "here is", "mistake", "secret")
 SIGNALS = ("because", "but", "however", "instead", "first", "finally", "million", "percent", "%", "$", "step", "lesson", "problem", "solution")
@@ -198,6 +198,10 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
                     if source_quality:
                         item["source_quality"] = source_quality
                         item["media_signals"] = candidate_signals(source_path, item, transcript)
+                        adjustment, signal_reasons = media_score_adjustment(item["media_signals"])
+                        item["media_score_adjustment"] = adjustment
+                        item["score"] = round(max(0.0, min(1.0, item["score"] + adjustment)), 4)
+                        item["reasons"].extend(signal_reasons)
                     candidates.append(item)
                 else:
                     break

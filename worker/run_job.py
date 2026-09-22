@@ -21,6 +21,7 @@ if str(_REPO_ROOT) not in sys.path:
 import requests
 
 from core.relevance import check_candidate
+from core.media_signals import source_quality_preflight
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 MAX_REVIEW_CANDIDATES = 2
@@ -148,7 +149,27 @@ def main() -> None:
         sources.sort(key=source_priority, reverse=True)
         sources = sources[:max_sources]
         if not sources: raise RuntimeError("tidak ada video asset langsung; periksa MANUAL_ASSETS.md")
-        update(args.api_base, args.job_id, args.worker_token, "processing", 24, f"{len(sources)} bahan resmi sudah diambil")
+        preflight_records = []
+        usable_sources = []
+        seen_hashes: dict[str, str] = {}
+        for source in sources:
+            quality = source_quality_preflight(str(source))
+            record = {"source": str(source), "quality": quality}
+            source_hash = quality.get("duplicate_hash")
+            if source_hash and source_hash in seen_hashes:
+                record["duplicate_of"] = seen_hashes[source_hash]
+            elif source_hash:
+                seen_hashes[source_hash] = str(source)
+            preflight_records.append(record)
+            if quality.get("available") and quality.get("has_video") and quality.get("has_audio") and float(quality.get("duration_seconds") or 0) >= 1.5:
+                usable_sources.append(source)
+            else:
+                record["excluded_before_transcription"] = True
+        (workspace / "source-preflight.json").write_text(json.dumps({"schema_version": 1, "sources": preflight_records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        sources = usable_sources
+        if not sources:
+            raise RuntimeError("semua source gagal preflight: video/audio/durasi tidak layak")
+        update(args.api_base, args.job_id, args.worker_token, "processing", 24, f"{len(sources)} bahan resmi lolos preflight")
         transcript_root = workspace / "transcripts"
         render_dir = workspace / "outputs"
         transcript_root.mkdir(exist_ok=True)
