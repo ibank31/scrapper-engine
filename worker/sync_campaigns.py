@@ -23,6 +23,7 @@ from core.campaign_ai import analyze_campaigns, rules_fingerprint
 from core.campaign_priority import score_campaign
 from core.campaign_readiness import STATUS_KETAT, STATUS_SIAP, apply_readiness, readiness_sort_key
 from core.campaign_rules import compile_plan
+from core.campaign_exclusions import excluded_campaign_terms
 from modules.reward_campaign.pull_detail import extract_detail
 
 DOC_ID_RE = re.compile(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", re.I)
@@ -200,6 +201,18 @@ def main() -> None:
     campaigns = data.get("campaigns", [])
     print(f"Scraped {len(campaigns)} campaigns")
 
+    excluded_count = 0
+    for campaign in campaigns:
+        matches = excluded_campaign_terms(campaign)
+        if matches:
+            campaign["status"] = "blocked"
+            campaign["excluded"] = True
+            campaign["exclusion_reason"] = "excluded campaign category: " + ", ".join(matches)
+            campaign["flags"] = list(dict.fromkeys((campaign.get("flags") or []) + ["EXCLUDED:GAMBLING_OR_MONEY_GAME"]))
+            excluded_count += 1
+    print(f"Excluded by deterministic policy: {excluded_count}")
+
+    # Do not fetch details, download docs, or spend AI quota on excluded rows.
     active = [c for c in campaigns if str(c.get("status") or "active").lower() == "active"]
     detail_workers = max(1, min(6, int(os.getenv("CLIPPER_DETAIL_WORKERS", "5"))))
     with concurrent.futures.ThreadPoolExecutor(max_workers=detail_workers) as pool:
