@@ -66,6 +66,17 @@ def upload_r2(api_base: str, job_id: str, token: str, path: str, key: str, conte
     return response.json()["download_url"]
 
 
+def _candidate_audit_reason(stats: dict[str, int], source_count: int, usable_count: int) -> str:
+    """Compact, auditable explanation for a zero-candidate block."""
+    return (
+        f"sources={source_count}; usable_sources={usable_count}; "
+        f"transcribed={stats['transcribed']}; raw_candidates={stats['raw_candidates']}; "
+        f"semantic_rejects={stats['semantic_rejects']}; "
+        f"hard_policy_rejects={stats['hard_policy_rejects']}; "
+        f"relevance_blocks={stats['relevance_blocks']}"
+    )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Run one cloud clipping job")
     ap.add_argument("--api-base", default=os.environ.get("CLIPPER_API_URL"), required=False)
@@ -87,6 +98,19 @@ def main() -> None:
     root = tempfile.mkdtemp(prefix="clipper-job-")
     try:
         job = api_call(args.api_base, f"/api/jobs/{args.job_id}", args.worker_token)["job"]
+        live_campaign = api_call(args.api_base, f"/api/campaigns/{job['campaign_id']}", args.worker_token).get("campaign") or {}
+        live_campaign_status = str(live_campaign.get("status") or "active").lower()
+        if live_campaign_status != "active":
+            update(
+                args.api_base,
+                args.job_id,
+                args.worker_token,
+                "blocked",
+                100,
+                "Campaign tidak aktif; job dihentikan sebelum mengambil asset",
+                f"campaign_status={live_campaign_status}",
+            )
+            return
         plan = job.get("campaign_plan")
         if not plan:
             detail_root = os.path.join(root, "campaign-detail")
@@ -169,7 +193,12 @@ def main() -> None:
         (workspace / "source-preflight.json").write_text(json.dumps({"schema_version": 1, "sources": preflight_records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         sources = usable_sources
         if not sources:
-            raise RuntimeError("semua source gagal preflight: video/audio/durasi tidak layak")
+            reasons = [
+                ",".join(str(k) for k, v in (record.get("quality") or {}).items() if k in {"available", "has_video", "has_audio", "duration_seconds"})
+                for record in preflight_records
+                if record.get("excluded_before_transcription")
+            ]
+            raise RuntimeError(f"semua source gagal preflight: video/audio/durasi tidak layak; sources={len(preflight_records)}; details={' | '.join(reasons[:3])}")
         update(args.api_base, args.job_id, args.worker_token, "processing", 24, f"{len(sources)} bahan resmi lolos preflight")
         transcript_root = workspace / "transcripts"
         render_dir = workspace / "outputs"
@@ -184,6 +213,7 @@ def main() -> None:
         editorial_min_duration = campaign_min_duration or (8.0 if not campaign_max_duration or campaign_max_duration >= 8.0 else 3.0)
         editorial_max_duration = campaign_max_duration if campaign_max_duration > 0 else 60.0
         all_candidates = []
+        candidate_stats = {"transcribed": 0, "raw_candidates": 0, "semantic_rejects": 0, "hard_policy_rejects": 0, "relevance_blocks": 0}
         for source_index, source in enumerate(sources, 1):
             transcript_dir = transcript_root / f"source-{source_index:02d}"
             run([
@@ -192,6 +222,7 @@ def main() -> None:
                 "--model", args.whisper_model,
                 "--beam-size", str(max(1, int(args.whisper_beam))),
             ])
+            candidate_stats["transcribed"] += 1
             transcript_payload = json.loads((transcript_dir / "transcript.json").read_text(encoding="utf-8"))
             transcript_duration = max((float(segment.get("end", 0)) for segment in transcript_payload.get("segments", [])), default=0.0)
             # Eight seconds is an editorial floor, not a campaign duration rule.
@@ -225,18 +256,31 @@ def main() -> None:
                 ])
                 local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
+                candidate_stats["raw_candidates"] += 1
                 semantic = local_item.get("semantic") or {}
+                if semantic.get("decision") == "reject":
+                    candidate_stats["semantic_rejects"] += 1
                 # Qwen is advisory. Only the deterministic local hard-policy
                 # gate may discard a candidate before human review.
                 if semantic.get("decision") == "reject" and semantic.get("hard_policy_gate") is True:
+                    candidate_stats["hard_policy_rejects"] += 1
                     continue
                 relevance = check_candidate(plan, local_item)
                 if relevance.get("status") == "blocked":
+                    candidate_stats["relevance_blocks"] += 1
                     continue
                 all_candidates.append({"candidate": dict(local_item), "source": str(source), "transcript": str(transcript_dir / "transcript.json"), "relevance": relevance})
             update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)}")
         if not all_candidates:
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Tidak ada momen utuh minimal 8 detik dari asset resmi campaign", "source assets terlalu pendek, tidak selesai, atau tidak relevan")
+            update(
+                args.api_base,
+                args.job_id,
+                args.worker_token,
+                "blocked",
+                100,
+                "Tidak ada kandidat aman untuk review dari asset resmi campaign",
+                _candidate_audit_reason(candidate_stats, len(preflight_records), len(sources)),
+            )
             return
         all_candidates.sort(key=lambda item: (-float(item["candidate"].get("score", 0)), item["candidate"].get("start", 0)))
         selected = all_candidates[:MAX_REVIEW_CANDIDATES]

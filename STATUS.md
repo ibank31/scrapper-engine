@@ -21,6 +21,8 @@ Candidate generation now groups Whisper words into sentence/turn units using pun
 
 Daily campaign sync now applies `core/campaign_exclusions.py` before detail hydration and AI analysis. Campaigns matching explicit gambling, casino, poker, betting, real-money gaming, deposit-match, RTP, or known-operator terms are marked `blocked`, flagged `EXCLUDED:GAMBLING_OR_MONEY_GAME`, and never enter the active campaign list or auto-queue.
 
+The first end-to-end trial was audited against the exact source URLs. Both official videos were healthy vertical assets (21.333 s and 20.833 s, 1080×1920, HEVC video plus AAC audio). The block was editorial: one source produced a 9.44-second candidate ending mid-thought and hit deterministic `unfinished_sentence`/`short_clip` gates; the other produced no complete candidate from its transcript. The worker now checks live campaign status before downloading assets and records source/transcription/raw-candidate/semantic/hard-policy/relevance counts in zero-candidate errors instead of emitting a generic duration message.
+
 ## Rules and quality behavior
 
 - `plan.json` and `source_of_truth` are authoritative.
@@ -32,7 +34,7 @@ Daily campaign sync now applies `core/campaign_exclusions.py` before detail hydr
 
 ## Verification
 
-The repository regression suite passes **69 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
+The repository regression suite passes **70 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
 
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
