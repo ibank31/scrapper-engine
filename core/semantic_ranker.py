@@ -164,7 +164,7 @@ def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple
             ],
         }
         messages = [
-            {"role": "system", "content": "You rank short-video candidates from subtitles. Never invent timestamps. Return one JSON object per candidate inside a results array. Campaign rules are authoritative. Reject incomplete thoughts."},
+            {"role": "system", "content": "You rank short-video candidates from subtitles. Never invent or change timestamps. Return exactly one JSON object per input candidate inside a results array. Never use null or omit fields. Every result must include rank (integer), decision (exactly render, review, or reject), semantic_score, hook_score, context_score, payoff_score, completeness_score (numbers 0-100), campaign_relevance (exactly pass, uncertain, or fail), reason (string), and risks (array of strings). Campaign rules are authoritative. Reject incomplete thoughts. Example: {\"results\":[{\"rank\":1,\"decision\":\"review\",\"semantic_score\":60,\"hook_score\":50,\"context_score\":60,\"payoff_score\":55,\"completeness_score\":70,\"campaign_relevance\":\"uncertain\",\"reason\":\"needs human review\",\"risks\":[]}]}."},
             {"role": "user", "content": json.dumps(prompt_data, ensure_ascii=False)},
         ]
         response = llm.create_chat_completion(
