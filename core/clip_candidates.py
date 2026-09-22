@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from core.media_signals import candidate_signals, source_quality_preflight
+
 HOOKS = ("how", "why", "what", "the truth", "nobody", "most people", "the biggest", "here's", "here is", "mistake", "secret")
 SIGNALS = ("because", "but", "however", "instead", "first", "finally", "million", "percent", "%", "$", "step", "lesson", "problem", "solution")
 MID_THOUGHT_STARTS = ("and", "but", "so", "because", "they", "they're", "it", "this", "that", "which", "to")
@@ -158,11 +160,12 @@ def segment_transcript(transcript: dict[str, Any]) -> list[dict[str, Any]]:
     return units
 
 
-def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10) -> list[dict[str, Any]]:
+def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10, source_path: str | None = None) -> list[dict[str, Any]]:
     units = segment_transcript(transcript)
     if not units:
         return []
     candidates: list[dict[str, Any]] = []
+    source_quality = source_quality_preflight(source_path, transcript) if source_path else None
     for start_index, first in enumerate(units):
         start = float(first.get("start", 0.0))
         text_parts: list[str] = []
@@ -180,7 +183,7 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
                     score = max(0.0, min(1.0, score + structure_score + boundary_score))
                     reasons.extend(structure_reasons)
                     reasons.extend(boundary_reasons)
-                    candidates.append({
+                    item = {
                         "start": round(start, 3),
                         "end": round(end, 3),
                         "duration": round(duration, 3),
@@ -191,7 +194,11 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
                         "source_segment_end": current.get("source_segment_end", end_index),
                         "unit_start": start_index,
                         "unit_end": end_index,
-                    })
+                    }
+                    if source_quality:
+                        item["source_quality"] = source_quality
+                        item["media_signals"] = candidate_signals(source_path, item, transcript)
+                    candidates.append(item)
                 else:
                     break
     candidates.sort(key=lambda x: (-x["score"], x["start"]))

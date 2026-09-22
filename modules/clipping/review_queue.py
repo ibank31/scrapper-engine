@@ -101,7 +101,9 @@ def build_queue(plan: dict, candidates: dict, validation: dict, rendered_dir: st
         item_md = os.path.join(output_dir, f"clip-{rank:03d}.md")
         with open(item_md, "w", encoding="utf-8") as fh:
             semantic = item["semantic"]
-            fh.write(f"# Clip {rank:03d}\n\n- Status: **{queue_status}**\n- Score: `{candidate.get('score', '-')}`\n- Semantic decision: `{semantic.get('decision', 'unknown')}`\n- Hook/context/payoff/completeness: `{semantic.get('hook_score', '-')}` / `{semantic.get('context_score', '-')}` / `{semantic.get('payoff_score', '-')}` / `{semantic.get('completeness_score', '-')}`\n- Video: `{video.name}`\n\n## Semantic reason\n\n{semantic.get('reason') or '-'}\n\n## Checklist\n\n")
+            signals = candidate.get("media_signals") or {}
+            source_quality = candidate.get("source_quality") or {}
+            fh.write(f"# Clip {rank:03d}\n\n- Status: **{queue_status}**\n- Score: `{candidate.get('score', '-')}`\n- Semantic decision: `{semantic.get('decision', 'unknown')}`\n- Hook/context/payoff/completeness: `{semantic.get('hook_score', '-')}` / `{semantic.get('context_score', '-')}` / `{semantic.get('payoff_score', '-')}` / `{semantic.get('completeness_score', '-')}`\n- Video: `{video.name}`\n\n## Media signals\n\n```json\n{json.dumps({'source_quality': source_quality, 'media_signals': signals}, ensure_ascii=False, indent=2)}\n```\n\n## Semantic reason\n\n{semantic.get('reason') or '-'}\n\n## Checklist\n\n")
             fh.write("\n".join(f"- [ ] {task}" for task in item["checklist"]))
             fh.write("\n\n## Validation\n\n```json\n" + json.dumps(result, ensure_ascii=False, indent=2) + "\n```\n")
     payload = {"schema_version": 1, "campaign": plan.get("campaign"), "policy": plan.get("automation_policy"), "items": queue}

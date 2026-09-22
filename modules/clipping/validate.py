@@ -91,7 +91,16 @@ def check_video(path: str, plan: dict | None, relevance: dict | None = None, can
         elif relevance.get("status") == "uncertain":
             review.append("campaign relevance is uncertain; human must verify topic and brand context")
     status = "fail" if issues else ("needs_review" if review else "pass")
-    return {"path": path, "status": status, "issues": issues, "review": review, "relevance": relevance, "metadata": data.get("format", {})}
+    return {
+        "path": path,
+        "status": status,
+        "issues": issues,
+        "review": review,
+        "relevance": relevance,
+        "metadata": data.get("format", {}),
+        "source_quality": (candidate or {}).get("source_quality"),
+        "media_signals": (candidate or {}).get("media_signals"),
+    }
 
 
 def main() -> None:

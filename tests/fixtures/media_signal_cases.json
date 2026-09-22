@@ -1,0 +1,22 @@
+[
+  {
+    "id": "two_speakers_balanced",
+    "candidate": {"start": 0, "end": 20, "duration": 20},
+    "transcript": {"segments": [
+      {"start": 0, "end": 5, "speaker": "A", "text": "The problem is obvious."},
+      {"start": 5, "end": 10, "speaker": "B", "text": "The answer is simpler."},
+      {"start": 10, "end": 15, "speaker": "A", "text": "That means we should focus."},
+      {"start": 15, "end": 20, "speaker": "B", "text": "Exactly."}
+    ]},
+    "expected_framing": "wide-two-speaker"
+  },
+  {
+    "id": "single_dominant_speaker",
+    "candidate": {"start": 0, "end": 20, "duration": 20},
+    "transcript": {"segments": [
+      {"start": 0, "end": 15, "speaker": "A", "text": "A complete point."},
+      {"start": 15, "end": 20, "speaker": "B", "text": "A short reply."}
+    ]},
+    "expected_framing": "speaker-focused"
+  }
+]

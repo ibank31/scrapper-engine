@@ -9,6 +9,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from core.clip_candidates import select_candidates
+from core.media_signals import source_quality_preflight
 
 
 def main() -> None:
@@ -18,12 +19,13 @@ def main() -> None:
     ap.add_argument("--min-seconds", type=float, default=20)
     ap.add_argument("--max-seconds", type=float, default=60)
     ap.add_argument("--limit", type=int, default=2)
+    ap.add_argument("--source", default=None, help="optional source media for quality and scene/audio signals")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     transcript = json.load(open(args.transcript, encoding="utf-8"))
-    candidates = select_candidates(transcript, args.min_seconds, args.max_seconds, args.limit)
+    candidates = select_candidates(transcript, args.min_seconds, args.max_seconds, args.limit, source_path=args.source)
     out = args.out or os.path.join(os.path.dirname(os.path.abspath(args.transcript)), "candidates.json")
-    payload = {"schema_version": 1, "transcript": transcript.get("input"), "candidates": candidates}
+    payload = {"schema_version": 2, "transcript": transcript.get("input"), "source_quality": source_quality_preflight(args.source, transcript) if args.source else None, "candidates": candidates}
     json.dump(payload, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
     md = out.rsplit(".", 1)[0] + ".md"
     lines = ["# Clip Candidates", "", f"Source: `{transcript.get('input')}`", "", "| Rank | Score | Time | Duration | Reason |", "|---:|---:|---|---:|---|"]
