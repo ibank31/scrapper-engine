@@ -15,6 +15,10 @@ class RelevanceTest(unittest.TestCase):
         result = check_candidate(self.plan, {"text": "Starbase and Starship are trying to reach orbit."})
         self.assertEqual(result["status"], "blocked")
 
+    def test_unknown_topic_is_uncertain_for_human_review(self):
+        result = check_candidate(self.plan, {"text": "Here is a useful story with a clear lesson."})
+        self.assertEqual(result["status"], "uncertain")
+
     def test_forgegui_roblox_topic_passes(self):
         plan = {"campaign": {"title": "ForgeGUI Clipping", "brand": "BloxClips"}, "source_of_truth": {"description": "ForgeGUI is an AI tool for Roblox developers."}}
         result = check_candidate(plan, {"text": "I will sketch my idea in forge G-U-I for my Roblox game and convert it into 3D."})

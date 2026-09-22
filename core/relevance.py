@@ -10,6 +10,7 @@ KNOWN = {
     "forgegui": ("forgegui", "forge g-u-i", "roblox", "roblox dev", "gui", "3d models", "ai tool"),
     "fundingpips": ("fundingpips", "forex", "trading", "trader"),
 }
+COMPETING_TERMS = tuple(sorted({"starship", "starbase", "boxabl", "casita", "roblox", "forgegui", "fundingpips", "forex", "trading"}))
 
 
 def _text(plan: dict) -> str:
@@ -49,4 +50,7 @@ def check_candidate(plan: dict, candidate: dict) -> dict:
         return {"status": "uncertain", "matches": [], "terms": [], "reason": "no reliable topical terms extracted; human review required"}
     if matches:
         return {"status": "pass", "matches": matches[:8], "terms": terms[:30], "reason": "candidate transcript matches campaign topic signals"}
-    return {"status": "blocked", "matches": [], "terms": terms[:30], "reason": "candidate transcript does not match campaign topic signals"}
+    competing = [term for term in COMPETING_TERMS if term in text and term not in terms]
+    if competing:
+        return {"status": "blocked", "matches": competing[:8], "terms": terms[:30], "reason": "candidate contains a clearly competing campaign topic"}
+    return {"status": "uncertain", "matches": [], "terms": terms[:30], "reason": "no literal topic match; render for human relevance review"}
