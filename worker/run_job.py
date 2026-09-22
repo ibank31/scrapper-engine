@@ -162,8 +162,22 @@ def main() -> None:
                 "--model", args.whisper_model,
                 "--beam-size", str(max(1, int(args.whisper_beam))),
             ])
-            run([sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"), "--limit", "10"])
+            transcript_payload = json.loads((transcript_dir / "transcript.json").read_text(encoding="utf-8"))
+            transcript_duration = max((float(segment.get("end", 0)) for segment in transcript_payload.get("segments", [])), default=0.0)
+            adaptive_min = max(5.0, min(20.0, transcript_duration * 0.45))
+            adaptive_max = max(adaptive_min + 1.0, min(60.0, max(10.0, transcript_duration)))
+            run([
+                sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
+                "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", f"{adaptive_max:.3f}", "--limit", "10",
+            ])
             local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
+            # A very short source can contain one useful thought below the adaptive floor.
+            if not local_candidates.get("candidates") and transcript_duration > 0:
+                run([
+                    sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
+                    "--min-seconds", "3", "--max-seconds", "60", "--limit", "10",
+                ])
+                local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
                 relevance = check_candidate(plan, local_item)
                 if relevance.get("status") == "blocked":

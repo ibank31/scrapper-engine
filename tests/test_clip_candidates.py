@@ -34,6 +34,17 @@ class ClipCandidatesTest(unittest.TestCase):
         self.assertIn("payoff or takeaway", candidates[0]["reasons"])
         self.assertIn("complete ending", candidates[0]["reasons"])
 
+    def test_short_source_can_still_produce_a_candidate(self):
+        transcript = {
+            "segments": [
+                {"start": 0, "end": 2.5, "text": "This is the key lesson."},
+                {"start": 2.5, "end": 5.0, "text": "So you can repeat it every week."},
+            ]
+        }
+        candidates = select_candidates(transcript, min_seconds=3, max_seconds=60, limit=2)
+        self.assertEqual(len(candidates), 1)
+        self.assertAlmostEqual(candidates[0]["duration"], 5.0)
+
 
 if __name__ == "__main__":
     unittest.main()
