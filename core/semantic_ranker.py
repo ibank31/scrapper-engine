@@ -114,6 +114,29 @@ def _extract_json(text: str) -> dict[str, Any] | None:
             return None
 
 
+def _normalize_model_results(parsed: dict[str, Any] | None, candidates: list[dict[str, Any]]) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """Normalize common GGUF JSON shapes without guessing across candidates."""
+    if not parsed:
+        return None, "model_invalid_json"
+    results = parsed.get("results")
+    if results is None and len(candidates) == 1 and "decision" in parsed:
+        results = [parsed]
+    if not isinstance(results, list) or len(results) != len(candidates):
+        return None, "model_invalid_results_count"
+    indexed = {int(item.get("rank")): item for item in results if isinstance(item, dict) and str(item.get("rank", "")).isdigit()}
+    normalized: list[dict[str, Any]] = []
+    for index, candidate in enumerate(candidates):
+        item = indexed.get(int(candidate.get("rank") or 0))
+        if item is None and len(results) == len(candidates) and isinstance(results[index], dict) and "rank" not in results[index]:
+            item = results[index]
+        if not isinstance(item, dict):
+            return None, "model_missing_candidate_result"
+        item = dict(item)
+        item["rank"] = int(candidate.get("rank") or 0)
+        normalized.append(item)
+    return normalized, None
+
+
 def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple[list[dict[str, Any]] | None, str | None]:
     model_path = os.environ.get("CLIPPER_SEMANTIC_MODEL", "").strip()
     if not model_path or os.environ.get("CLIPPER_SEMANTIC_ENABLED", "auto").lower() in {"0", "false", "off"}:
@@ -143,18 +166,7 @@ def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple
         )
         content = response["choices"][0]["message"].get("content", "")
         parsed = _extract_json(content)
-        results = parsed.get("results") if parsed else None
-        if not isinstance(results, list):
-            return None, "model_invalid_json_shape"
-        by_rank = {int(x.get("rank")): x for x in results if isinstance(x, dict) and str(x.get("rank", "")).isdigit()}
-        normalized = []
-        for candidate in candidates:
-            item = by_rank.get(int(candidate.get("rank") or 0))
-            if not item:
-                return None, "model_missing_candidate_result"
-            item["rank"] = int(candidate.get("rank") or 0)
-            normalized.append(item)
-        return normalized, None
+        return _normalize_model_results(parsed, candidates)
     except Exception as exc:
         return None, f"model_inference_failed:{type(exc).__name__}"
 
@@ -175,6 +187,12 @@ def rank_candidates_with_metadata(candidates: list[dict[str, Any]], plan: dict[s
     for candidate in candidates:
         item = dict(candidate)
         semantic = by_rank.get(int(candidate.get("rank") or 0), _deterministic(candidate, plan))
+        local_guard = _deterministic(candidate, plan)
+        if local_guard["decision"] == "reject" and semantic.get("decision") != "reject":
+            semantic = dict(semantic)
+            semantic["decision"] = "reject"
+            semantic["risks"] = list(dict.fromkeys(list(semantic.get("risks") or []) + list(local_guard.get("risks") or [])))
+            semantic["reason"] = str(semantic.get("reason") or "") + "; local hard-policy gate: " + ", ".join(local_guard.get("risks") or ["structural_rejection"])
         semantic["engine"] = runtime["engine"]
         semantic["fallback_used"] = runtime["fallback_used"]
         semantic["fallback_reason"] = runtime["fallback_reason"]

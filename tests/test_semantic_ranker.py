@@ -1,8 +1,9 @@
 import json
 import os
 import unittest
+from unittest import mock
 
-from core.semantic_ranker import rank_candidates, rank_candidates_with_metadata
+from core.semantic_ranker import _normalize_model_results, rank_candidates, rank_candidates_with_metadata
 
 
 class SemanticRankerTest(unittest.TestCase):
@@ -40,6 +41,20 @@ class SemanticRankerTest(unittest.TestCase):
         self.assertTrue(runtime["fallback_used"])
         self.assertEqual(runtime["fallback_reason"], "model_disabled_or_path_missing")
         self.assertEqual(ranked[0]["semantic"]["fallback_reason"], runtime["fallback_reason"])
+
+    def test_normalizes_single_model_result_without_rank(self):
+        candidates = [{"rank": 1, "start": 0, "end": 20, "duration": 20, "text": "A complete point."}]
+        normalized, reason = _normalize_model_results({"decision": "render", "semantic_score": 80}, candidates)
+        self.assertIsNone(reason)
+        self.assertEqual(normalized[0]["rank"], 1)
+
+    def test_model_cannot_override_local_structural_gate(self):
+        candidate = {"rank": 1, "start": 0, "end": 4, "duration": 4, "text": "And this is unfinished"}
+        plan = {"production": {"max_duration_seconds": 5}}
+        with mock.patch("core.semantic_ranker._model_rank", return_value=([{"rank": 1, "decision": "render", "semantic_score": 99, "hook_score": 99, "context_score": 99, "payoff_score": 99, "completeness_score": 99, "campaign_relevance": "pass", "reason": "model", "risks": []}], None)):
+            result = rank_candidates_with_metadata([candidate], plan)[0][0]
+        self.assertEqual(result["semantic"]["decision"], "reject")
+        self.assertIn("unfinished_sentence", result["semantic"]["risks"])
 
     def test_prefers_complete_problem_solution_candidate(self):
         plan = {"production": {"topic_terms": ["business"]}}
