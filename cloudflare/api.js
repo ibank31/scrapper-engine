@@ -185,7 +185,11 @@ export default {
         if (String(current?.message || "").startsWith("Worker GitHub dipicu")) return json({ error: "job_already_dispatched" }, 409);
 
         const githubToken = env.GITHUB_ACTIONS_TOKEN || env.GITHUB_TOKEN;
-        if (!githubToken) return json({ error: "github_dispatch_not_configured", message: "Cloudflare secret GITHUB_ACTIONS_TOKEN belum dikonfigurasi" }, 503);
+        if (!githubToken) {
+          const message = "Cloudflare secret GITHUB_ACTIONS_TOKEN belum dikonfigurasi";
+          await env.DB.prepare("UPDATE jobs SET message=?,error=?,updated_at=? WHERE id=?").bind("Worker belum dikonfigurasi", message, now(), jobId).run();
+          return json({ error: "github_dispatch_not_configured", message }, 503);
+        }
 
         const repo = env.GITHUB_REPOSITORY || "ibank31/scrapper-engine";
         const workflow = env.GITHUB_WORKFLOW_FILE || "clipper-worker.yml";

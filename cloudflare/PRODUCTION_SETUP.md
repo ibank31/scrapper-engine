@@ -6,6 +6,8 @@ The active Cloudflare Pages project is `clipper-engine` at `https://clipper-engi
 
 The P0 review schema has been applied to production. The `previews` table now includes `review_reason`, `reviewed_by`, and `reviewed_at`; `preview_events` and its index exist.
 
+The Pages production function must also have `GITHUB_ACTIONS_TOKEN` configured as a secret. It is used only by `POST /api/jobs/:id/run` to dispatch the repository workflow with the selected `job_id`. Without it, jobs remain queued and the API returns `github_dispatch_not_configured` with HTTP 503. Use a fine-scoped GitHub token that can dispatch workflows in `ibank31/scrapper-engine`; never put this token in the repository or frontend.
+
 ## Required secrets
 
 These values must be stored as Cloudflare Pages production secrets, never in GitHub, `web/config.js`, the repository, or logs:
@@ -13,6 +15,7 @@ These values must be stored as Cloudflare Pages production secrets, never in Git
 ```text
 PREVIEW_SIGNING_SECRET  random high-entropy value used to sign short-lived preview URLs
 REVIEW_TOKEN            random high-entropy value used to authorize review mutations until Access is enabled
+GITHUB_ACTIONS_TOKEN    fine-scoped GitHub token used only to dispatch clipper-worker.yml
 ```
 
 Recommended setup with Wrangler after installing it or running it through `npx`:
@@ -20,6 +23,7 @@ Recommended setup with Wrangler after installing it or running it through `npx`:
 ```bash
 npx wrangler pages secret put PREVIEW_SIGNING_SECRET --project-name clipper-engine
 npx wrangler pages secret put REVIEW_TOKEN --project-name clipper-engine
+npx wrangler pages secret put GITHUB_ACTIONS_TOKEN --project-name clipper-engine
 ```
 
 When prompted, paste different random values. Do not reuse the Google OAuth client secret, GitHub token, or Worker token. The signing secret is not recoverable after creation; generate a replacement and re-deploy if it is lost.
