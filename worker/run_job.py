@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Repo root must be on sys.path so `from core...` works when the
@@ -38,11 +39,25 @@ def update(base: str, job_id: str, token: str, status: str, progress: int, messa
     api_call(base, f"/api/jobs/{job_id}", token, "PATCH", {"status": status, "progress": progress, "message": message, "error": error})
 
 
-def claim_job(base: str, job_id: str, token: str, dispatch_token: str = "") -> bool:
+def stage_event(base: str, job_id: str, token: str, run_id: str, stage: str, status: str, metrics: dict | None = None, error_code: str | None = None, error_detail: str | None = None) -> None:
+    """Persist auditable stage facts without making telemetry failure fatal."""
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    payload = {"run_id": run_id, "stage": stage, "status": status, "metrics": metrics or {}}
+    if status == "started": payload["started_at"] = timestamp
+    else: payload["ended_at"] = timestamp
+    if error_code: payload["error_code"] = error_code
+    if error_detail: payload["error_detail"] = str(error_detail)[:1000]
+    try:
+        api_call(base, f"/api/jobs/{job_id}/stages", token, "POST", payload)
+    except requests.RequestException as exc:
+        print(f"Stage telemetry dilewati ({stage}/{status}): {exc}")
+
+
+def claim_job(base: str, job_id: str, token: str, dispatch_token: str = "", runner_id: str = "") -> bool:
     """Atomically claim a queued job; a lost race is a clean no-op."""
     claim_token = dispatch_token or uuid.uuid4().hex
     try:
-        api_call(base, f"/api/jobs/{job_id}/claim", token, "POST", {"claim_token": claim_token})
+        api_call(base, f"/api/jobs/{job_id}/claim", token, "POST", {"claim_token": claim_token, "runner_id": runner_id or f"local:{claim_token}"})
     except requests.HTTPError as exc:
         if exc.response is not None and exc.response.status_code == 409:
             return False
@@ -103,18 +118,30 @@ def main() -> None:
     if not args.api_base or not args.worker_token:
         raise SystemExit("CLIPPER_API_URL dan CLIPPER_WORKER_TOKEN wajib tersedia")
     if not args.job_id:
+        try:
+            recovery = api_call(args.api_base, "/api/jobs/recover-stale", args.worker_token, "POST")
+            if recovery.get("recovered"):
+                print(f"Stale claim dipulihkan: {len(recovery['recovered'])} job")
+        except requests.RequestException as exc:
+            # Recovery is a safety sweep; a transient sweep failure must not
+            # prevent the normal atomic claim path from protecting the queue.
+            print(f"Stale claim sweep dilewati: {exc}")
         queued = api_call(args.api_base, "/api/jobs", args.worker_token).get("jobs", [])
         candidate = next((job for job in queued if job.get("status") == "queued"), None)
         if not candidate:
             print("Tidak ada job queued; runner selesai tanpa proses.")
             return
         args.job_id = candidate["id"]
-    if not claim_job(args.api_base, args.job_id, args.worker_token, args.dispatch_token):
+    runner_id = f"github-run:{os.environ['GITHUB_RUN_ID']}" if os.environ.get("GITHUB_RUN_ID", "").isdigit() else ""
+    if not claim_job(args.api_base, args.job_id, args.worker_token, args.dispatch_token, runner_id):
         print(f"Job {args.job_id} sudah diklaim runner lain; runner selesai tanpa proses.")
         return
+    run_id = os.environ.get("GITHUB_RUN_ID") or uuid.uuid4().hex
+    stage_event(args.api_base, args.job_id, args.worker_token, run_id, "claim", "completed", {"runner_id": runner_id or "local"})
     root = tempfile.mkdtemp(prefix="clipper-job-")
     try:
         job = api_call(args.api_base, f"/api/jobs/{args.job_id}", args.worker_token)["job"]
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "campaign_rules", "started")
         live_campaign = api_call(args.api_base, f"/api/campaigns/{job['campaign_id']}", args.worker_token).get("campaign") or {}
         live_campaign_status = str(live_campaign.get("status") or "active").lower()
         if live_campaign_status != "active":
@@ -143,6 +170,7 @@ def main() -> None:
             plan_path = Path(root) / "plan.json"
         plan_path = os.path.join(root, "plan.json")
         with open(plan_path, "w", encoding="utf-8") as fh: json.dump(plan, fh, ensure_ascii=False, indent=2)
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "campaign_rules", "completed", {"has_plan": bool(plan), "ai_rules_status": plan.get("ai_rules_status", "unavailable")})
 
         # Hard-block only when AI has analyzed and rejected the rules.
         # "unavailable" / missing means campaign-sync-ai has not run yet —
@@ -187,6 +215,7 @@ def main() -> None:
             return
         max_sources = max(1, int(args.max_video_sources))
         update(args.api_base, args.job_id, args.worker_token, "processing", 8, f"Membaca rules · max {max_sources} sumber video")
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "started", {"max_sources": max_sources})
         workspace_root = os.path.join(root, "jobs")
         run([sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root, "--max-video-sources", str(max_sources)])
         workspace = next(Path(workspace_root).glob("*/"), None)
@@ -214,6 +243,7 @@ def main() -> None:
             elif not record.get("excluded_before_transcription"):
                 record["excluded_before_transcription"] = True
         (workspace / "source-preflight.json").write_text(json.dumps({"schema_version": 1, "sources": preflight_records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"source_count": len(preflight_records), "usable_sources": len(usable_sources)})
         sources = usable_sources
         if not sources:
             reasons = [
@@ -248,6 +278,7 @@ def main() -> None:
         editorial_max_duration = campaign_max_duration if campaign_max_duration > 0 else 60.0
         all_candidates = []
         candidate_stats = {"transcribed": 0, "raw_candidates": 0, "semantic_rejects": 0, "hard_policy_rejects": 0, "relevance_blocks": 0}
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "transcription", "started", {"source_count": len(sources)})
         for source_index, source in enumerate(sources, 1):
             transcript_dir = transcript_root / f"source-{source_index:02d}"
             run([
@@ -274,6 +305,7 @@ def main() -> None:
             ])
             local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             selection = local_candidates.get("selection") or {}
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "selector", "completed", {"source_index": source_index, "candidate_count": len(local_candidates.get("candidates") or []), "diagnostics": selection.get("diagnostics") or {}})
             if local_candidates.get("candidates"):
                 run([
                     sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
@@ -318,6 +350,7 @@ def main() -> None:
                     continue
                 all_candidates.append({"candidate": dict(local_item), "source": str(source), "transcript": str(transcript_dir / "transcript.json"), "relevance": relevance})
             update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)}")
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "transcription", "completed", candidate_stats)
         if not all_candidates:
             update(
                 args.api_base,
@@ -332,6 +365,7 @@ def main() -> None:
         all_candidates.sort(key=lambda item: (-float(item["candidate"].get("score", 0)), item["candidate"].get("start", 0)))
         selected = all_candidates[:MAX_REVIEW_CANDIDATES]
         final_candidates = []
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "started", {"selected_count": len(selected)})
         for global_rank, item in enumerate(selected, 1):
             local_item = item["candidate"]
             local_payload = {"schema_version": 1, "candidates": [dict(local_item, rank=1)]}
@@ -345,24 +379,28 @@ def main() -> None:
                 shutil.copy2(rendered, target)
                 final_candidates.append(dict(local_item, rank=global_rank, source=item["source"], relevance=item["relevance"]))
         all_candidates = final_candidates
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "completed", {"rendered_count": len(all_candidates)})
         if not all_candidates:
             raise RuntimeError("dua kandidat terbaik tidak berhasil dirender")
         transcript_dir = transcript_root
         (transcript_dir / "candidates.json").write_text(json.dumps({"schema_version": 1, "candidates": all_candidates}, ensure_ascii=False, indent=2), encoding="utf-8")
         update(args.api_base, args.job_id, args.worker_token, "processing", 78, "Video vertical selesai, menjalankan validasi")
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "validation", "started")
         validation_path = workspace / "validation.json"
         # Validation is per-preview: keep usable outputs in the review queue even
         # when another candidate fails a technical gate.
         run([sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)], check=False)
         validation = json.loads(validation_path.read_text(encoding="utf-8"))
         results = validation.get("results") or []
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "validation", "completed", {"result_count": len(results), "pass_count": sum(1 for item in results if item.get("status") != "fail")})
         if results and all(item.get("status") == "fail" for item in results):
             update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Semua kandidat gagal quality/compliance gate; source perlu momen yang lebih utuh")
             return
         review_dir = workspace / "review"
         run([sys.executable, "run.py", "review_queue", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--validation", str(validation_path), "--rendered-dir", str(render_dir), "--out-dir", str(review_dir)])
         update(args.api_base, args.job_id, args.worker_token, "processing", 92, "Mengunggah preview ke R2")
-        review = json.load(open(review_dir / "review.json", encoding="utf-8")); previews = []
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "r2_upload", "started")
+        review = json.load(open(review_dir / "review.json", encoding="utf-8")); previews = []; manifest_previews = []
         for item in review.get("items", []):
             if item.get("status") == "blocked": continue
             video_path = review_dir / item["video"]; thumbnail_path = review_dir / item["thumbnail"] if item.get("thumbnail") else None
@@ -370,9 +408,27 @@ def main() -> None:
             video_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(video_path), prefix + ".mp4", "video/mp4")
             thumb_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(thumbnail_path), prefix + ".jpg", "image/jpeg") if thumbnail_path and thumbnail_path.exists() else None
             validation_payload = dict(item.get("validation", {}))
+            validation_payload.pop("path", None)
+            validation_payload["artifact_key"] = prefix + ".mp4"
+            validation_payload["source_asset_id"] = Path(item.get("candidate", {}).get("source", "")).name if item.get("candidate") else None
+            metadata = validation_payload.get("metadata") or {}
+            validation_payload["rendered_duration"] = metadata.get("duration")
+            validation_payload["width"] = metadata.get("width")
+            validation_payload["height"] = metadata.get("height")
+            validation_payload["video_codec"] = metadata.get("video_codec_name")
+            validation_payload["audio_codec"] = metadata.get("audio_codec_name")
             validation_payload["semantic"] = item.get("semantic") or {}
             previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "checklist": item.get("checklist", [])})
+            manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "artifact_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
+        manifest = {"schema_version": 1, "job_id": args.job_id, "run_id": run_id, "source_preflight": {"source_count": len(preflight_records), "usable_sources": len(sources), "records": [{"source_asset_id": Path(item.get("source", "")).name, "quality": item.get("quality", {}), "duplicate_of": Path(item["duplicate_of"]).name if item.get("duplicate_of") else None, "excluded_before_transcription": item.get("excluded_before_transcription", False)} for item in preflight_records]}, "transcript_summary": {"source_count": candidate_stats["transcribed"]}, "selector": candidate_stats, "validation": {"result_count": len(results), "statuses": [item.get("status") for item in results]}, "review": {"item_count": len(manifest_previews), "items": manifest_previews}}
+        manifest_path = workspace / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        manifest_key = f"jobs/{args.job_id}/manifest.json"
+        upload_r2(args.api_base, args.job_id, args.worker_token, str(manifest_path), manifest_key, "application/json")
+        api_call(args.api_base, f"/api/jobs/{args.job_id}/manifest", args.worker_token, "POST", {"manifest_key": manifest_key, "schema_version": 1})
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "r2_upload", "completed", {"preview_count": len(previews), "manifest_key": manifest_key})
         api_call(args.api_base, f"/api/jobs/{args.job_id}/previews", args.worker_token, "POST", {"previews": previews})
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "manual_review", "completed", {"preview_count": len(previews), "manifest_key": manifest_key})
         update(args.api_base, args.job_id, args.worker_token, "review", 100, f"{len(previews)} preview siap direview")
     except Exception as exc:
         try: update(args.api_base, args.job_id, args.worker_token, "error", 0, "Pipeline gagal", str(exc))

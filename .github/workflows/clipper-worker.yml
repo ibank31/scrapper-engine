@@ -18,8 +18,8 @@ on:
         default: ""
 
 concurrency:
-  # One runner at a time for free-tier safety.
-  group: clipper-worker
+  # Serialize retries for the same job without blocking unrelated jobs.
+  group: clipper-worker-${{ inputs.job_id || 'scheduled' }}
   cancel-in-progress: false
 
 jobs:

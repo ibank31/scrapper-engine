@@ -90,10 +90,34 @@ async function ensureSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at)").run();
   const jobInfo = await db.prepare("PRAGMA table_info(jobs)").all();
   const jobColumns = new Set((jobInfo.results || []).map((row) => row.name));
-  for (const [name, definition] of Object.entries({ dispatch_token: "TEXT", claimed_at: "TEXT", claimed_by: "TEXT" })) {
+  for (const [name, definition] of Object.entries({ dispatch_token: "TEXT", claimed_at: "TEXT", claimed_by: "TEXT", run_id: "TEXT", manifest_key: "TEXT", manifest_schema_version: "INTEGER" })) {
     if (!jobColumns.has(name)) await db.prepare("ALTER TABLE jobs ADD COLUMN " + name + " " + definition).run();
   }
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_jobs_claimed ON jobs(status, claimed_at)").run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS job_stage_events (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, run_id TEXT NOT NULL, stage TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT, ended_at TEXT, metrics_json TEXT NOT NULL DEFAULT '{}', error_code TEXT, error_detail TEXT, created_at TEXT NOT NULL)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_job_stage_events_job ON job_stage_events(job_id, created_at)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_job_stage_events_run ON job_stage_events(run_id, stage, created_at)").run();
+}
+
+function claimLeaseSeconds(env) {
+  const value = Number(env.CLAIM_LEASE_SECONDS || 3600);
+  return Number.isFinite(value) ? Math.min(86400, Math.max(300, value)) : 3600;
+}
+
+async function runnerIsDead(env, claimedBy) {
+  const match = String(claimedBy || "").match(/^github-run:(\d+)$/);
+  if (!match) return { known: false, dead: false, reason: "runner_identity_unavailable" };
+  const token = env.GITHUB_ACTIONS_TOKEN || env.GITHUB_TOKEN;
+  if (!token) return { known: false, dead: false, reason: "github_token_unavailable" };
+  const repo = env.GITHUB_REPOSITORY || "ibank31/scrapper-engine";
+  const response = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${match[1]}`, {
+    headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "clipper-engine" }
+  });
+  if (response.status === 404) return { known: true, dead: true, reason: "github_run_not_found" };
+  if (!response.ok) return { known: false, dead: false, reason: `github_http_${response.status}` };
+  const run = await response.json();
+  const failed = run.status === "completed" && run.conclusion !== "success";
+  return { known: true, dead: failed, reason: run.status === "completed" ? `completed_${run.conclusion || "unknown"}` : `status_${run.status}` };
 }
 
 function reviewActor(request, body) {
@@ -177,9 +201,13 @@ export default {
         const id = crypto.randomUUID(); const timestamp = now();
         const exists = await env.DB.prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active'").bind(parts[2]).first();
         if (!exists) return json({ error: "campaign_not_found" }, 404);
-        const open = await env.DB.prepare("SELECT id FROM jobs WHERE campaign_id = ? AND status IN ('queued','processing') LIMIT 1").bind(parts[2]).first();
-        if (open) return json({ job: { id: open.id, campaign_id: parts[2], status: "queued", progress: 0, message: "Job terbuka sudah ada", created_at: timestamp }, deduped: true }, 200);
-        await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Menunggu worker cloud", timestamp, timestamp).run();
+        try {
+          await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Menunggu worker cloud", timestamp, timestamp).run();
+        } catch (error) {
+          const open = await env.DB.prepare("SELECT id,campaign_id,status,progress,message,created_at,updated_at FROM jobs WHERE campaign_id = ? AND status IN ('queued','processing') ORDER BY created_at LIMIT 1").bind(parts[2]).first();
+          if (!open) throw error;
+          return json({ job: open, deduped: true }, 200);
+        }
         return json({ job: { id, campaign_id: parts[2], status: "queued", progress: 0, message: "Masuk antrean worker cloud", created_at: timestamp } }, 201);
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "run" && request.method === "POST") {
@@ -229,12 +257,66 @@ export default {
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "claim" && request.method === "POST") {
         if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
-        const body = await request.json(); const claimToken = String(body.claim_token || "").slice(0, 200);
+        const body = await request.json(); const claimToken = String(body.claim_token || "").slice(0, 200); const runnerId = String(body.runner_id || `ephemeral:${claimToken}`).slice(0, 200);
         if (!claimToken) return json({ error: "claim_token_required" }, 400);
         const timestamp = now();
-        const result = await env.DB.prepare("UPDATE jobs SET status='processing',progress=1,message=?,error=NULL,claimed_at=?,claimed_by=?,updated_at=? WHERE id=? AND status='queued' AND (dispatch_token IS NULL OR dispatch_token=?)").bind("Worker claimed job", timestamp, claimToken, timestamp, parts[2], claimToken).run();
+        const result = await env.DB.prepare("UPDATE jobs SET status='processing',progress=1,message=?,error=NULL,claimed_at=?,claimed_by=?,updated_at=? WHERE id=? AND status='queued' AND (dispatch_token IS NULL OR dispatch_token=?)").bind("Worker claimed job", timestamp, runnerId, timestamp, parts[2], claimToken).run();
         if (!(result.meta?.changes > 0)) return json({ error: "job_claim_lost" }, 409);
-        return json({ ok: true, job_id: parts[2], claimed_at: timestamp });
+        return json({ ok: true, job_id: parts[2], claimed_at: timestamp, claimed_by: runnerId });
+      }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "recover" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const job = await env.DB.prepare("SELECT id,status,claimed_at,claimed_by FROM jobs WHERE id = ?").bind(parts[2]).first();
+        if (!job) return json({ error: "job_not_found" }, 404);
+        if (job.status !== "processing" || !job.claimed_at) return json({ error: "job_not_recoverable", status: job.status }, 409);
+        const ageSeconds = (Date.now() - Date.parse(job.claimed_at)) / 1000;
+        if (!Number.isFinite(ageSeconds) || ageSeconds < claimLeaseSeconds(env)) return json({ error: "claim_lease_active", age_seconds: Math.max(0, ageSeconds) }, 409);
+        const evidence = await runnerIsDead(env, job.claimed_by);
+        if (!evidence.dead) return json({ error: "runner_not_confirmed_dead", reason: evidence.reason }, evidence.known ? 409 : 503);
+        const timestamp = now();
+        const result = await env.DB.prepare("UPDATE jobs SET status='queued',progress=0,message=?,error=NULL,dispatch_token=NULL,claimed_at=NULL,claimed_by=NULL,updated_at=? WHERE id=? AND status='processing' AND claimed_at=? AND claimed_by=?").bind("Stale claim dipulihkan; menunggu worker baru", timestamp, parts[2], job.claimed_at, job.claimed_by).run();
+        if (!(result.meta?.changes > 0)) return json({ error: "claim_recovery_lost" }, 409);
+        return json({ ok: true, job_id: parts[2], recovered_from: job.claimed_by, evidence: evidence.reason });
+      }
+      if (parts[1] === "jobs" && parts[2] === "recover-stale" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const cutoff = new Date(Date.now() - claimLeaseSeconds(env) * 1000).toISOString();
+        const result = await env.DB.prepare("SELECT id,claimed_at,claimed_by FROM jobs WHERE status='processing' AND claimed_at IS NOT NULL AND claimed_at < ? ORDER BY claimed_at LIMIT 10").bind(cutoff).all();
+        const recovered = []; const skipped = [];
+        for (const job of result.results || []) {
+          const evidence = await runnerIsDead(env, job.claimed_by);
+          if (!evidence.dead) { skipped.push({ id: job.id, reason: evidence.reason }); continue; }
+          const timestamp = now();
+          const update = await env.DB.prepare("UPDATE jobs SET status='queued',progress=0,message=?,error=NULL,dispatch_token=NULL,claimed_at=NULL,claimed_by=NULL,updated_at=? WHERE id=? AND status='processing' AND claimed_at=? AND claimed_by=?").bind("Stale claim dipulihkan; menunggu worker baru", timestamp, job.id, job.claimed_at, job.claimed_by).run();
+          if (update.meta?.changes > 0) recovered.push({ id: job.id, evidence: evidence.reason });
+          else skipped.push({ id: job.id, reason: "claim_recovery_lost" });
+        }
+        return json({ ok: true, recovered, skipped });
+      }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "stages" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const body = await request.json(); const timestamp = now();
+        const runId = String(body.run_id || "").slice(0, 200); const stage = String(body.stage || "").slice(0, 100); const status = String(body.status || "").slice(0, 40);
+        if (!runId || !stage || !status) return json({ error: "stage_event_invalid" }, 400);
+        await env.DB.prepare("INSERT INTO job_stage_events (id,job_id,run_id,stage,status,started_at,ended_at,metrics_json,error_code,error_detail,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), parts[2], runId, stage, status, body.started_at || null, body.ended_at || null, JSON.stringify(body.metrics || {}), body.error_code || null, body.error_detail || null, timestamp).run();
+        await env.DB.prepare("UPDATE jobs SET run_id=COALESCE(run_id,?),updated_at=? WHERE id=?").bind(runId, timestamp, parts[2]).run();
+        return json({ ok: true });
+      }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "stages" && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT id,job_id,run_id,stage,status,started_at,ended_at,metrics_json,error_code,error_detail,created_at FROM job_stage_events WHERE job_id=? ORDER BY created_at,id").bind(parts[2]).all();
+        return json({ stages: result.results || [] });
+      }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "manifest" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const body = await request.json(); const key = String(body.manifest_key || "").slice(0, 500); const version = Number(body.schema_version || 1);
+        if (!key) return json({ error: "manifest_invalid" }, 400);
+        const timestamp = now();
+        await env.DB.prepare("UPDATE jobs SET manifest_key=?,manifest_schema_version=?,updated_at=? WHERE id=?").bind(key, Number.isFinite(version) ? version : 1, timestamp, parts[2]).run();
+        return json({ ok: true, job_id: parts[2], manifest_key: key, schema_version: version });
+      }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "manifest" && request.method === "GET") {
+        const row = await env.DB.prepare("SELECT id,run_id,manifest_key,manifest_schema_version FROM jobs WHERE id=?").bind(parts[2]).first();
+        return row ? json({ manifest: row }) : json({ error: "job_not_found" }, 404);
       }
       if (parts[1] === "jobs" && request.method === "GET" && !parts[2]) {
         const result = await env.DB.prepare("SELECT j.id,j.campaign_id,j.status,j.progress,j.message,j.error,j.created_at,j.updated_at,c.title AS campaign_title,c.brand AS campaign_brand FROM jobs j JOIN campaigns c ON c.id=j.campaign_id ORDER BY j.updated_at DESC LIMIT 30").all();

@@ -30,9 +30,27 @@ CREATE TABLE IF NOT EXISTS jobs (
   dispatch_token TEXT,
   claimed_at TEXT,
   claimed_by TEXT,
+  run_id TEXT,
+  manifest_key TEXT,
+  manifest_schema_version INTEGER,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
+);
+
+CREATE TABLE IF NOT EXISTS job_stage_events (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  status TEXT NOT NULL,
+  started_at TEXT,
+  ended_at TEXT,
+  metrics_json TEXT NOT NULL DEFAULT '{}',
+  error_code TEXT,
+  error_detail TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (job_id) REFERENCES jobs(id)
 );
 
 CREATE TABLE IF NOT EXISTS previews (
@@ -72,5 +90,8 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_rules_hash ON campaigns(rules_hash);
 CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_claimed ON jobs(status, claimed_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_one_open_per_campaign ON jobs(campaign_id) WHERE status IN ('queued','processing');
+CREATE INDEX IF NOT EXISTS idx_job_stage_events_job ON job_stage_events(job_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_job_stage_events_run ON job_stage_events(run_id, stage, created_at);
 CREATE INDEX IF NOT EXISTS idx_previews_job ON previews(job_id);
 CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at);

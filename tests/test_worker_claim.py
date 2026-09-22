@@ -15,7 +15,7 @@ class WorkerClaimTest(unittest.TestCase):
             "/api/jobs/job-1/claim",
             "worker",
             "POST",
-            {"claim_token": "dispatch-1"},
+            {"claim_token": "dispatch-1", "runner_id": "local:dispatch-1"},
         )
 
     def test_lost_claim_is_clean_noop(self):
