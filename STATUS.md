@@ -46,7 +46,7 @@ The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.
 
 ## Next milestone
 
-Next, run the same benchmark in the dependency-complete GitHub environment and add a controlled two-face fixture before considering any crop integration. Keep the visual heuristic metadata-only until fixture results show stable face-count confidence. Keep Qwen advisory while it trails deterministic baseline. Do not use a five-second incomplete source as a quality benchmark.
+The final deep audit is recorded in `docs/AGENT_HANDOFF.md`. Do not start another expensive production trial yet. The required order is: restore worker authentication; implement atomic dispatch/worker claims; persist structured stage telemetry and durable manifests; add a known-good non-production end-to-end fixture; expose near-miss diagnostics; then improve sparse-transcript recovery. Keep Qwen advisory and visual speaker detection metadata-only until measured fixtures justify promotion.
 
 ## Documentation entry points
 

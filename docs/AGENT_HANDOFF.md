@@ -3,7 +3,7 @@
 **Updated:** 22 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Production branch:** `main`
-**Latest implementation commit:** `c36e535` — semantic golden evaluation harness, explicit engine/fallback diagnostics, and a manual non-production Qwen fixture workflow.
+**Latest implementation commit:** `57091ee` — production dispatch diagnostic, following `7cf7059` pipeline stage-contract hardening and `5f2574a` document-only duration-rule enforcement.
 
 ## Product contract
 
@@ -98,13 +98,83 @@ Do not trigger a production job merely to test code when the known source is onl
 
 ## Next recommended work
 
-1. Add optional silence and scene-change signals to the semantic candidate payload.
-2. Add active-speaker heuristics for two-person podcast framing.
-3. Keep the manual Qwen fixture as a regression check; do not promote Qwen to automatic decision authority while it trails the deterministic baseline.
-4. Run `python3 scripts/benchmark_media_signals.py` in the dependency-complete GitHub environment and add a controlled two-face fixture before considering any crop integration; keep the visual heuristic metadata-only until confidence is stable.
-5. Improve active-speaker confidence with optional visual evidence; the current heuristic requires transcript speaker labels or face detections and recommends a wide frame when confidence is low.
-6. Re-enable worker authentication only after quality behavior is stable, because the current branch previously disabled it temporarily for debugging.
+The next agent must work in this order, not add more scoring features first: **P0 restore worker authentication and atomic job claiming; P1 persist durable stage telemetry and artifact manifests; P1 add a real end-to-end fixture with a known 15–30 second complete spoken moment; P1 make source/transcript/candidate diagnostics visible in the dashboard; P2 improve sparse-transcript candidate recovery and rule provenance; P2 only then evaluate visual speaker crop integration.** Qwen must remain advisory until its measured decision accuracy matches or exceeds the deterministic baseline.
 
 ## Guardrails
 
 The engine must not bypass source permissions, remove required watermarks, use unapproved campaign material, fabricate engagement, publish automatically, or let a semantic model override explicit campaign rules. Any ambiguous mandatory rule stays in human review.
+
+
+## Final deep audit — 22 September 2026
+
+### Audit scope and evidence
+
+This audit traced the complete path: campaign sync and exclusion, campaign plan compilation, Pages/D1 job creation, GitHub dispatch, scheduled worker drain, source intake, media preflight, Whisper transcription, candidate selection, semantic ranking, relevance checks, render, validation, R2 upload, preview persistence, and dashboard review. It used the repository at `57091ee`, live D1 schema inspection, live Pages project/deployment metadata, GitHub Actions runs `35726572125` and `35727302308`, and the Ryan Zofay and Shuffle trial rows.
+
+The live production Pages project is `clipper-engine`, production branch `main`, with D1 database `ee8299d2-84e5-433b-b02f-553dcd4aea73` and R2 bucket `clipper-engine-previews`. Cloudflare production metadata currently includes `GITHUB_ACTIONS_TOKEN`, `WORKER_TOKEN`, `PREVIEW_SIGNING_SECRET`, and `REVIEW_TOKEN`; the latest production deployment was successful. The earlier `GITHUB_ACTIONS_TOKEN` error belongs to the older Ryan job `1285980a-d5f5-4896-b80b-600b143814cc`, created before the current deployment, and must not be treated as the current secret state.
+
+### Verified end-to-end behavior
+
+The intended contract is: the user selects an active, non-excluded campaign; the sync job snapshots campaign rules and official asset URLs; the Pages API creates a queued D1 job; a GitHub worker is dispatched or the scheduled drain picks a queued job; the worker fetches the live campaign status and plan, downloads official materials, performs preflight, transcribes, selects complete windows, optionally ranks them with Qwen, applies deterministic campaign/relevance gates, renders vertical H.264/AAC previews, validates them, uploads reviewable files to R2, inserts preview rows, and leaves publishing to a human.
+
+The Ryan baseline exposed two independent defects. First, the old preview was 5.419 seconds even though the document said `Clip Length: 15–60 seconds`; `docs_text` was not included in plan compilation. Second, after the parser fix, the refreshed plan correctly stored `min_duration=15` and `max_duration=60`, but all three usable sources produced zero selector candidates. That second result was a legitimate quality block, not a Qwen failure: the worker log showed `raw_candidates=0`, and Qwen was subsequently changed to be skipped for empty selector input. The Shuffle trial similarly showed technically healthy official videos but an unfinished or incomplete spoken moment.
+
+### P0 gaps — fix before more production trials
+
+**P0.1 Worker authentication is disabled.** `cloudflare/api.js` currently has `workerAuthorized()` returning `true` with a temporary quality-first comment. That means an unauthenticated caller can reach worker-only sync, job patch, preview insertion, and R2 upload routes if the endpoint is known. Restore `x-worker-token` validation against `env.WORKER_TOKEN` before any external trial. Keep review authentication separate. Add negative API tests for missing and wrong worker tokens.
+
+**P0.2 Job dispatch is not atomic.** The `/api/jobs/:id/run` route reads `status='queued'`, checks the message, calls GitHub, and only then writes a message. Two browser clicks, a scheduled drain, or a retry can dispatch the same job more than once. The repository architecture guidance explicitly requires an atomic claim. Add a dispatch lease/claim field or use an atomic `UPDATE jobs SET status='processing', message='dispatching' WHERE id=? AND status='queued'`, verify `changes===1`, dispatch exactly once, and transition to `processing` or back to `queued` with an error on dispatch failure. Add a GitHub Actions concurrency group keyed by `job_id`, not only one global `clipper-worker` group.
+
+**P0.3 Worker claiming is also not atomic.** The scheduled worker can select one queued job while a manual worker is starting. The worker should atomically claim the row before downloading anything, with `claimed_at`, `claim_token`, and a stale-claim recovery policy. A worker must not process a job that is already `processing` under another claim.
+
+### P1 gaps — fix before calling the engine production-quality
+
+**P1.1 Stage telemetry is encoded in free-text messages.** D1 has only `status`, `progress`, `message`, and `error` for jobs. Candidate counts and source diagnostics are currently concatenated into an error string. Add a `job_runs` or `job_stage_events` table with `job_id`, `run_id`, `stage`, `status`, `started_at`, `ended_at`, `metrics_json`, `error_code`, and `error_detail`. Keep the small job state machine, but persist structured stage facts. This makes “asset succeeded, transcript existed, selector returned zero” visible without reading GitHub logs.
+
+**P1.2 Intermediate artifacts are deleted after the worker exits.** `worker/run_job.py` removes its temporary root in `finally`. `source-preflight.json`, transcripts, selector diagnostics, semantic runtime, validation, and review manifests therefore disappear unless they are embedded in a preview row. For blocked jobs there is no durable evidence. Upload a compact `jobs/<job_id>/manifest.json` and relevant JSON artifacts to R2, and store the manifest key plus schema version in D1. Do not upload raw source media again; store hashes, URLs, sizes, durations, and derived metadata.
+
+**P1.3 Preview validation contains ephemeral local paths.** Existing validation JSON includes paths such as `/tmp/clipper-job-.../outputs/clip-001.mp4`. Those paths are not useful after the worker exits and can mislead operators. Replace them with durable fields: `source_asset_id`, `artifact_key`, `rendered_duration`, `width`, `height`, codecs, and validation status. Keep local path only under a clearly named non-durable debug field if needed.
+
+**P1.4 No true end-to-end fixture protects the contracts.** The 72-test suite is mainly unit coverage and the semantic corpus is synthetic. Add a checked-in small fixture with a known 20–30 second complete spoken moment, a matching campaign plan with explicit 15–30 second bounds, and expected outputs for intake metadata, transcript span, at least one candidate, semantic runtime, render duration, validation, and review manifest. Run it locally and in a non-production GitHub workflow. A green unit suite alone cannot catch a plan-string/object mismatch, missing asset handoff, wrong CLI argument, or R2/D1 field mismatch.
+
+**P1.5 Job creation has a check-then-insert dedup race.** `/campaigns/:id/jobs` checks for an open job and then inserts. Two requests can create two queued jobs. Add a database-enforced strategy or an atomic transaction/claim pattern. At minimum, add a unique open-job key if the schema design permits it, or make the insert-and-reconcile path return the canonical job id deterministically.
+
+**P1.6 R2 and D1 are not transactional.** The worker uploads video and thumbnail objects, then inserts preview rows. If D1 insertion fails, orphan R2 objects remain; if a retry inserts with `INSERT OR REPLACE`, review fields can be overwritten. Add a run id and idempotent object keys, insert/update preview rows with an explicit conflict policy, and run cleanup for unreferenced objects. Never use `OR REPLACE` for a record that can already have review state without preserving `review_reason`, `reviewed_by`, and `reviewed_at`.
+
+### P2 quality gaps — address after reliability is fixed
+
+**P2.1 Sparse Whisper transcripts are still the main quality bottleneck.** A 20-second source can yield only one or two Whisper segments. The selector now bridges pauses up to three seconds and writes diagnostics, but it still depends on timestamped speech units and can produce zero windows even when a human could make a usable clip. Add a controlled recovery path: use audio duration plus adjacent transcript units, allow a bounded context pad only when it does not cross long silence, and label the result `needs_human_boundary_review` rather than silently treating it as a confident candidate. Do not lower campaign minimums.
+
+**P2.2 Rule extraction needs provenance.** `compile_plan` now parses duration ranges from `docs_text`, but the plan does not say which document sentence produced `min_duration_seconds` and `max_duration_seconds`. Store `rule_evidence` with source field, quote, parser version, and confidence. If AI and deterministic extraction disagree, preserve both and route the plan to human review rather than silently preferring one.
+
+**P2.3 Candidate selection should expose near misses.** A zero-candidate result should retain the best rejected windows with rejection reasons, not only `candidate_count=0`. Store up to three bounded near misses with start/end, duration, transcript text, and failed reasons. This lets a reviewer distinguish “no speech,” “speech too sparse,” “unfinished boundary,” and “campaign minimum too high.”
+
+**P2.4 Qwen is not a quality authority.** The isolated Qwen fixture produced valid output for 4/4 cases but only 3/4 decision matches, while deterministic mode matched 4/4. Qwen can rank or add advisory reasons; it must not override explicit rules, timestamps, duration gates, gambling exclusions, or local structural safety. Keep model, fallback reason, prompt/schema version, and result validation in the manifest.
+
+**P2.5 Visual speaker heuristics are not ready to control crop.** The OpenCV heuristic is metadata-only and correctly falls back to a wide frame when unavailable or uncertain. Do not make it choose a crop until a dependency-complete two-face fixture measures false framing and confidence stability.
+
+### P3 operational and maintainability gaps
+
+The handoff and status files previously contained stale commit references; always verify `git log`, live deployment commit, and D1 freshness independently. The Pages project has production secrets, but an old queued job can retain an old error forever; the dashboard should distinguish historical dispatch error from current runtime configuration. The API uses a wildcard CORS policy and worker auth is currently disabled; review whether that is acceptable after authentication is restored. The workflow has a static cache key (`whisper-and-qwen-semantic-v1`); bump it when model or prompt/schema changes. Gemini sync logs showed transient 429/503 failures while the workflow still completed; campaign sync must persist per-campaign analysis freshness, fallback reason, and model version rather than treating a green workflow as proof that every campaign was freshly analyzed.
+
+### Exact operating procedure for the next agent
+
+1. Read this handoff, `STATUS.md`, `AGENTS.md`, and the clipping skill before editing.
+2. Confirm the repository head, live Pages production deployment commit, and live D1 schema. Never infer live state from a migration file or an old job row.
+3. Do not start another paid/expensive production trial until the local end-to-end fixture passes from plan to review manifest.
+4. First implement P0 authentication and atomic claim/dispatch. Add tests that simulate duplicate dispatch and stale workers.
+5. Then implement structured stage telemetry and durable manifest storage. A blocked job must still have enough evidence to explain the exact first empty stage.
+6. Then implement the known-good 20–30 second fixture and run it in a non-production workflow. Verify D1 changes and R2 artifact existence, not merely a green Actions badge.
+7. Only after those checks should a real campaign trial be started. Record the job id, run id, source hashes, plan hash, stage metrics, preview keys, validation status, and reviewer outcome.
+8. Never weaken campaign minimums to force a preview. Never allow Qwen or a fallback to override hard policy. Never publish automatically. Never remove gambling/money-game exclusions.
+
+### Last known trial records
+
+| Trial | Job ID | Result | Evidence |
+|---|---|---|---|
+| Shuffle Streamers | `7b0813da-a653-43e1-a9b4-5d1feccf2e17` | blocked | healthy official videos; incomplete/unfinished candidate; old message predates structured counters |
+| Ryan old baseline | `3331ecfe-4e12-4539-8423-976a2036dcce` | review | one preview, but 5.419 s and therefore violated the document's 15–60 s rule |
+| Ryan after parser fix, stale plan | `1285980a-d5f5-4896-b80b-600b143814cc` | queued | historical dispatch-secret error; do not use as current secret evidence |
+| Ryan after refreshed plan | `bc416fcd-199b-4f41-b054-c21cd477ff26` | blocked | 3 usable sources, 3 transcribed, 0 raw candidates; Qwen skipped after selector-empty hardening |
+
+The current goal is not “make every campaign produce a preview.” The goal is **make every campaign outcome correct, explainable, cheap to evaluate, and safe to review**.
