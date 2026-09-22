@@ -54,9 +54,9 @@ function readinessRank(status) {
   return 4;
 }
 function workerAuthorized(request, env) {
-  // TEMPORARY QUALITY-FIRST MODE: restore token validation after the first
-  // end-to-end video workflow is stable. Review authentication remains active.
-  return true;
+  if (!env.WORKER_TOKEN) return false;
+  const bearer = request.headers.get("authorization") || "";
+  return request.headers.get("x-worker-token") === env.WORKER_TOKEN || bearer === `Bearer ${env.WORKER_TOKEN}`;
 }
 
 async function ensureSchema(db) {
@@ -88,6 +88,12 @@ async function ensureSchema(db) {
   }
   await db.prepare("CREATE TABLE IF NOT EXISTS preview_events (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, from_status TEXT, to_status TEXT NOT NULL, action TEXT NOT NULL, reason TEXT, actor TEXT, created_at TEXT NOT NULL)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at)").run();
+  const jobInfo = await db.prepare("PRAGMA table_info(jobs)").all();
+  const jobColumns = new Set((jobInfo.results || []).map((row) => row.name));
+  for (const [name, definition] of Object.entries({ dispatch_token: "TEXT", claimed_at: "TEXT", claimed_by: "TEXT" })) {
+    if (!jobColumns.has(name)) await db.prepare("ALTER TABLE jobs ADD COLUMN " + name + " " + definition).run();
+  }
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_jobs_claimed ON jobs(status, claimed_at)").run();
 }
 
 function reviewActor(request, body) {
@@ -181,9 +187,6 @@ export default {
         const job = await env.DB.prepare("SELECT id,campaign_id,status FROM jobs WHERE id = ?").bind(jobId).first();
         if (!job) return json({ error: "job_not_found" }, 404);
         if (job.status !== "queued") return json({ error: "job_not_queued", status: job.status }, 409);
-        const current = await env.DB.prepare("SELECT message FROM jobs WHERE id = ?").bind(jobId).first();
-        if (String(current?.message || "").startsWith("Worker GitHub dipicu")) return json({ error: "job_already_dispatched" }, 409);
-
         const githubToken = env.GITHUB_ACTIONS_TOKEN || env.GITHUB_TOKEN;
         if (!githubToken) {
           const message = "Cloudflare Pages Production secret GITHUB_ACTIONS_TOKEN belum tersedia; Preview secret tidak diwariskan ke Production";
@@ -191,6 +194,9 @@ export default {
           return json({ error: "github_dispatch_not_configured", message }, 503);
         }
 
+        const dispatchToken = crypto.randomUUID();
+        const dispatchClaim = await env.DB.prepare("UPDATE jobs SET dispatch_token=?,message=?,error=NULL,updated_at=? WHERE id=? AND status='queued' AND dispatch_token IS NULL").bind(dispatchToken, "Worker GitHub dipicu · dispatching", now(), jobId).run();
+        if (!(dispatchClaim.meta?.changes > 0)) return json({ error: "job_already_dispatched" }, 409);
         const repo = env.GITHUB_REPOSITORY || "ibank31/scrapper-engine";
         const workflow = env.GITHUB_WORKFLOW_FILE || "clipper-worker.yml";
         const ref = env.GITHUB_WORKFLOW_REF || "main";
@@ -205,21 +211,30 @@ export default {
               "x-github-api-version": "2022-11-28",
               "user-agent": "clipper-engine"
             },
-            body: JSON.stringify({ ref, inputs: { job_id: jobId } })
+            body: JSON.stringify({ ref, inputs: { job_id: jobId, dispatch_token: dispatchToken } })
           });
           if (!response.ok) {
             const detail = await response.text();
             const message = detail.slice(0, 500) || `GitHub HTTP ${response.status}`;
-            await env.DB.prepare("UPDATE jobs SET message=?,error=?,updated_at=? WHERE id=?").bind("Gagal memicu worker GitHub", message, now(), jobId).run();
+            await env.DB.prepare("UPDATE jobs SET dispatch_token=NULL,message=?,error=?,updated_at=? WHERE id=? AND dispatch_token=?").bind("Gagal memicu worker GitHub", message, now(), jobId, dispatchToken).run();
             return json({ error: "github_dispatch_failed", message, github_status: response.status }, 502);
           }
-          await env.DB.prepare("UPDATE jobs SET message=?,error=NULL,updated_at=? WHERE id=?").bind("Worker GitHub dipicu · menunggu runner", now(), jobId).run();
+          await env.DB.prepare("UPDATE jobs SET message=?,error=NULL,updated_at=? WHERE id=? AND dispatch_token=?").bind("Worker GitHub dipicu · menunggu runner", now(), jobId, dispatchToken).run();
           return json({ ok: true, dispatched: true, job_id: jobId, workflow, ref });
         } catch (error) {
           const message = String(error.message || error).slice(0, 500);
-          await env.DB.prepare("UPDATE jobs SET message=?,error=?,updated_at=? WHERE id=?").bind("Tidak dapat menghubungi GitHub Actions", message, now(), jobId).run();
+          await env.DB.prepare("UPDATE jobs SET dispatch_token=NULL,message=?,error=?,updated_at=? WHERE id=? AND dispatch_token=?").bind("Tidak dapat menghubungi GitHub Actions", message, now(), jobId, dispatchToken).run();
           return json({ error: "github_dispatch_network_error", message }, 502);
         }
+      }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "claim" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const body = await request.json(); const claimToken = String(body.claim_token || "").slice(0, 200);
+        if (!claimToken) return json({ error: "claim_token_required" }, 400);
+        const timestamp = now();
+        const result = await env.DB.prepare("UPDATE jobs SET status='processing',progress=1,message=?,error=NULL,claimed_at=?,claimed_by=?,updated_at=? WHERE id=? AND status='queued' AND (dispatch_token IS NULL OR dispatch_token=?)").bind("Worker claimed job", timestamp, claimToken, timestamp, parts[2], claimToken).run();
+        if (!(result.meta?.changes > 0)) return json({ error: "job_claim_lost" }, 409);
+        return json({ ok: true, job_id: parts[2], claimed_at: timestamp });
       }
       if (parts[1] === "jobs" && request.method === "GET" && !parts[2]) {
         const result = await env.DB.prepare("SELECT j.id,j.campaign_id,j.status,j.progress,j.message,j.error,j.created_at,j.updated_at,c.title AS campaign_title,c.brand AS campaign_brand FROM jobs j JOIN campaigns c ON c.id=j.campaign_id ORDER BY j.updated_at DESC LIMIT 30").all();

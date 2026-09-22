@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 # Repo root must be on sys.path so `from core...` works when the
@@ -35,6 +36,18 @@ def api_call(base: str, path: str, token: str, method: str = "GET", payload: dic
 
 def update(base: str, job_id: str, token: str, status: str, progress: int, message: str, error: str | None = None) -> None:
     api_call(base, f"/api/jobs/{job_id}", token, "PATCH", {"status": status, "progress": progress, "message": message, "error": error})
+
+
+def claim_job(base: str, job_id: str, token: str, dispatch_token: str = "") -> bool:
+    """Atomically claim a queued job; a lost race is a clean no-op."""
+    claim_token = dispatch_token or uuid.uuid4().hex
+    try:
+        api_call(base, f"/api/jobs/{job_id}/claim", token, "POST", {"claim_token": claim_token})
+    except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 409:
+            return False
+        raise
+    return True
 
 
 def run(command: list[str], cwd: str | None = None, check: bool = True) -> None:
@@ -82,6 +95,7 @@ def main() -> None:
     ap.add_argument("--api-base", default=os.environ.get("CLIPPER_API_URL"), required=False)
     ap.add_argument("--job-id", default=os.environ.get("JOB_ID"), required=False)
     ap.add_argument("--worker-token", default=os.environ.get("CLIPPER_WORKER_TOKEN"), required=False)
+    ap.add_argument("--dispatch-token", default=os.environ.get("CLIPPER_DISPATCH_TOKEN", ""), required=False)
     ap.add_argument("--whisper-model", default=os.environ.get("CLIPPER_WHISPER_MODEL", "small"))
     ap.add_argument("--whisper-beam", type=int, default=int(os.environ.get("CLIPPER_WHISPER_BEAM", "5")))
     ap.add_argument("--max-video-sources", type=int, default=int(os.environ.get("CLIPPER_MAX_VIDEO_SOURCES", "3")))
@@ -95,6 +109,9 @@ def main() -> None:
             print("Tidak ada job queued; runner selesai tanpa proses.")
             return
         args.job_id = candidate["id"]
+    if not claim_job(args.api_base, args.job_id, args.worker_token, args.dispatch_token):
+        print(f"Job {args.job_id} sudah diklaim runner lain; runner selesai tanpa proses.")
+        return
     root = tempfile.mkdtemp(prefix="clipper-job-")
     try:
         job = api_call(args.api_base, f"/api/jobs/{args.job_id}", args.worker_token)["job"]

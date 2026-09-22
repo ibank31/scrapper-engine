@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS jobs (
   progress INTEGER NOT NULL DEFAULT 0,
   message TEXT,
   error TEXT,
+  dispatch_token TEXT,
+  claimed_at TEXT,
+  claimed_by TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
@@ -68,5 +71,6 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_last_seen ON campaigns(last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_campaigns_rules_hash ON campaigns(rules_hash);
 CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_claimed ON jobs(status, claimed_at);
 CREATE INDEX IF NOT EXISTS idx_previews_job ON previews(job_id);
 CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at);

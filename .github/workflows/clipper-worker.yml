@@ -11,6 +11,11 @@ on:
         required: false
         type: string
         default: ""
+      dispatch_token:
+        description: "Internal atomic dispatch claim token"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   # One runner at a time for free-tier safety.
@@ -74,6 +79,7 @@ jobs:
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           GOOGLE_DRIVE_MAX_FILES: "3"
           JOB_ID: ${{ inputs.job_id }}
+          CLIPPER_DISPATCH_TOKEN: ${{ inputs.dispatch_token }}
           PYTHONPATH: ${{ github.workspace }}
           # Quality-first defaults: process all selected official sources and render a reviewable master.
           CLIPPER_WHISPER_MODEL: small

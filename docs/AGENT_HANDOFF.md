@@ -178,3 +178,16 @@ The handoff and status files previously contained stale commit references; alway
 | Ryan after refreshed plan | `bc416fcd-199b-4f41-b054-c21cd477ff26` | blocked | 3 usable sources, 3 transcribed, 0 raw candidates; Qwen skipped after selector-empty hardening |
 
 The current goal is not “make every campaign produce a preview.” The goal is **make every campaign outcome correct, explainable, cheap to evaluate, and safe to review**.
+
+
+## P0 reliability implementation — completed 22 September 2026
+
+The first reliability slice is now implemented and tested. `workerAuthorized()` validates `x-worker-token` or `Authorization: Bearer` against `env.WORKER_TOKEN`; missing configuration fails closed. The API self-healing schema now adds `jobs.dispatch_token`, `jobs.claimed_at`, and `jobs.claimed_by`, plus an index on `(status, claimed_at)`. The checked-in `cloudflare/schema.sql` matches these fields.
+
+Manual `/api/jobs/:id/run` dispatch now performs an atomic update that writes a random dispatch token only when the job is still `queued` and has no existing dispatch token. A second caller receives `409 job_already_dispatched`. GitHub workflow input `dispatch_token` carries this internal claim token to the worker. If GitHub dispatch fails, the token is cleared only by the caller that owns it, allowing a controlled retry.
+
+Every worker calls authenticated `/api/jobs/:id/claim` before downloading or transcribing. The API atomically changes `queued` to `processing`, stores claim timestamp/owner, and accepts either a matching dispatch token or a fresh scheduled-run token. A losing runner receives `409 job_claim_lost` and exits without consuming Whisper/Qwen/render credits. The worker helper `claim_job()` has regression coverage for success, duplicate-claim no-op, and unexpected server-error propagation.
+
+Verification after this slice: **75 tests pass**, Python compilation/compileall pass, `node --check cloudflare/api.js` and `node --check web/app.js` pass, `pip check` reports no broken requirements, and `git diff --check` passes. This does not yet solve the job-creation check-then-insert race, stale claim recovery, structured stage telemetry, or durable manifest storage; those remain the next P1 items. Do not claim the entire reliability program is complete merely because P0 dispatch/claim is implemented.
+
+Operational requirement: the GitHub Actions secret `CLIPPER_WORKER_TOKEN` must equal the Cloudflare Pages Production secret `WORKER_TOKEN`. The production API also needs `GITHUB_ACTIONS_TOKEN` for manual dispatch. Never put either secret value in logs or documentation. Scheduled workers use an ephemeral claim token when no dispatch token exists.

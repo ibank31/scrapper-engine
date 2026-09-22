@@ -48,6 +48,8 @@ The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.
 
 The final deep audit is recorded in `docs/AGENT_HANDOFF.md`. Do not start another expensive production trial yet. The required order is: restore worker authentication; implement atomic dispatch/worker claims; persist structured stage telemetry and durable manifests; add a known-good non-production end-to-end fixture; expose near-miss diagnostics; then improve sparse-transcript recovery. Keep Qwen advisory and visual speaker detection metadata-only until measured fixtures justify promotion.
 
+P0 reliability slice completed after the audit: worker-token authentication now fails closed; manual dispatch has an atomic `dispatch_token` claim; every worker atomically claims a queued job before asset intake; and 75 regression tests pass. Remaining P1 work is job-creation dedup, stale-claim recovery, structured stage telemetry, durable R2 manifests, and a known-good non-production end-to-end fixture.
+
 ## Documentation entry points
 
 - `docs/AGENT_HANDOFF.md` — current implementation and operating instructions.
