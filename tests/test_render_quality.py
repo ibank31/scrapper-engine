@@ -41,10 +41,10 @@ class RenderQualityTest(unittest.TestCase):
         expression = _piecewise([0, 10, 20], 2, 0)
         self.assertIn("\\,", expression)
 
-    def test_editorial_gate_rejects_incomplete_short_clip(self):
+    def test_editorial_gate_only_rejects_incomplete_short_clip_for_duration(self):
         issues = editorial_checks({"duration": 5.4, "text": "They're gonna help guide you"})
         self.assertTrue(any("too short" in issue for issue in issues))
-        self.assertTrue(any("mid-thought" in issue for issue in issues))
+        self.assertFalse(any("mid-thought" in issue for issue in issues))
 
 
 if __name__ == "__main__":

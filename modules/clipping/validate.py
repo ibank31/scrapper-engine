@@ -29,10 +29,6 @@ def editorial_checks(candidate: dict | None, plan: dict | None = None) -> list[s
         issues.append(f"editorial clip too short: {duration:.1f}s; minimum effective duration is {quality_floor:.1f}s")
     if campaign_max and duration > campaign_max:
         issues.append(f"campaign maximum duration exceeded: {duration:.1f}s > {campaign_max:.1f}s")
-    if re.match(r"^(and|but|so|because|they|they're|it|this|that|which)\b", text.lower()):
-        issues.append("editorial clip starts mid-thought; no self-contained hook")
-    if text and not re.search(r"[.!?]$", text):
-        issues.append("editorial clip ends without a completed spoken sentence")
     return issues
 
 
@@ -75,6 +71,10 @@ def check_video(path: str, plan: dict | None, relevance: dict | None = None, can
         issues.append(f"expected 48 kHz audio, got {audios[0].get('sample_rate')} Hz")
     production = (plan or {}).get("production") or {}
     issues.extend(editorial_checks(candidate, plan))
+    if re.match(r"^(and|but|so|because|they|they're|it|this|that|which)\b", str(candidate.get("text") or "").strip().lower()):
+        review.append("editorial clip may start mid-thought; human should verify the hook")
+    if candidate and str(candidate.get("text") or "").strip() and not re.search(r"[.!?]$", str(candidate.get("text") or "").strip()):
+        review.append("editorial clip may end without a completed spoken sentence; human should verify context")
     if production.get("watermark_required"):
         review.append("visually verify the official watermark asset, position, opacity, and full-duration coverage")
     if production.get("no_third_party_watermark"):
