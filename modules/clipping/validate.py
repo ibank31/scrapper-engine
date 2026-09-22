@@ -14,15 +14,21 @@ from fractions import Fraction
 from core.relevance import check_candidate
 
 
-def editorial_checks(candidate: dict | None) -> list[str]:
+def editorial_checks(candidate: dict | None, plan: dict | None = None) -> list[str]:
     """Reject clips that are technically valid but obviously incomplete edits."""
     if not candidate:
         return []
     text = " ".join(str(candidate.get("text") or "").split())
     duration = float(candidate.get("duration") or 0)
+    production = (plan or {}).get("production") or {}
+    campaign_min = float(production.get("min_duration_seconds") or 0)
+    campaign_max = float(production.get("max_duration_seconds") or 0)
+    quality_floor = campaign_min or (8.0 if not campaign_max or campaign_max >= 8.0 else 3.0)
     issues: list[str] = []
-    if duration < 8:
-        issues.append(f"editorial clip too short: {duration:.1f}s; requires a complete thought")
+    if duration < quality_floor:
+        issues.append(f"editorial clip too short: {duration:.1f}s; minimum effective duration is {quality_floor:.1f}s")
+    if campaign_max and duration > campaign_max:
+        issues.append(f"campaign maximum duration exceeded: {duration:.1f}s > {campaign_max:.1f}s")
     if re.match(r"^(and|but|so|because|they|they're|it|this|that|which)\b", text.lower()):
         issues.append("editorial clip starts mid-thought; no self-contained hook")
     if text and not re.search(r"[.!?]$", text):
@@ -68,7 +74,7 @@ def check_video(path: str, plan: dict | None, relevance: dict | None = None, can
     elif str(audios[0].get("sample_rate") or "") != "48000":
         issues.append(f"expected 48 kHz audio, got {audios[0].get('sample_rate')} Hz")
     production = (plan or {}).get("production") or {}
-    issues.extend(editorial_checks(candidate))
+    issues.extend(editorial_checks(candidate, plan))
     if production.get("watermark_required"):
         review.append("visually verify the official watermark asset, position, opacity, and full-duration coverage")
     if production.get("no_third_party_watermark"):

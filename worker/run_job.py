@@ -153,6 +153,14 @@ def main() -> None:
         render_dir = workspace / "outputs"
         transcript_root.mkdir(exist_ok=True)
         render_dir.mkdir(exist_ok=True)
+        production_rules = plan.get("production") or {}
+        campaign_min_duration = float(production_rules.get("min_duration_seconds") or 0)
+        campaign_max_duration = float(production_rules.get("max_duration_seconds") or 0)
+        if campaign_min_duration and campaign_max_duration and campaign_min_duration > campaign_max_duration:
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Rules campaign tidak konsisten: minimum durasi melebihi maksimum", "min_duration_seconds > max_duration_seconds")
+            return
+        editorial_min_duration = campaign_min_duration or (8.0 if not campaign_max_duration or campaign_max_duration >= 8.0 else 3.0)
+        editorial_max_duration = campaign_max_duration if campaign_max_duration > 0 else 60.0
         all_candidates = []
         for source_index, source in enumerate(sources, 1):
             transcript_dir = transcript_root / f"source-{source_index:02d}"
@@ -164,18 +172,25 @@ def main() -> None:
             ])
             transcript_payload = json.loads((transcript_dir / "transcript.json").read_text(encoding="utf-8"))
             transcript_duration = max((float(segment.get("end", 0)) for segment in transcript_payload.get("segments", [])), default=0.0)
-            adaptive_min = max(5.0, min(20.0, transcript_duration * 0.45))
-            adaptive_max = max(adaptive_min + 1.0, min(60.0, max(10.0, transcript_duration)))
+            # Eight seconds is an editorial floor, not a campaign duration rule.
+            # It prevents the old 3–5 second fallback from producing incomplete posts.
+            if campaign_max_duration:
+                adaptive_min = campaign_min_duration or max(1.0, campaign_max_duration * 0.60)
+                adaptive_max = campaign_max_duration
+            else:
+                adaptive_min = max(editorial_min_duration, min(20.0, transcript_duration * 0.45))
+                adaptive_max = min(editorial_max_duration, max(adaptive_min + 1.0, min(60.0, max(10.0, transcript_duration))))
             run([
                 sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
                 "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", f"{adaptive_max:.3f}", "--limit", "10",
             ])
             local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
-            # A very short source can contain one useful thought below the adaptive floor.
-            if not local_candidates.get("candidates") and transcript_duration > 0:
+            # A source below the editorial floor is reported as unsuitable rather
+            # than forced into a three-second preview.
+            if not local_candidates.get("candidates") and transcript_duration >= adaptive_min:
                 run([
                     sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
-                    "--min-seconds", "3", "--max-seconds", "60", "--limit", "10",
+                    "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", "60", "--limit", "10",
                 ])
                 local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
@@ -185,7 +200,8 @@ def main() -> None:
                 all_candidates.append({"candidate": dict(local_item), "source": str(source), "transcript": str(transcript_dir / "transcript.json"), "relevance": relevance})
             update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)}")
         if not all_candidates:
-            raise RuntimeError("tidak ada kandidat clip yang dapat dirender dari bahan campaign")
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Tidak ada momen utuh minimal 8 detik dari asset resmi campaign", "source assets terlalu pendek, tidak selesai, atau tidak relevan")
+            return
         all_candidates.sort(key=lambda item: (-float(item["candidate"].get("score", 0)), item["candidate"].get("start", 0)))
         selected = all_candidates[:MAX_REVIEW_CANDIDATES]
         final_candidates = []
