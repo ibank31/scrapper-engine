@@ -30,7 +30,10 @@ MAX_REVIEW_CANDIDATES = 2
 
 
 def api_call(base: str, path: str, token: str, method: str = "GET", payload: dict | None = None) -> dict:
-    response = requests.request(method, base.rstrip("/") + path, headers={"content-type": "application/json", "x-worker-token": token}, json=payload, timeout=60)
+    headers = {"content-type": "application/json", "x-worker-token": token}
+    dispatch_token = os.environ.get("CLIPPER_DISPATCH_TOKEN")
+    if dispatch_token: headers["x-dispatch-token"] = dispatch_token
+    response = requests.request(method, base.rstrip("/") + path, headers=headers, json=payload, timeout=60)
     response.raise_for_status()
     return response.json()
 
@@ -88,8 +91,11 @@ def source_priority(path: Path) -> tuple[float, int]:
 
 
 def upload_r2(api_base: str, job_id: str, token: str, path: str, key: str, content_type: str):
+    headers = {"x-worker-token": token}
+    dispatch_token = os.environ.get("CLIPPER_DISPATCH_TOKEN")
+    if dispatch_token: headers["x-dispatch-token"] = dispatch_token
     with open(path, "rb") as stream:
-        response = requests.post(api_base.rstrip("/") + f"/api/jobs/{job_id}/upload", headers={"x-worker-token": token}, files={"file": (Path(path).name, stream, content_type)}, data={"key": key}, timeout=180)
+        response = requests.post(api_base.rstrip("/") + f"/api/jobs/{job_id}/upload", headers=headers, files={"file": (Path(path).name, stream, content_type)}, data={"key": key}, timeout=180)
     response.raise_for_status()
     return response.json()["download_url"]
 

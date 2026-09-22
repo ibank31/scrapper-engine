@@ -58,6 +58,13 @@ function workerAuthorized(request, env) {
   const bearer = request.headers.get("authorization") || "";
   return request.headers.get("x-worker-token") === env.WORKER_TOKEN || bearer === `Bearer ${env.WORKER_TOKEN}`;
 }
+async function workerOrDispatchAuthorized(request, env, jobId) {
+  if (workerAuthorized(request, env)) return true;
+  const dispatchToken = request.headers.get("x-dispatch-token") || "";
+  if (!dispatchToken) return false;
+  const job = await env.DB.prepare("SELECT dispatch_token FROM jobs WHERE id=?").bind(jobId).first();
+  return Boolean(job && job.dispatch_token && job.dispatch_token === dispatchToken);
+}
 
 async function ensureSchema(db) {
   const info = await db.prepare("PRAGMA table_info(campaigns)").all();
@@ -256,9 +263,9 @@ export default {
         }
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "claim" && request.method === "POST") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const claimToken = String(body.claim_token || "").slice(0, 200); const runnerId = String(body.runner_id || `ephemeral:${claimToken}`).slice(0, 200);
         if (!claimToken) return json({ error: "claim_token_required" }, 400);
+        if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
         const timestamp = now();
         const result = await env.DB.prepare("UPDATE jobs SET status='processing',progress=1,message=?,error=NULL,claimed_at=?,claimed_by=?,updated_at=? WHERE id=? AND status='queued' AND (dispatch_token IS NULL OR dispatch_token=?)").bind("Worker claimed job", timestamp, runnerId, timestamp, parts[2], claimToken).run();
         if (!(result.meta?.changes > 0)) return json({ error: "job_claim_lost" }, 409);
@@ -294,7 +301,7 @@ export default {
         return json({ ok: true, recovered, skipped });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "stages" && request.method === "POST") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now();
         const runId = String(body.run_id || "").slice(0, 200); const stage = String(body.stage || "").slice(0, 100); const status = String(body.status || "").slice(0, 40);
         if (!runId || !stage || !status) return json({ error: "stage_event_invalid" }, 400);
@@ -307,7 +314,7 @@ export default {
         return json({ stages: result.results || [] });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "manifest" && request.method === "POST") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const key = String(body.manifest_key || "").slice(0, 500); const version = Number(body.schema_version || 1);
         if (!key) return json({ error: "manifest_invalid" }, 400);
         const timestamp = now();
@@ -374,7 +381,7 @@ export default {
         return json({ ok: true, job: { id: job.id, status: "cancelled", progress: job.progress, message: "Dihentikan oleh pengguna", updated_at: timestamp } });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "POST") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now();
         for (const preview of body.previews || []) {
           await env.DB.prepare("INSERT OR REPLACE INTO previews (id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, JSON.stringify(preview.checklist || []), timestamp).run();
@@ -383,7 +390,7 @@ export default {
         return json({ ok: true });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "upload" && request.method === "POST") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
         const form = await request.formData(); const file = form.get("file"); const key = String(form.get("key") || "");
         if (!file || !key || !env.CLIPS) return json({ error: "upload_invalid" }, 400);
         await env.CLIPS.put(key, file.stream(), { httpMetadata: { contentType: file.type || "application/octet-stream", cacheControl: "private,no-store" } });
@@ -401,7 +408,7 @@ export default {
         const headers = new Headers(cors); object.writeHttpMetadata(headers); headers.set("etag", object.httpEtag); return new Response(object.body, { headers });
       }
       if (parts[1] === "jobs" && parts[2] && request.method === "PATCH") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now();
         await env.DB.prepare("UPDATE jobs SET status = ?, progress = ?, message = ?, error = ?, updated_at = ? WHERE id = ?").bind(body.status, body.progress || 0, body.message || null, body.error || null, timestamp, parts[2]).run();
         return json({ ok: true });
