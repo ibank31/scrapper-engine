@@ -79,10 +79,10 @@ jobs:
           JOB_ID: ${{ inputs.job_id }}
           CLIPPER_DISPATCH_TOKEN: ${{ inputs.dispatch_token }}
           PYTHONPATH: ${{ github.workspace }}
-          # Quality-first defaults: process all selected official sources and render a reviewable master.
+          # Trial default: process the best official source for predictable latency.
           CLIPPER_WHISPER_MODEL: small
           CLIPPER_WHISPER_BEAM: "3"
-          CLIPPER_MAX_VIDEO_SOURCES: "3"
+          CLIPPER_MAX_VIDEO_SOURCES: "1"
           CLIPPER_FFMPEG_PRESET: medium
           CLIPPER_FFMPEG_CRF: "19"
           CLIPPER_SEMANTIC_MODEL: /home/runner/.cache/clipper-semantic/qwen2.5-1.5b-instruct-q4_k_m.gguf
