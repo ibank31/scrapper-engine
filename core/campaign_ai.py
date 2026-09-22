@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import random
 import re
+import time
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -13,6 +15,7 @@ import requests
 
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+TRANSIENT_GEMINI_STATUSES = {408, 429, 500, 502, 503, 504}
 
 DEFAULT_PROFILE = {
     "preferred_topics": ["technology", "artificial intelligence", "software", "coding", "developer", "business", "education", "science", "creator", "podcast", "gaming"],
@@ -154,6 +157,38 @@ def _safe_block_reason(prompt_feedback: Any) -> str:
     return str(reason)[:80] if reason else "none"
 
 
+def _retry_config() -> tuple[int, float, float]:
+    try:
+        retries = max(0, min(5, int(os.getenv("GEMINI_MAX_RETRIES", "2"))))
+    except ValueError:
+        retries = 2
+    try:
+        base = max(0.1, min(30.0, float(os.getenv("GEMINI_RETRY_BASE_SECONDS", "2"))))
+    except ValueError:
+        base = 2.0
+    try:
+        cap = max(base, min(60.0, float(os.getenv("GEMINI_RETRY_MAX_SECONDS", "20"))))
+    except ValueError:
+        cap = 20.0
+    return retries, base, cap
+
+
+def _retry_delay(attempt: int, base: float, cap: float) -> float:
+    exponential = min(cap, base * (2 ** max(0, attempt - 1)))
+    return min(cap, exponential + random.uniform(0, exponential * 0.25))
+
+
+def _error_reason(response: Any) -> str:
+    reason = "unspecified"
+    try:
+        error_body = response.json()
+        if isinstance(error_body, dict) and isinstance(error_body.get("error"), dict):
+            reason = str(error_body["error"].get("message") or reason)
+    except (ValueError, TypeError):
+        pass
+    return re.sub(r"AIza[0-9A-Za-z_-]{12,}", "[redacted]", reason)[:240]
+
+
 def _gemini_generate(prompt: str, timeout: int = 120) -> str:
     url = f"{GEMINI_API_BASE.rstrip('/')}/models/{GEMINI_MODEL}:generateContent"
     payload = {
@@ -166,51 +201,86 @@ def _gemini_generate(prompt: str, timeout: int = 120) -> str:
             "responseSchema": GEMINI_RESPONSE_SCHEMA,
         },
     }
-    response = requests.post(
-        url,
-        headers={"content-type": "application/json", "x-goog-api-key": _gemini_api_key()},
-        json=payload,
-        timeout=timeout,
-    )
-    if not response.ok:
-        reason = "unspecified"
+    max_retries, retry_base, retry_cap = _retry_config()
+    for attempt in range(1, max_retries + 2):
         try:
-            error_body = response.json()
-            if isinstance(error_body, dict) and isinstance(error_body.get("error"), dict):
-                reason = str(error_body["error"].get("message") or reason)
-        except (ValueError, TypeError):
-            pass
-        reason = re.sub(r"AIza[0-9A-Za-z_-]{12,}", "[redacted]", reason)[:240]
-        raise GeminiApiError(f"Gemini API request failed with HTTP {response.status_code}: {reason}")
-    body = response.json()
-    candidates = body.get("candidates") if isinstance(body, dict) else None
-    candidates = candidates if isinstance(candidates, list) else []
-    feedback = body.get("promptFeedback") if isinstance(body, dict) else None
-    candidate = candidates[0] if candidates else {}
-    finish_reason = candidate.get("finishReason") or candidate.get("finish_reason") or "none"
-    parts = candidate.get("content", {}).get("parts", []) if isinstance(candidate, dict) else []
-    parts = parts if isinstance(parts, list) else []
-    text_parts = [part.get("text", "") for part in parts if isinstance(part, dict) and isinstance(part.get("text"), str)]
-    text = "".join(text_parts)
-    truncated = str(finish_reason).upper() in {"MAX_TOKENS", "LENGTH"}
-    print(
-        "Gemini response diagnostics: "
-        f"http_status={response.status_code} candidate_count={len(candidates)} part_count={len(parts)} "
-        f"finish_reason={str(finish_reason)[:40]} prompt_block_reason={_safe_block_reason(feedback)} "
-        f"text_length={len(text)} truncated={str(truncated).lower()}"
-    )
-    if not candidates:
-        reason = _safe_block_reason(feedback)
-        if reason != "none":
-            raise GeminiSafetyError(f"Gemini prompt blocked: {reason}")
-        raise GeminiApiError("Gemini returned no candidates")
-    if truncated:
-        raise GeminiJsonError(f"Gemini response truncated: finish_reason={str(finish_reason)[:40]}")
-    if str(finish_reason).upper() not in {"STOP", "NONE"}:
-        raise GeminiApiError(f"Gemini candidate finished with {str(finish_reason)[:40]}")
-    if not text:
-        raise GeminiJsonError("Gemini candidate contained no text")
-    return text
+            response = requests.post(
+                url,
+                headers={"content-type": "application/json", "x-goog-api-key": _gemini_api_key()},
+                json=payload,
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            if attempt > max_retries:
+                raise GeminiApiError(
+                    f"Gemini API request failed after {attempt} attempts: {type(exc).__name__}"
+                ) from exc
+            delay = _retry_delay(attempt, retry_base, retry_cap)
+            print(
+                "Gemini request diagnostics: "
+                f"attempt={attempt} transport_error={type(exc).__name__} "
+                f"retryable=true retry_in={delay:.2f}s"
+            )
+            time.sleep(delay)
+            continue
+
+        if not response.ok:
+            status = int(response.status_code)
+            retryable = status in TRANSIENT_GEMINI_STATUSES
+            reason = _error_reason(response)
+            print(
+                "Gemini request diagnostics: "
+                f"attempt={attempt} http_status={status} retryable={str(retryable).lower()}"
+            )
+            if not retryable or attempt > max_retries:
+                raise GeminiApiError(
+                    f"Gemini API request failed with HTTP {status}: {reason}"
+                )
+            delay = _retry_delay(attempt, retry_base, retry_cap)
+            print(f"Gemini transient error: HTTP {status}; retry_in={delay:.2f}s")
+            time.sleep(delay)
+            continue
+
+        body = response.json()
+        candidates = body.get("candidates") if isinstance(body, dict) else None
+        candidates = candidates if isinstance(candidates, list) else []
+        feedback = body.get("promptFeedback") if isinstance(body, dict) else None
+        candidate = candidates[0] if candidates else {}
+        finish_reason = candidate.get("finishReason") or candidate.get("finish_reason") or "none"
+        parts = candidate.get("content", {}).get("parts", []) if isinstance(candidate, dict) else []
+        parts = parts if isinstance(parts, list) else []
+        text_parts = [
+            part.get("text", "")
+            for part in parts
+            if isinstance(part, dict) and isinstance(part.get("text"), str)
+        ]
+        text = "".join(text_parts)
+        truncated = str(finish_reason).upper() in {"MAX_TOKENS", "LENGTH"}
+        print(
+            "Gemini response diagnostics: "
+            f"http_status={response.status_code} candidate_count={len(candidates)} "
+            f"part_count={len(parts)} finish_reason={str(finish_reason)[:40]} "
+            f"prompt_block_reason={_safe_block_reason(feedback)} "
+            f"text_length={len(text)} truncated={str(truncated).lower()}"
+        )
+        if not candidates:
+            reason = _safe_block_reason(feedback)
+            if reason != "none":
+                raise GeminiSafetyError(f"Gemini prompt blocked: {reason}")
+            raise GeminiApiError("Gemini returned no candidates")
+        if truncated:
+            raise GeminiJsonError(
+                f"Gemini response truncated: finish_reason={str(finish_reason)[:40]}"
+            )
+        if str(finish_reason).upper() not in {"STOP", "NONE"}:
+            raise GeminiApiError(
+                f"Gemini candidate finished with {str(finish_reason)[:40]}"
+            )
+        if not text:
+            raise GeminiJsonError("Gemini candidate contained no text")
+        return text
+
+    raise GeminiApiError("Gemini request exhausted retries")
 
 
 def _num(value: Any, default: float | None = None) -> float | None:
@@ -273,11 +343,12 @@ Campaigns:
 """ + json.dumps([_campaign_prompt_payload(x) for x in batch], ensure_ascii=False)
 
 
-def _fallback_result(campaign: dict[str, Any]) -> dict[str, Any]:
+def _fallback_result(campaign: dict[str, Any], reason: str = "AI omitted this campaign") -> dict[str, Any]:
     cid = str(campaign.get("id") or "")
+    safe_reason = re.sub(r"AIza[0-9A-Za-z_-]{12,}", "[redacted]", str(reason))[:240]
     return {
         "schema_version": 1, "campaign_id": cid,
-        "campaign_fit": {"score": None, "label": "unknown", "reason": "AI omitted this campaign"},
+        "campaign_fit": {"score": None, "label": "unknown", "reason": "AI analysis unavailable"},
         "rules": {
             "source_policy": "unknown", "platforms": campaign.get("platforms") or [], "aspect_ratio": None,
             "min_duration_seconds": None, "max_duration_seconds": None, "subtitle_required": False, "subtitle_style": "campaign_defined",
@@ -285,7 +356,7 @@ def _fallback_result(campaign: dict[str, Any]) -> dict[str, Any]:
             "cta_text": None, "handles": [], "hashtags": [], "disclosures": [], "topic_terms": [], "allowed_content": [],
             "prohibited_content": [], "asset_sources": [], "posting_rules": [], "account_rules": [],
         },
-        "ambiguities": ["CRITICAL: AI omitted this campaign"], "evidence": [], "confidence": 0.0,
+        "ambiguities": [f"CRITICAL: {safe_reason}"], "evidence": [], "confidence": 0.0,
     }
 
 
@@ -296,18 +367,33 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
     batch_size = max(1, batch_size)
     for start in range(0, len(campaigns), batch_size):
         batch = campaigns[start:start + batch_size]
-        parsed = _json_from_text(_gemini_generate(_prompt(batch)))
-        items = parsed["campaigns"]
-        for raw in items:
-            if not isinstance(raw, dict):
-                continue
-            cid = str(raw.get("campaign_id") or "")
-            if cid:
-                results[cid] = normalize_ai_result(raw, cid)
-        for campaign in batch:
-            cid = str(campaign.get("id") or "")
-            if cid not in results:
-                results[cid] = _fallback_result(campaign)
+        batch_no = start // batch_size + 1
+        try:
+            parsed = _json_from_text(_gemini_generate(_prompt(batch)))
+            items = parsed["campaigns"]
+            for raw in items:
+                if not isinstance(raw, dict):
+                    continue
+                cid = str(raw.get("campaign_id") or "")
+                if cid:
+                    results[cid] = normalize_ai_result(raw, cid)
+            for campaign in batch:
+                cid = str(campaign.get("id") or "")
+                if cid not in results:
+                    results[cid] = _fallback_result(campaign)
+        except (GeminiApiError, GeminiJsonError) as exc:
+            reason = str(exc)
+            print(
+                "(!) Gemini batch failed: "
+                f"batch={batch_no} campaigns={len(batch)} model={GEMINI_MODEL} "
+                f"reason={reason[:240]}"
+            )
+            for campaign in batch:
+                cid = str(campaign.get("id") or "")
+                if cid:
+                    results[cid] = _fallback_result(
+                        campaign, f"Gemini batch {batch_no} failed: {reason}"
+                    )
     return results
 
 
