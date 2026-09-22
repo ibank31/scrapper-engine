@@ -160,7 +160,7 @@ def segment_transcript(transcript: dict[str, Any]) -> list[dict[str, Any]]:
     return units
 
 
-def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10, source_path: str | None = None) -> list[dict[str, Any]]:
+def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10, source_path: str | None = None, max_gap_seconds: float = 3.0) -> list[dict[str, Any]]:
     units = segment_transcript(transcript)
     if not units:
         return []
@@ -171,6 +171,10 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
         text_parts: list[str] = []
         end = start
         for end_index, current in enumerate(units[start_index:], start_index):
+            if end_index > start_index:
+                gap = float(current.get("start", end)) - end
+                if gap > max_gap_seconds:
+                    break
             end = float(current.get("end", end))
             text_parts.append(str(current.get("text") or "").strip())
             duration = end - start

@@ -64,6 +64,19 @@ class ClipCandidatesTest(unittest.TestCase):
         self.assertEqual(len(candidates), 1)
         self.assertAlmostEqual(candidates[0]["duration"], 5.0)
 
+    def test_bridges_short_pause_but_not_long_silence(self):
+        transcript = {
+            "segments": [
+                {"start": 0, "end": 8, "text": "Here is the first part of the business lesson."},
+                {"start": 10, "end": 18, "text": "The answer is to simplify the process."},
+                {"start": 30, "end": 45, "text": "Unrelated later segment."},
+            ]
+        }
+        candidates = select_candidates(transcript, min_seconds=15, max_seconds=20, limit=2)
+        self.assertEqual(len(candidates), 2)
+        self.assertIn((0.0, 18.0), {(item["start"], item["end"]) for item in candidates})
+        self.assertNotIn((0.0, 45.0), {(item["start"], item["end"]) for item in candidates})
+
     def test_evaluation_corpus_has_expected_candidate_shapes(self):
         path = os.path.join(os.path.dirname(__file__), "fixtures", "semantic_cases.json")
         with open(path, encoding="utf-8") as fh:

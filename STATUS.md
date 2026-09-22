@@ -25,6 +25,8 @@ The first end-to-end trial was audited against the exact source URLs. Both offic
 
 The Ryan Zofay baseline exposed a separate rule-compilation bug: its prior 5.419-second preview passed because the campaign's `Clip Length: 15–60 seconds` instruction existed only in fetched `docs_text`, which was not included in `compile_plan`. The compiler now includes fetched document text and extracts explicit duration ranges, so the campaign minimum and maximum reach `plan.json` and validation.
 
+The next integration hardening keeps stage contracts explicit: a cheap asset-duration gate runs before Whisper when a campaign has a minimum duration; selector artifacts include transcript span, unit count, bounds, pause budget, and an empty-result reason; short transcript pauses up to three seconds may be bridged without crossing long silence; and semantic ranking is skipped when selection returns no candidates. This prevents avoidable Qwen calls and makes a blocked job explain which stage produced zero output.
+
 ## Rules and quality behavior
 
 - `plan.json` and `source_of_truth` are authoritative.
@@ -36,7 +38,7 @@ The Ryan Zofay baseline exposed a separate rule-compilation bug: its prior 5.419
 
 ## Verification
 
-The repository regression suite passes **71 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
+The repository regression suite passes **72 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
 
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 

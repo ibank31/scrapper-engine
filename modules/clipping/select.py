@@ -8,7 +8,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from core.clip_candidates import select_candidates
+from core.clip_candidates import segment_transcript, select_candidates
 from core.media_signals import source_quality_preflight
 
 
@@ -25,7 +25,23 @@ def main() -> None:
     transcript = json.load(open(args.transcript, encoding="utf-8"))
     candidates = select_candidates(transcript, args.min_seconds, args.max_seconds, args.limit, source_path=args.source)
     out = args.out or os.path.join(os.path.dirname(os.path.abspath(args.transcript)), "candidates.json")
-    payload = {"schema_version": 2, "transcript": transcript.get("input"), "source_quality": source_quality_preflight(args.source, transcript) if args.source else None, "candidates": candidates}
+    units = segment_transcript(transcript)
+    transcript_span = max((float(segment.get("end", 0)) for segment in transcript.get("segments", [])), default=0.0)
+    payload = {
+        "schema_version": 2,
+        "transcript": transcript.get("input"),
+        "source_quality": source_quality_preflight(args.source, transcript) if args.source else None,
+        "selection": {
+            "min_seconds": args.min_seconds,
+            "max_seconds": args.max_seconds,
+            "max_gap_seconds": 3.0,
+            "transcript_span_seconds": round(transcript_span, 3),
+            "unit_count": len(units),
+            "candidate_count": len(candidates),
+            "reason_if_empty": "no contiguous transcript window within duration bounds and pause budget" if not candidates else None,
+        },
+        "candidates": candidates,
+    }
     json.dump(payload, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
     md = out.rsplit(".", 1)[0] + ".md"
     lines = ["# Clip Candidates", "", f"Source: `{transcript.get('input')}`", "", "| Rank | Score | Time | Duration | Reason |", "|---:|---:|---|---:|---|"]

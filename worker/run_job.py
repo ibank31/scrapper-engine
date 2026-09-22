@@ -162,6 +162,12 @@ def main() -> None:
             )
             return
 
+        production_rules = plan.get("production") or {}
+        campaign_min_duration = float(production_rules.get("min_duration_seconds") or 0)
+        campaign_max_duration = float(production_rules.get("max_duration_seconds") or 0)
+        if campaign_min_duration and campaign_max_duration and campaign_min_duration > campaign_max_duration:
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Rules campaign tidak konsisten: minimum durasi melebihi maksimum", "min_duration_seconds > max_duration_seconds")
+            return
         max_sources = max(1, int(args.max_video_sources))
         update(args.api_base, args.job_id, args.worker_token, "processing", 8, f"Membaca rules · max {max_sources} sumber video")
         workspace_root = os.path.join(root, "jobs")
@@ -199,17 +205,28 @@ def main() -> None:
                 if record.get("excluded_before_transcription")
             ]
             raise RuntimeError(f"semua source gagal preflight: video/audio/durasi tidak layak; sources={len(preflight_records)}; details={' | '.join(reasons[:3])}")
+        if campaign_min_duration:
+            long_enough = [
+                record for record in preflight_records
+                if not record.get("excluded_before_transcription")
+                and float((record.get("quality") or {}).get("duration_seconds") or 0) >= campaign_min_duration
+            ]
+            if not long_enough:
+                update(
+                    args.api_base,
+                    args.job_id,
+                    args.worker_token,
+                    "blocked",
+                    100,
+                    f"Semua video lebih pendek dari minimum campaign {campaign_min_duration:.0f} detik",
+                    f"sources={len(preflight_records)}; minimum_duration={campaign_min_duration:.3f}; transcription_skipped=true",
+                )
+                return
         update(args.api_base, args.job_id, args.worker_token, "processing", 24, f"{len(sources)} bahan resmi lolos preflight")
         transcript_root = workspace / "transcripts"
         render_dir = workspace / "outputs"
         transcript_root.mkdir(exist_ok=True)
         render_dir.mkdir(exist_ok=True)
-        production_rules = plan.get("production") or {}
-        campaign_min_duration = float(production_rules.get("min_duration_seconds") or 0)
-        campaign_max_duration = float(production_rules.get("max_duration_seconds") or 0)
-        if campaign_min_duration and campaign_max_duration and campaign_min_duration > campaign_max_duration:
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Rules campaign tidak konsisten: minimum durasi melebihi maksimum", "min_duration_seconds > max_duration_seconds")
-            return
         editorial_min_duration = campaign_min_duration or (8.0 if not campaign_max_duration or campaign_max_duration >= 8.0 else 3.0)
         editorial_max_duration = campaign_max_duration if campaign_max_duration > 0 else 60.0
         all_candidates = []
@@ -238,23 +255,36 @@ def main() -> None:
                 "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", f"{adaptive_max:.3f}", "--limit", "10",
                 "--source", str(source),
             ])
-            run([
-                sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
-                "--plan", plan_path,
-            ])
             local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
-            # A source below the editorial floor is reported as unsuitable rather
-            # than forced into a three-second preview.
-            if not local_candidates.get("candidates") and transcript_duration >= adaptive_min:
-                run([
-                    sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
-                    "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", "60", "--limit", "10",
-                ])
+            selection = local_candidates.get("selection") or {}
+            if local_candidates.get("candidates"):
                 run([
                     sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
                     "--plan", plan_path,
                 ])
                 local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
+            else:
+                local_candidates["semantic_runtime"] = {
+                    "schema_version": 1,
+                    "engine": "skipped",
+                    "fallback_used": False,
+                    "reason": selection.get("reason_if_empty") or "selector_returned_no_candidates",
+                }
+                (transcript_dir / "candidates.json").write_text(json.dumps(local_candidates, ensure_ascii=False, indent=2), encoding="utf-8")
+            # A source below the editorial floor is reported as unsuitable rather
+            # than forced into a three-second preview.
+            if not local_candidates.get("candidates") and transcript_duration >= adaptive_min and adaptive_max < 60:
+                run([
+                    sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
+                    "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", "60", "--limit", "10",
+                ])
+                local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
+                if local_candidates.get("candidates"):
+                    run([
+                        sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
+                        "--plan", plan_path,
+                    ])
+                    local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
                 candidate_stats["raw_candidates"] += 1
                 semantic = local_item.get("semantic") or {}
