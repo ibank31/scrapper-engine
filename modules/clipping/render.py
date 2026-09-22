@@ -44,7 +44,7 @@ def main() -> None:
     subtitles_enabled = bool(transcript and not args.no_subtitles and (subtitles_required or args.force_subtitles))
     if production.get("watermark_required") and not args.watermark:
         raise SystemExit("campaign mewajibkan watermark, tetapi --watermark belum diberikan")
-    out_dir = out_dir or os.path.join(os.path.dirname(os.path.abspath(args.candidates)), "renders")
+    out_dir = args.out_dir or os.path.join(os.path.dirname(os.path.abspath(args.candidates)), "renders")
     os.makedirs(out_dir, exist_ok=True)
     try:
         base_crop = crop_filter(args.input) if not args.static_crop else "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
