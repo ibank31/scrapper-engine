@@ -20,9 +20,9 @@ concurrency:
 jobs:
   process:
     runs-on: ubuntu-latest
-    # Free path target: under ~15–20 minutes wall time for typical campaign assets.
-    # Hard stop at 35 minutes so a hung download/transcribe never burns a full hour.
-    timeout-minutes: 35
+    # Quality-first path: allow three sources and small Whisper to finish cleanly.
+    # Hard stop at 55 minutes so a hung download/transcribe is still bounded.
+    timeout-minutes: 55
     permissions:
       contents: read
     steps:
@@ -60,10 +60,10 @@ jobs:
           GOOGLE_DRIVE_MAX_FILES: "3"
           JOB_ID: ${{ inputs.job_id }}
           PYTHONPATH: ${{ github.workspace }}
-          # Fast free defaults for GitHub-hosted CPU runners
-          CLIPPER_WHISPER_MODEL: base
-          CLIPPER_WHISPER_BEAM: "1"
-          CLIPPER_MAX_VIDEO_SOURCES: "1"
-          CLIPPER_FFMPEG_PRESET: veryfast
-          CLIPPER_FFMPEG_CRF: "23"
+          # Quality-first defaults: process all selected official sources and render a reviewable master.
+          CLIPPER_WHISPER_MODEL: small
+          CLIPPER_WHISPER_BEAM: "3"
+          CLIPPER_MAX_VIDEO_SOURCES: "3"
+          CLIPPER_FFMPEG_PRESET: medium
+          CLIPPER_FFMPEG_CRF: "19"
         run: python worker/run_job.py

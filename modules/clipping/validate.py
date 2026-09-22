@@ -36,6 +36,8 @@ def check_video(path: str, plan: dict | None, relevance: dict | None = None) -> 
             issues.append(f"expected 1080x1920, got {video.get('width')}x{video.get('height')}")
         if video.get("codec_name") != "h264":
             issues.append(f"expected h264 video, got {video.get('codec_name')}")
+        if video.get("sample_aspect_ratio") not in {None, "1:1"}:
+            issues.append(f"expected square pixels, got SAR {video.get('sample_aspect_ratio')}")
         try:
             fps = float(Fraction(video.get("r_frame_rate", "0/1")))
             if fps < 23 or fps > 60:
@@ -46,6 +48,8 @@ def check_video(path: str, plan: dict | None, relevance: dict | None = None) -> 
         issues.append("audio stream missing")
     elif audios[0].get("codec_name") != "aac":
         issues.append(f"expected aac audio, got {audios[0].get('codec_name')}")
+    elif str(audios[0].get("sample_rate") or "") != "48000":
+        issues.append(f"expected 48 kHz audio, got {audios[0].get('sample_rate')} Hz")
     production = (plan or {}).get("production") or {}
     if production.get("watermark_required"):
         review.append("visually verify the official watermark asset, position, opacity, and full-duration coverage")

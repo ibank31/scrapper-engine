@@ -44,10 +44,10 @@ def main() -> None:
     out_dir = args.out_dir or os.path.join(os.path.dirname(os.path.abspath(args.candidates)), "renders")
     os.makedirs(out_dir, exist_ok=True)
     try:
-        base_crop = crop_filter(args.input) if not args.static_crop else "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
+        base_crop = crop_filter(args.input) if not args.static_crop else "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
     except Exception as exc:
         print(f"WARN: face tracking unavailable, using centered crop: {exc}", file=sys.stderr)
-        base_crop = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
+        base_crop = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
     with tempfile.TemporaryDirectory(prefix="clip-subs-") as temp:
         for item in payload.get("candidates", []):
             rank = int(item.get("rank", 0))
@@ -57,17 +57,17 @@ def main() -> None:
             if transcript and not args.no_subtitles:
                 subtitle_path = os.path.join(temp, f"{rank:03d}.srt")
                 write_srt(transcript, item, subtitle_path)
-                subtitle_style = "FontName=Arial,FontSize=24,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=420,MarginL=80,MarginR=80,WrapStyle=2"
+                subtitle_style = "FontName=DejaVu Sans,FontSize=24,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=430,MarginL=90,MarginR=90,WrapStyle=2"
                 filters.append("subtitles='" + _escape_filter_path(subtitle_path) + "':force_style='" + subtitle_style + "'")
             command = ["ffmpeg", "-y", "-ss", str(item["start"]), "-t", str(item["duration"]), "-i", args.input]
             if args.watermark:
                 command += ["-i", args.watermark]
                 base = ",".join(filters)
-                complex_filter = f"[0:v]{base}[base];[1:v]format=rgba,colorchannelmixer=aa=0.10[wm];[base][wm]overlay=24:24:format=auto[v]"
+                complex_filter = f"[0:v]{base}[base];[1:v]format=rgba,colorchannelmixer=aa=0.10[wm];[base][wm]overlay=24:24:format=auto:eof_action=repeat[v]"
                 command += ["-filter_complex", complex_filter, "-map", "[v]", "-map", "0:a?", "-shortest"]
             else:
                 command += ["-vf", ",".join(filters)]
-            command += ["-r", "30", "-c:v", "libx264", "-preset", str(args.preset), "-crf", str(args.crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", output]
+            command += ["-r", "30", "-c:v", "libx264", "-preset", str(args.preset), "-crf", str(args.crf), "-profile:v", "high", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-af", "loudnorm=I=-14:LRA=11:TP=-1.5", "-movflags", "+faststart", output]
             try:
                 _run(command)
                 print("OK:", output)

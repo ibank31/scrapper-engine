@@ -19,6 +19,21 @@ class ClipCandidatesTest(unittest.TestCase):
         self.assertGreaterEqual(candidates[0]["score"], 0)
         self.assertTrue(candidates[0]["end"] <= 60)
 
+    def test_rewards_complete_payoff_over_keyword_only_excerpt(self):
+        transcript = {
+            "segments": [
+                {"start": 0, "end": 10, "text": "Here is the secret most people ask about?"},
+                {"start": 10, "end": 24, "text": "The answer is to simplify the process."},
+                {"start": 24, "end": 40, "text": "So that means you can repeat it every week."},
+                {"start": 50, "end": 60, "text": "Here is the biggest mistake."},
+                {"start": 60, "end": 70, "text": "Most people miss it."},
+            ]
+        }
+        candidates = select_candidates(transcript, min_seconds=20, max_seconds=45, limit=5)
+        self.assertTrue(candidates)
+        self.assertIn("payoff or takeaway", candidates[0]["reasons"])
+        self.assertIn("complete ending", candidates[0]["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()
