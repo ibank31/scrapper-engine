@@ -1,9 +1,21 @@
+import json
+import os
 import unittest
 
 from core.semantic_ranker import rank_candidates
 
 
 class SemanticRankerTest(unittest.TestCase):
+    def test_evaluation_corpus_decisions_and_risks(self):
+        path = os.path.join(os.path.dirname(__file__), "fixtures", "semantic_cases.json")
+        with open(path, encoding="utf-8") as fh:
+            cases = json.load(fh)
+        for case in cases:
+            result = rank_candidates([case["candidate"]], case["plan"])[0]["semantic"]
+            self.assertEqual(result["decision"], case["expected_decision"], case["id"])
+            if case.get("expected_risk"):
+                self.assertIn(case["expected_risk"], result["risks"], case["id"])
+
     def test_rejects_short_mid_thought_candidate(self):
         plan = {"production": {"topic_terms": ["business"]}}
         candidates = [{"rank": 1, "start": 0, "end": 5.4, "duration": 5.4, "text": "They're gonna guide you to become that future"}]

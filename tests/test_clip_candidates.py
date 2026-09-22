@@ -1,9 +1,26 @@
+import json
+import os
 import unittest
 
-from core.clip_candidates import select_candidates
+from core.clip_candidates import segment_transcript, select_candidates
 
 
 class ClipCandidatesTest(unittest.TestCase):
+    def test_word_timestamps_form_sentence_units_at_punctuation_and_pauses(self):
+        transcript = {"segments": [{"start": 0, "end": 5, "words": [
+            {"start": 0, "end": 1, "word": "Here"},
+            {"start": 1, "end": 2, "word": "is"},
+            {"start": 2, "end": 3, "word": "the"},
+            {"start": 3, "end": 4, "word": "lesson."},
+            {"start": 5.5, "end": 6.5, "word": "Now"},
+            {"start": 6.5, "end": 7.5, "word": "we"},
+            {"start": 7.5, "end": 8.5, "word": "apply"},
+        ]}]}
+        units = segment_transcript(transcript)
+        self.assertEqual(len(units), 2)
+        self.assertEqual(units[0]["text"], "Here is the lesson.")
+        self.assertEqual(units[1]["text"], "Now we apply")
+
     def test_selects_ranked_non_overlapping_windows(self):
         transcript = {
             "segments": [
@@ -44,6 +61,13 @@ class ClipCandidatesTest(unittest.TestCase):
         candidates = select_candidates(transcript, min_seconds=3, max_seconds=60, limit=2)
         self.assertEqual(len(candidates), 1)
         self.assertAlmostEqual(candidates[0]["duration"], 5.0)
+
+    def test_evaluation_corpus_has_expected_candidate_shapes(self):
+        path = os.path.join(os.path.dirname(__file__), "fixtures", "semantic_cases.json")
+        with open(path, encoding="utf-8") as fh:
+            cases = json.load(fh)
+        self.assertGreaterEqual(len(cases), 4)
+        self.assertTrue(all(case.get("candidate", {}).get("text") for case in cases))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "complete_problem_solution",
+    "plan": {"production": {"topic_terms": ["business"]}},
+    "candidate": {"rank": 1, "start": 0, "end": 36, "duration": 36, "text": "Here is the biggest mistake in business. Most people ignore the problem, but the answer is to simplify the process. That means you can repeat it every week."},
+    "expected_decision": "render",
+    "expected_risk": null
+  },
+  {
+    "id": "mid_thought_short",
+    "plan": {"production": {"topic_terms": ["business"]}},
+    "candidate": {"rank": 1, "start": 0, "end": 5.4, "duration": 5.4, "text": "They're gonna help guide you to become that future"},
+    "expected_decision": "reject",
+    "expected_risk": "short_clip"
+  },
+  {
+    "id": "unfinished_story",
+    "plan": {"production": {"topic_terms": ["story"]}},
+    "candidate": {"rank": 1, "start": 0, "end": 18, "duration": 18, "text": "The story changed everything because"},
+    "expected_decision": "reject",
+    "expected_risk": "unfinished_sentence"
+  },
+  {
+    "id": "campaign_short_cap",
+    "plan": {"production": {"max_duration_seconds": 5}},
+    "candidate": {"rank": 1, "start": 0, "end": 5, "duration": 5, "text": "Complete point for the campaign."},
+    "expected_decision": "review",
+    "expected_risk": null
+  }
+]

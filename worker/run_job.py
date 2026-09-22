@@ -253,7 +253,9 @@ def main() -> None:
             prefix = f"jobs/{args.job_id}/clip-{int(item['rank']):03d}"
             video_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(video_path), prefix + ".mp4", "video/mp4")
             thumb_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(thumbnail_path), prefix + ".jpg", "image/jpeg") if thumbnail_path and thumbnail_path.exists() else None
-            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": item.get("validation", {}), "caption_draft": item.get("caption_draft"), "checklist": item.get("checklist", [])})
+            validation_payload = dict(item.get("validation", {}))
+            validation_payload["semantic"] = item.get("semantic") or {}
+            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "checklist": item.get("checklist", [])})
         api_call(args.api_base, f"/api/jobs/{args.job_id}/previews", args.worker_token, "POST", {"previews": previews})
         update(args.api_base, args.job_id, args.worker_token, "review", 100, f"{len(previews)} preview siap direview")
     except Exception as exc:

@@ -93,16 +93,81 @@ def _boundary_quality(text: str) -> tuple[float, list[str]]:
     return score, reasons
 
 
-def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10) -> list[dict[str, Any]]:
+def segment_transcript(transcript: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build sentence/turn units while preserving Whisper timestamps.
+
+    Word timestamps are preferred. A long pause or terminal punctuation closes a
+    unit; when word timestamps are absent, Whisper segments remain the fallback.
+    """
     segments = transcript.get("segments") or []
-    if not segments:
+    units: list[dict[str, Any]] = []
+    current: list[dict[str, Any]] = []
+    current_start = None
+    current_segment_start = None
+    previous_end = None
+
+    def flush() -> None:
+        nonlocal current, current_start, current_segment_start, previous_end
+        if current:
+            text = " ".join(str(item.get("word") or item.get("text") or "").strip() for item in current).strip()
+            text = re.sub(r"\s+([,.!?])", r"\1", text)
+            if text and current_start is not None:
+                units.append({
+                    "start": round(float(current_start), 3),
+                    "end": round(float(current[-1].get("end", previous_end or current_start)), 3),
+                    "text": text,
+                    "source_segment_start": current_segment_start,
+                    "source_segment_end": current[-1].get("_segment_index", current_segment_start),
+                })
+        current = []
+        current_start = None
+        current_segment_start = None
+
+    for segment_index, segment in enumerate(segments):
+        words = segment.get("words") or []
+        if not words:
+            item = {"text": str(segment.get("text") or "").strip(), "start": segment.get("start", 0), "end": segment.get("end", 0), "_segment_index": segment_index}
+            if item["text"]:
+                if current and previous_end is not None and float(item["start"]) - previous_end > 1.2:
+                    flush()
+                if current_start is None:
+                    current_start = float(item["start"])
+                    current_segment_start = segment_index
+                current.append(item)
+                previous_end = float(item["end"])
+                if re.search(r"[.!?][\"']?$", item["text"]):
+                    flush()
+            continue
+        for word in words:
+            token = str(word.get("word") or "").strip()
+            if not token:
+                continue
+            start = float(word.get("start", segment.get("start", 0)))
+            end = float(word.get("end", start))
+            if current and previous_end is not None and start - previous_end > 1.2:
+                flush()
+            if current_start is None:
+                current_start = start
+                current_segment_start = segment_index
+            item = dict(word, word=token, _segment_index=segment_index)
+            current.append(item)
+            previous_end = end
+            if re.search(r"[.!?][\"']?$", token) and len(current) >= 3:
+                flush()
+    flush()
+    return units
+
+
+def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10) -> list[dict[str, Any]]:
+    units = segment_transcript(transcript)
+    if not units:
         return []
     candidates: list[dict[str, Any]] = []
-    for start_index, first in enumerate(segments):
+    for start_index, first in enumerate(units):
         start = float(first.get("start", 0.0))
         text_parts: list[str] = []
         end = start
-        for end_index, current in enumerate(segments[start_index:], start_index):
+        for end_index, current in enumerate(units[start_index:], start_index):
             end = float(current.get("end", end))
             text_parts.append(str(current.get("text") or "").strip())
             duration = end - start
@@ -122,8 +187,10 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
                         "text": text,
                         "score": round(score, 4),
                         "reasons": reasons,
-                        "source_segment_start": start_index,
-                        "source_segment_end": end_index,
+                        "source_segment_start": first.get("source_segment_start", start_index),
+                        "source_segment_end": current.get("source_segment_end", end_index),
+                        "unit_start": start_index,
+                        "unit_end": end_index,
                     })
                 else:
                     break
@@ -139,4 +206,4 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
     return selected
 
 
-__all__ = ["select_candidates"]
+__all__ = ["segment_transcript", "select_candidates"]

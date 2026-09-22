@@ -40,6 +40,8 @@ Implemented in the current working change:
 - `modules/clipping/render.py`: subtitle output only when required by the campaign or explicitly forced;
 - `core/clip_candidates.py`: stronger boundary and payoff scoring;
 - `tests/test_semantic_ranker.py`: fallback semantic regression tests.
+- `tests/fixtures/semantic_cases.json`: evaluation corpus for complete, incomplete, short-cap, and mid-thought candidates.
+- Review queue and dashboard now expose semantic decision, hook/context/payoff/completeness scores, and the model reason.
 
 The full suite currently passes: **50 tests**.
 
@@ -81,11 +83,10 @@ Do not trigger a production job merely to test code when the known source is onl
 
 ## Next recommended work
 
-1. Add sentence/turn segmentation from Whisper word timestamps so candidate windows align more precisely with sentence boundaries.
-2. Add optional silence and scene-change signals to the semantic candidate payload.
-3. Store semantic metadata in the preview validation JSON so review UI can show why a candidate was selected.
-4. Add a small fixture from a long approved source and run one controlled end-to-end worker test.
-5. Re-enable worker authentication only after quality behavior is stable, because the current branch previously disabled it temporarily for debugging.
+1. Add optional silence and scene-change signals to the semantic candidate payload.
+2. Add active-speaker heuristics for two-person podcast framing.
+3. Add a small fixture from a long approved source and run one controlled end-to-end worker test.
+4. Re-enable worker authentication only after quality behavior is stable, because the current branch previously disabled it temporarily for debugging.
 
 ## Guardrails
 

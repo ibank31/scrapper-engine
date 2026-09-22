@@ -12,7 +12,7 @@ The clipping engine now uses a subtitle-first semantic stage before rendering. W
 campaign plan
   -> official asset intake
   -> faster-whisper word timestamps
-  -> deterministic candidate windows
+  -> sentence/turn candidate windows
   -> local semantic ranker
   -> campaign-rule validation
   -> render top candidates
@@ -20,7 +20,9 @@ campaign plan
   -> human review
 ```
 
-The implementation is in `core/semantic_ranker.py` and is exposed through `python run.py semantic_rank`. The worker invokes it automatically after `select_clips` and before rendering.
+The implementation is in `core/clip_candidates.py`, `core/semantic_ranker.py`, and `modules/clipping/semantic_rank.py`. The worker invokes sentence/turn segmentation and semantic ranking automatically after transcription and before rendering.
+
+The evaluation corpus is `tests/fixtures/semantic_cases.json`. It covers a complete problem-to-solution moment, a short mid-thought excerpt, an unfinished story, and a campaign with an explicit short maximum. The corpus runs in the normal regression suite so selector changes can be checked without spending a production job.
 
 ## Semantic engine
 
@@ -97,7 +99,7 @@ python run.py semantic_rank candidates.json --plan plan.json
 
 ## Known limitations
 
-A 1.5B CPU model is a useful ranking assistant, not a replacement for a large multimodal editor. It reads subtitles and cannot reliably understand a visual-only punchline, screen demonstration, object action, or speaker identity. The existing face-aware crop, FFmpeg renderer, technical validator, and human review remain necessary. The next quality increment should be sentence/turn segmentation and optional scene-change or active-speaker signals, not more visual effects.
+A 1.5B CPU model is a useful ranking assistant, not a replacement for a large multimodal editor. It reads subtitles and cannot reliably understand a visual-only punchline, screen demonstration, object action, or speaker identity. The existing face-aware crop, FFmpeg renderer, technical validator, and human review remain necessary. The next quality increment is optional silence/scene-change and active-speaker signals, not more visual effects.
 
 ## Sources
 

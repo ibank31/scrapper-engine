@@ -17,6 +17,8 @@ campaign plan -> official assets -> Whisper word timestamps -> candidate windows
 
 The optional semantic model is Qwen2.5-1.5B-Instruct-GGUF Q4_K_M through `llama-cpp-python`. If the model or dependency is unavailable, the deterministic fallback in `core/semantic_ranker.py` keeps the worker running.
 
+Candidate generation now groups Whisper words into sentence/turn units using punctuation and pauses before building windows. Semantic decisions and hook/context/payoff/completeness scores are carried into `validation_json`, the review manifest, and the dashboard. `tests/fixtures/semantic_cases.json` provides a small regression corpus for complete, incomplete, short, and mid-thought examples.
+
 ## Rules and quality behavior
 
 - `plan.json` and `source_of_truth` are authoritative.
@@ -32,7 +34,7 @@ The repository regression suite passes **50 tests**. The latest quality changes 
 
 ## Next milestone
 
-Run one controlled end-to-end job using a sufficiently long approved source and inspect semantic metadata in the review queue. Then improve sentence/turn segmentation and add optional silence, scene-change, and active-speaker signals. Do not use a five-second incomplete source as a quality benchmark.
+Run one controlled end-to-end job using a sufficiently long approved source and inspect semantic metadata in the review queue. Then add optional silence, scene-change, and active-speaker signals. Do not use a five-second incomplete source as a quality benchmark.
 
 ## Documentation entry points
 

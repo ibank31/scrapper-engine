@@ -268,6 +268,9 @@ function renderReviews() {
     const src = r.video_url || r.download_url;
     let validation = {};
     try { validation = typeof r.validation_json === "string" ? JSON.parse(r.validation_json) : (r.validation_json || {}); } catch (_) { validation = {}; }
+    const semantic = validation.semantic || {};
+    const semanticLine = semantic.semantic_score == null ? "Semantic fallback belum tersedia" :
+      "Semantic " + Number(semantic.semantic_score).toFixed(0) + " · Hook " + Number(semantic.hook_score || 0).toFixed(0) + " · Context " + Number(semantic.context_score || 0).toFixed(0) + " · Payoff " + Number(semantic.payoff_score || 0).toFixed(0) + " · Complete " + Number(semantic.completeness_score || 0).toFixed(0);
     const status = String(r.status || "pending_review");
     const actionButtons = status === "pending_review" || status === "changes_requested" ?
       '<button class="secondary-button review-action" data-review-action="request_rerender">Minta render ulang</button>' +
@@ -278,7 +281,8 @@ function renderReviews() {
       (src ? '<video class="review-video" controls preload="metadata" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
       '<div class="review-body"><span class="status review">' + escapeHtml(status.replaceAll("_", " ").toUpperCase()) + '</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
       '<p>Periksa video penuh, validasi, dan checklist campaign sebelum mengambil keputusan.</p>' +
-      '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
+      '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
+      (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
       '<div class="review-actions">' +
       (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a>' : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
