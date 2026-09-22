@@ -17,7 +17,7 @@ campaign plan -> official assets -> Whisper word timestamps -> candidate windows
 
 The optional semantic model is Qwen2.5-1.5B-Instruct-GGUF Q4_K_M through `llama-cpp-python`. If the model or dependency is unavailable, the deterministic fallback in `core/semantic_ranker.py` keeps the worker running.
 
-Candidate generation now groups Whisper words into sentence/turn units using punctuation and pauses before building windows. Source preflight runs before Whisper and records duration, video/audio presence, resolution, duplicate hash, and exclusion reasons in `source-preflight.json`. Optional local media signals record speech density, sponsor/bumper hints, candidate silence/voice activity, FFmpeg scene changes, and transcript speaker-label framing advice. Silence/scene signals apply only a bounded ranking adjustment; they never change timestamps or campaign rules. `tests/fixtures/semantic_cases.json` and `tests/fixtures/media_signal_cases.json` provide regression corpora.
+Candidate generation now groups Whisper words into sentence/turn units using punctuation and pauses before building windows. Source preflight runs before Whisper and records duration, video/audio presence, resolution, duplicate hash, and exclusion reasons in `source-preflight.json`. Exact duplicate sources are retained in provenance but only the first is transcribed. Optional local media signals record speech density, sponsor/bumper hints, candidate silence/voice activity, FFmpeg scene changes, and transcript speaker-label framing advice. Silence/scene signals apply only a bounded ranking adjustment with `CLIPPER_MEDIA_SIGNAL_BUDGET_SECONDS` protection; they never change timestamps or campaign rules. `tests/fixtures/semantic_cases.json` and `tests/fixtures/media_signal_cases.json` provide regression corpora.
 
 ## Rules and quality behavior
 
@@ -36,7 +36,7 @@ The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.
 
 ## Next milestone
 
-Next, extend Phase B with cross-source duplicate handling and performance budgets, then measure Qwen and the deterministic baseline again. Do not promote Qwen to an automatic decision authority while it trails deterministic baseline. Improve active-speaker detection with visual evidence only after those changes are measured. Do not use a five-second incomplete source as a quality benchmark.
+Next, measure source-processing time on a sufficiently long controlled fixture, then begin the optional active-speaker visual heuristic. Keep Qwen advisory while it trails deterministic baseline. Do not use a five-second incomplete source as a quality benchmark.
 
 ## Documentation entry points
 
