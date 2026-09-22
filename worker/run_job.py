@@ -226,7 +226,9 @@ def main() -> None:
                 local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
                 semantic = local_item.get("semantic") or {}
-                if semantic.get("decision") == "reject":
+                # Qwen is advisory. Only the deterministic local hard-policy
+                # gate may discard a candidate before human review.
+                if semantic.get("decision") == "reject" and semantic.get("hard_policy_gate") is True:
                     continue
                 relevance = check_candidate(plan, local_item)
                 if relevance.get("status") == "blocked":

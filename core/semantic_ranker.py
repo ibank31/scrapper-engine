@@ -197,8 +197,9 @@ def rank_candidates_with_metadata(candidates: list[dict[str, Any]], plan: dict[s
         item = dict(candidate)
         semantic = by_rank.get(int(candidate.get("rank") or 0), _deterministic(candidate, plan))
         local_guard = _deterministic(candidate, plan)
+        semantic = dict(semantic)
+        semantic["hard_policy_gate"] = local_guard["decision"] == "reject"
         if local_guard["decision"] == "reject" and semantic.get("decision") != "reject":
-            semantic = dict(semantic)
             semantic["decision"] = "reject"
             semantic["risks"] = list(dict.fromkeys(list(semantic.get("risks") or []) + list(local_guard.get("risks") or [])))
             semantic["reason"] = str(semantic.get("reason") or "") + "; local hard-policy gate: " + ", ".join(local_guard.get("risks") or ["structural_rejection"])

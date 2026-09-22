@@ -55,6 +55,16 @@ class SemanticRankerTest(unittest.TestCase):
             result = rank_candidates_with_metadata([candidate], plan)[0][0]
         self.assertEqual(result["semantic"]["decision"], "reject")
         self.assertIn("unfinished_sentence", result["semantic"]["risks"])
+        self.assertTrue(result["semantic"]["hard_policy_gate"])
+
+    def test_model_only_reject_is_not_a_hard_policy_gate(self):
+        candidate = {"rank": 1, "start": 0, "end": 20, "duration": 20, "text": "A complete point for review."}
+        plan = {"production": {"topic_terms": ["business"]}}
+        model_result = [{"rank": 1, "decision": "reject", "semantic_score": 20, "hook_score": 20, "context_score": 20, "payoff_score": 20, "completeness_score": 20, "campaign_relevance": "fail", "reason": "model concern", "risks": ["model_concern"]}]
+        with mock.patch("core.semantic_ranker._model_rank", return_value=(model_result, None)):
+            result = rank_candidates_with_metadata([candidate], plan)[0][0]
+        self.assertEqual(result["semantic"]["decision"], "reject")
+        self.assertFalse(result["semantic"]["hard_policy_gate"])
 
     def test_malformed_model_decision_triggers_fallback(self):
         candidate = {"rank": 1, "start": 0, "end": 20, "duration": 20, "text": "A complete business lesson."}
