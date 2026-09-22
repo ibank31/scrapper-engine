@@ -44,7 +44,7 @@ class SemanticRankerTest(unittest.TestCase):
 
     def test_normalizes_single_model_result_without_rank(self):
         candidates = [{"rank": 1, "start": 0, "end": 20, "duration": 20, "text": "A complete point."}]
-        normalized, reason = _normalize_model_results({"decision": "render", "semantic_score": 80}, candidates)
+        normalized, reason = _normalize_model_results({"decision": "render", "semantic_score": 80, "hook_score": 80, "context_score": 80, "payoff_score": 80, "completeness_score": 80, "campaign_relevance": "pass", "reason": "complete", "risks": []}, candidates)
         self.assertIsNone(reason)
         self.assertEqual(normalized[0]["rank"], 1)
 
@@ -55,6 +55,16 @@ class SemanticRankerTest(unittest.TestCase):
             result = rank_candidates_with_metadata([candidate], plan)[0][0]
         self.assertEqual(result["semantic"]["decision"], "reject")
         self.assertIn("unfinished_sentence", result["semantic"]["risks"])
+
+    def test_malformed_model_decision_triggers_fallback(self):
+        candidate = {"rank": 1, "start": 0, "end": 20, "duration": 20, "text": "A complete business lesson."}
+        parsed = {"decision": None, "semantic_score": 90, "hook_score": 90, "context_score": 90, "payoff_score": 90, "completeness_score": 90, "campaign_relevance": "pass", "reason": "", "risks": []}
+        normalized, reason = _normalize_model_results(parsed, [candidate])
+        self.assertIsNone(normalized)
+        self.assertEqual(reason, "model_invalid_decision")
+        ranked, runtime = rank_candidates_with_metadata([candidate], {"production": {"topic_terms": ["business"]}})
+        self.assertEqual(runtime["engine"], "deterministic")
+        self.assertIsNotNone(ranked[0]["semantic"]["decision"])
 
     def test_prefers_complete_problem_solution_candidate(self):
         plan = {"production": {"topic_terms": ["business"]}}

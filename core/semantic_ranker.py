@@ -131,6 +131,15 @@ def _normalize_model_results(parsed: dict[str, Any] | None, candidates: list[dic
             item = results[index]
         if not isinstance(item, dict):
             return None, "model_missing_candidate_result"
+        if item.get("decision") not in {"render", "review", "reject"}:
+            return None, "model_invalid_decision"
+        numeric_fields = ("semantic_score", "hook_score", "context_score", "payoff_score", "completeness_score")
+        if any(not isinstance(item.get(field), (int, float)) for field in numeric_fields):
+            return None, "model_missing_score_field"
+        if item.get("campaign_relevance") not in {"pass", "uncertain", "fail"}:
+            return None, "model_invalid_campaign_relevance"
+        if not isinstance(item.get("reason"), str) or not isinstance(item.get("risks"), list):
+            return None, "model_invalid_explanation_fields"
         item = dict(item)
         item["rank"] = int(candidate.get("rank") or 0)
         normalized.append(item)
