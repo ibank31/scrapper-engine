@@ -227,10 +227,6 @@ async function loadPreviews(job) {
   try {
     const response = await api("/api/jobs/" + encodeURIComponent(job.id) + "/previews");
     for (const preview of response.previews || []) {
-      try {
-        const fresh = await api("/api/previews/" + encodeURIComponent(preview.id) + "/url");
-        if (fresh.url) preview.download_url = fresh.url;
-      } catch (_) { /* keep legacy URL or show a waiting state */ }
       state.reviews.push(Object.assign({}, preview, { title: (job.campaign_title || "Campaign") + " · Kandidat " + preview.rank, job: job }));
     }
     renderReviews();

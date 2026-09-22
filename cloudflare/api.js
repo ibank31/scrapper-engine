@@ -1,7 +1,7 @@
 const cors = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
-  "access-control-allow-headers": "content-type,x-worker-token"
+  "access-control-allow-headers": "content-type,x-worker-token,x-review-token,authorization"
 };
 
 function json(data, status = 200) {
@@ -230,6 +230,7 @@ export default {
         return json({ previews: result.results || [] });
       }
       if (parts[1] === "previews" && parts[2] && parts[3] === "url" && request.method === "GET") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
         const preview = await env.DB.prepare("SELECT id,status,video_key FROM previews WHERE id = ?").bind(parts[2]).first();
         if (!preview || !preview.video_key) return json({ error: "preview_not_found" }, 404);
         if (!["pending_review", "changes_requested", "approved_for_manual_post"].includes(preview.status)) return json({ error: "preview_not_available", status: preview.status }, 409);
@@ -257,6 +258,7 @@ export default {
         return json({ ok: true, preview: { id: parts[2], job_id: current.job_id, status: next, review_reason: reason || null, reviewed_by: actor, reviewed_at: timestamp } });
       }
       if (parts[1] === "previews" && parts[2] && parts[3] === "events" && request.method === "GET") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
         const result = await env.DB.prepare("SELECT id,preview_id,from_status,to_status,action,reason,actor,created_at FROM preview_events WHERE preview_id = ? ORDER BY created_at").bind(parts[2]).all();
         return json({ events: result.results || [] });
       }
