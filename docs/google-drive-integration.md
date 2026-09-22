@@ -1,8 +1,26 @@
 # Integrasi Google Drive untuk Materi Campaign
 
-Pipeline clipping menggunakan folder asset campaign sebagai sumber video resmi. Untuk campaign Ryan Zofay, folder yang terdeteksi adalah:
+Pipeline clipping menggunakan URL materi yang tercantum di `plan.production.asset_urls` sebagai sumber resmi **untuk setiap campaign**. Integrasi ini tidak mengunci campaign, nama brand, atau folder tertentu. Folder Ryan Zofay di bawah hanya contoh URL yang ditemukan saat audit:
 
 `https://drive.google.com/drive/folders/1g2wgEVd9BT4bFhKxR3Jztd6b5kywaE4s?usp=sharing`
+
+## Model multi-campaign
+
+Setiap job diproses dengan `plan.json` milik campaign tersebut. Saat plan dibuat, semua resource/material URL dari rules campaign disalin ke `production.asset_urls`. Intake kemudian memproses URL tersebut satu per satu:
+
+1. URL folder Drive dibaca sebagai folder campaign itu sendiri.
+2. URL file Drive dibaca sebagai materi individual.
+3. Folder dan file dari campaign lain tidak tercampur karena setiap job memiliki workspace dan manifest `assets.json` sendiri.
+4. Credential OAuth yang sama dapat membaca banyak folder campaign, selama akun Google yang diotorisasi memiliki akses ke folder-folder tersebut.
+
+Contoh dua campaign yang berbeda:
+
+```text
+Campaign A → https://drive.google.com/drive/folders/FOLDER_CAMPAIGN_A
+Campaign B → https://drive.google.com/drive/folders/FOLDER_CAMPAIGN_B
+```
+
+Keduanya memakai OAuth yang sama, tetapi diunduh ke workspace job masing-masing. Tidak perlu membuat OAuth Client baru untuk setiap campaign.
 
 ## Mengapa integrasi diperlukan
 
@@ -30,7 +48,7 @@ Tambahkan tiga repository secrets berikut. Nilainya tidak boleh dimasukkan ke so
 | `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth client secret dari Google Cloud |
 | `GOOGLE_DRIVE_REFRESH_TOKEN` | Refresh token hasil consent akun Google |
 
-Workflow `clipper-worker` sudah meneruskan ketiga secret tersebut ke worker. `GOOGLE_DRIVE_MAX_FILES` default-nya 3 dan `CLIPPER_MAX_VIDEO_SOURCES` default-nya 1, sehingga mesin hanya memilih satu sumber video terbaik setelah folder diambil.
+Workflow `clipper-worker` sudah meneruskan ketiga secret tersebut ke worker. `GOOGLE_DRIVE_MAX_FILES` default-nya 3 berlaku **per folder pada setiap job campaign**, bukan untuk seluruh akun. `CLIPPER_MAX_VIDEO_SOURCES` default-nya 1 juga berlaku per job agar satu campaign tidak mengambil terlalu banyak sumber video sekaligus. Jika suatu campaign memang membutuhkan lebih banyak file, batas `GOOGLE_DRIVE_MAX_FILES` dapat dinaikkan pada workflow.
 
 ## Perilaku akses
 
