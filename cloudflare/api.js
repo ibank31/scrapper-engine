@@ -195,6 +195,14 @@ export default {
         const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         return json({ previews: result.results || [] });
       }
+      if (parts[1] === "jobs" && parts[2] && parts[3] === "cancel" && request.method === "POST") {
+        const job = await env.DB.prepare("SELECT id,status,progress FROM jobs WHERE id = ?").bind(parts[2]).first();
+        if (!job) return json({ error: "job_not_found" }, 404);
+        if (!["queued", "processing"].includes(job.status)) return json({ error: "job_not_active", status: job.status }, 409);
+        const timestamp = now();
+        await env.DB.prepare("UPDATE jobs SET status='cancelled', message=?, error=NULL, updated_at=? WHERE id=? AND status IN ('queued','processing')").bind("Dihentikan oleh pengguna", timestamp, parts[2]).run();
+        return json({ ok: true, job: { id: job.id, status: "cancelled", progress: job.progress, message: "Dihentikan oleh pengguna", updated_at: timestamp } });
+      }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "POST") {
         if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now();

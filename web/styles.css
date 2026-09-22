@@ -33,6 +33,7 @@
 .job-progress-row .progress-number{width:auto;flex:0 0 34px}
 .job-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px;color:#92a098;font:9px 'DM Mono';line-height:1.4}
 .stale-warning{color:#b47632;font-weight:600}
+.stop-button{margin-top:12px;border:1px solid #e6b6ae;border-radius:8px;background:#fff7f5;color:#b45d52;padding:9px 12px;font:600 11px 'DM Sans';cursor:pointer}.stop-button:hover{background:#ffe9e4;border-color:#d88f84}
 .phase-track{display:flex;align-items:center;gap:5px;margin-top:13px}
 .phase-track>span:not(.line){width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:#edf1ed;color:#8b9991;font:9px 'DM Mono';flex:0 0 18px}
 .phase-track>span.done{background:#dff0d8;color:#397c55}

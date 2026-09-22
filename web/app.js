@@ -1,7 +1,7 @@
 const cfg = window.CLIPPER_CONFIG || { API_BASE_URL: "", DEMO_MODE: true };
 const $ = (sel) => document.querySelector(sel);
 const state = { campaigns: [], jobs: [], reviews: [], pollTimer: null };
-const statusNames = { queued: "ANTRI", processing: "BERJALAN", review: "SIAP REVIEW", error: "GAGAL", blocked: "DIBLOKIR" };
+const statusNames = { queued: "ANTRI", processing: "BERJALAN", review: "SIAP REVIEW", error: "GAGAL", blocked: "DIBLOKIR", cancelled: "DIBATALKAN" };
 const readinessOrder = { siap: 0, ketat: 1, belum_siap: 2, lewati: 3 };
 const demoCampaigns = [
   { id: "demo-ai-clips", title: "AI Founder Clips", brand: "Demo Studio", category: "technology", score: 86.5, rate_per_1k: 7, budget_left: 3850, platforms: ["tiktok", "youtube", "instagram"], type: "clipping", content_kind: "clipping", is_clipping: true, verified: true, description: "Use the provided podcast footage.", readiness_status: "siap", readiness_label: "Siap dikerjakan", readiness_reason: "Bahan resmi ada dan aturan sederhana (demo).", flags: [] },
@@ -171,6 +171,17 @@ function isStale(job) {
   const age = Date.now() - new Date(job.updated_at).getTime();
   return age > (job.status === "queued" ? 8 * 60 * 1000 : 5 * 60 * 1000);
 }
+async function cancelJob(job) {
+  if (!job || !["queued", "processing"].includes(job.status)) return;
+  if (!window.confirm("Hentikan proses " + (job.campaign_title || "ini") + "?")) return;
+  try {
+    await api("/api/jobs/" + encodeURIComponent(job.id) + "/cancel", { method: "POST" });
+    showToast("Proses dihentikan");
+    await loadJobs();
+  } catch (error) {
+    showToast("Proses belum dapat dihentikan");
+  }
+}
 function renderJobs() {
   const active = state.jobs.filter((j) => j.status === "queued" || j.status === "processing").length;
   const processing = state.jobs.filter((j) => j.status === "processing").length;
@@ -192,8 +203,13 @@ function renderJobs() {
         '<p class="job-message"><b>' + escapeHtml(j.message || phase.detail || "Menunggu update…") + '</b>' + (j.error ? " · " + escapeHtml(j.error) : "") + '</p>' +
         '<div class="job-progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><span class="progress-number">' + progress + '%</span></div>' +
         '<div class="job-meta"><span>Update ' + formatAge(j.updated_at) + '</span><span>·</span><span>' + escapeHtml(phase.detail || "") + '</span>' + (stale ? '<span class="stale-warning">⚠ Tidak ada update terbaru</span>' : "") + '</div>' +
+        ((j.status === "queued" || j.status === "processing") ? '<button class="stop-button" data-stop-id="' + escapeHtml(j.id) + '" type="button">Stop proses</button>' : "") +
       '</div></article>';
   }).join("") || '<div class="empty-state">Belum ada job. Pilih campaign untuk memulai.</div>';
+  document.querySelectorAll(".stop-button").forEach((button) => button.addEventListener("click", () => {
+    const job = state.jobs.find((item) => item.id === button.dataset.stopId);
+    cancelJob(job);
+  }));
 }
 async function loadJobs() {
   if (cfg.DEMO_MODE) return;
