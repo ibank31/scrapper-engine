@@ -44,6 +44,7 @@ Implemented in the current working change:
 - Review queue and dashboard now expose semantic decision, hook/context/payoff/completeness scores, and the model reason.
 - `core/media_signals.py`: optional local FFmpeg/ffprobe signals for source quality, silence/voice activity, scene changes, duplicate hashes, sponsor/bumper hints, and transcript-label speaker framing.
 - `worker/run_job.py`: source preflight now runs before Whisper, writes `source-preflight.json`, and excludes only sources with no usable video/audio or less than 1.5 seconds.
+- `core/campaign_exclusions.py` and `worker/sync_campaigns.py`: deterministic gambling/money-game exclusions run before detail hydration and AI analysis. Matching campaigns are marked `blocked` with `EXCLUDED:GAMBLING_OR_MONEY_GAME` and are not eligible for the active list or auto-queue.
 - Exact duplicate sources are recorded with `duplicate_of` and skipped before transcription; the first source remains authoritative for processing.
 - `core/clip_candidates.py`: silence and scene signals apply a bounded advisory score adjustment only; Whisper-derived `start` and `end` remain unchanged.
 - `CLIPPER_MEDIA_SIGNAL_BUDGET_SECONDS` defaults to 8 seconds per candidate. If the optional FFmpeg probes exceed the budget, the remaining optional probe is skipped and metadata records `budget_exceeded`.
@@ -54,7 +55,7 @@ Implemented in the current working change:
 - `scripts/evaluate_semantic_fixture.py`: reproducible decision/risk accuracy report against the checked-in semantic corpus.
 - `.github/workflows/semantic-fixture.yml`: manual Qwen verification path that does not dispatch or process a production job.
 
-The full suite currently passes: **64 tests**. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
+The full suite currently passes: **69 tests**. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
 
 ## Model and fallback policy
 
