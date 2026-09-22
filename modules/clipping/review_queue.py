@@ -33,6 +33,15 @@ def _thumbnail(video: str, output: str) -> None:
 def _checklist(plan: dict, validation: dict) -> list[str]:
     production = plan.get("production") or {}
     tasks = ["Review the full video for factual accuracy, pacing, and platform suitability."]
+    mandatory = []
+    for requirement in (plan.get("source_of_truth") or {}).get("requirements") or []:
+        if isinstance(requirement, dict) and requirement.get("isMandatory"):
+            mandatory.append(str(requirement.get("text") or "").strip())
+    for requirement in (plan.get("source_of_truth") or {}).get("normalized_requirements") or []:
+        if isinstance(requirement, dict) and requirement.get("mandatory"):
+            mandatory.append(str(requirement.get("text") or "").strip())
+    for requirement in dict.fromkeys(x for x in mandatory if x):
+        tasks.append("MANDATORY campaign requirement: " + requirement)
     if production.get("watermark_required"):
         tasks.append("Confirm the official watermark is present in the required position, opacity, and duration.")
     if production.get("no_third_party_watermark"):

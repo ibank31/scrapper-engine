@@ -4,6 +4,7 @@ import unittest
 
 from core.captioning import build_cues, clean_words, write_srt
 from core.visual_crop import _piecewise
+from modules.clipping.validate import editorial_checks
 
 
 class RenderQualityTest(unittest.TestCase):
@@ -39,6 +40,11 @@ class RenderQualityTest(unittest.TestCase):
     def test_crop_expression_escapes_function_commas(self):
         expression = _piecewise([0, 10, 20], 2, 0)
         self.assertIn("\\,", expression)
+
+    def test_editorial_gate_rejects_incomplete_short_clip(self):
+        issues = editorial_checks({"duration": 5.4, "text": "They're gonna help guide you"})
+        self.assertTrue(any("too short" in issue for issue in issues))
+        self.assertTrue(any("mid-thought" in issue for issue in issues))
 
 
 if __name__ == "__main__":

@@ -25,6 +25,16 @@ class ReviewQueueTest(unittest.TestCase):
         self.assertGreaterEqual(len(checklist), 5)
         self.assertIn("check the final frame", checklist)
 
+    def test_mandatory_source_rule_is_visible(self):
+        plan = {
+            "source_of_truth": {
+                "requirements": [{"text": "Include demographic information", "isMandatory": True}]
+            },
+            "production": {},
+        }
+        checklist = _checklist(plan, {"review": []})
+        self.assertIn("MANDATORY campaign requirement: Include demographic information", checklist)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -213,8 +213,8 @@ def main() -> None:
         run([sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)], check=False)
         validation = json.loads(validation_path.read_text(encoding="utf-8"))
         results = validation.get("results") or []
-        if results and all(item.get("status") == "fail" for item in results) and any((item.get("relevance") or {}).get("status") == "blocked" for item in results):
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Semua kandidat diblokir karena tidak relevan dengan campaign")
+        if results and all(item.get("status") == "fail" for item in results):
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Semua kandidat gagal quality/compliance gate; source perlu momen yang lebih utuh")
             return
         review_dir = workspace / "review"
         run([sys.executable, "run.py", "review_queue", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--validation", str(validation_path), "--rendered-dir", str(render_dir), "--out-dir", str(review_dir)])

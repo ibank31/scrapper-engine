@@ -6,11 +6,28 @@ import argparse
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 from fractions import Fraction
 
 from core.relevance import check_candidate
+
+
+def editorial_checks(candidate: dict | None) -> list[str]:
+    """Reject clips that are technically valid but obviously incomplete edits."""
+    if not candidate:
+        return []
+    text = " ".join(str(candidate.get("text") or "").split())
+    duration = float(candidate.get("duration") or 0)
+    issues: list[str] = []
+    if duration < 8:
+        issues.append(f"editorial clip too short: {duration:.1f}s; requires a complete thought")
+    if re.match(r"^(and|but|so|because|they|they're|it|this|that|which)\b", text.lower()):
+        issues.append("editorial clip starts mid-thought; no self-contained hook")
+    if text and not re.search(r"[.!?]$", text):
+        issues.append("editorial clip ends without a completed spoken sentence")
+    return issues
 
 
 def probe(path: str) -> dict:
@@ -19,7 +36,7 @@ def probe(path: str) -> dict:
     return json.loads(result.stdout)
 
 
-def check_video(path: str, plan: dict | None, relevance: dict | None = None) -> dict:
+def check_video(path: str, plan: dict | None, relevance: dict | None = None, candidate: dict | None = None) -> dict:
     issues: list[str] = []
     review: list[str] = []
     try:
@@ -51,6 +68,7 @@ def check_video(path: str, plan: dict | None, relevance: dict | None = None) -> 
     elif str(audios[0].get("sample_rate") or "") != "48000":
         issues.append(f"expected 48 kHz audio, got {audios[0].get('sample_rate')} Hz")
     production = (plan or {}).get("production") or {}
+    issues.extend(editorial_checks(candidate))
     if production.get("watermark_required"):
         review.append("visually verify the official watermark asset, position, opacity, and full-duration coverage")
     if production.get("no_third_party_watermark"):
@@ -80,7 +98,8 @@ def main() -> None:
     args = ap.parse_args()
     plan = json.load(open(args.plan, encoding="utf-8")) if args.plan else None
     candidates = json.load(open(args.candidates, encoding="utf-8")) if args.candidates else {"candidates": []}
-    relevance_by_rank = {int(x.get("rank", 0)): check_candidate(plan or {}, x) for x in candidates.get("candidates", [])}
+    candidate_by_rank = {int(x.get("rank", 0)): x for x in candidates.get("candidates", [])}
+    relevance_by_rank = {rank: check_candidate(plan or {}, candidate) for rank, candidate in candidate_by_rank.items()}
     paths = list(args.video)
     if args.glob_pattern:
         paths.extend(sorted(glob.glob(args.glob_pattern)))
@@ -93,7 +112,7 @@ def main() -> None:
             relevance = relevance_by_rank.get(int(stem))
         except ValueError:
             relevance = None
-        results.append(check_video(path, plan, relevance))
+        results.append(check_video(path, plan, relevance, candidate_by_rank.get(int(stem)) if stem.isdigit() else None))
     payload = {"schema_version": 1, "plan": args.plan, "results": results}
     out = args.out or "validation.json"
     json.dump(payload, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
