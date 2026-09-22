@@ -34,9 +34,11 @@ The repository regression suite passes **64 tests**. The conservative visual spe
 
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
+`scripts/benchmark_media_signals.py` runs a synthetic 24-second source with video and audio. The current local baseline is **116.8 ms preflight** and **494.7 ms for candidate signals**, with the 8-second budget not exceeded and the candidate interval unchanged at `2.0–18.0`. The sandbox lacks OpenCV, so the visual result is correctly recorded as `wide-unknown`; this benchmark measures runtime and safety invariants, not speaker-detection accuracy.
+
 ## Next milestone
 
-Next, measure source-processing time and visual-signal behavior on a sufficiently long controlled fixture. Keep the visual heuristic metadata-only until fixture results show stable face-count confidence. Keep Qwen advisory while it trails deterministic baseline. Do not use a five-second incomplete source as a quality benchmark.
+Next, run the same benchmark in the dependency-complete GitHub environment and add a controlled two-face fixture before considering any crop integration. Keep the visual heuristic metadata-only until fixture results show stable face-count confidence. Keep Qwen advisory while it trails deterministic baseline. Do not use a five-second incomplete source as a quality benchmark.
 
 ## Documentation entry points
 
