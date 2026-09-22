@@ -17,7 +17,7 @@ campaign plan -> official assets -> Whisper word timestamps -> candidate windows
 
 The optional semantic model is Qwen2.5-1.5B-Instruct-GGUF Q4_K_M through `llama-cpp-python`. If the model or dependency is unavailable, the deterministic fallback in `core/semantic_ranker.py` keeps the worker running.
 
-Candidate generation now groups Whisper words into sentence/turn units using punctuation and pauses before building windows. Source preflight runs before Whisper and records duration, video/audio presence, resolution, duplicate hash, and exclusion reasons in `source-preflight.json`. Exact duplicate sources are retained in provenance but only the first is transcribed. Optional local media signals record speech density, sponsor/bumper hints, candidate silence/voice activity, FFmpeg scene changes, and transcript speaker-label framing advice. Silence/scene signals apply only a bounded ranking adjustment with `CLIPPER_MEDIA_SIGNAL_BUDGET_SECONDS` protection; they never change timestamps or campaign rules. `tests/fixtures/semantic_cases.json` and `tests/fixtures/media_signal_cases.json` provide regression corpora.
+Candidate generation now groups Whisper words into sentence/turn units using punctuation and pauses before building windows. Source preflight runs before Whisper and records duration, video/audio presence, resolution, duplicate hash, and exclusion reasons in `source-preflight.json`. Exact duplicate sources are retained in provenance but only the first is transcribed. Optional local media signals record speech density, sponsor/bumper hints, candidate silence/voice activity, FFmpeg scene changes, transcript speaker-label framing advice, and an OpenCV face-count framing hint. Silence/scene signals apply only a bounded ranking adjustment with `CLIPPER_MEDIA_SIGNAL_BUDGET_SECONDS` protection; visual speaker confidence is advisory and low confidence always recommends a wide frame. These signals never change timestamps or campaign rules. `tests/fixtures/semantic_cases.json` and `tests/fixtures/media_signal_cases.json` provide regression corpora.
 
 ## Rules and quality behavior
 
@@ -30,13 +30,13 @@ Candidate generation now groups Whisper words into sentence/turn units using pun
 
 ## Verification
 
-The repository regression suite passes **63 tests**. Phase B preflight and conservative media ranking are committed in `b24f592`; Phase A evaluation/fallback observability is in `c36e535`; the sentence-aware quality loop is in `3f4fd58`. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
+The repository regression suite passes **64 tests**. The conservative visual speaker heuristic is committed in `fd366c5`; Phase B preflight/ranking is in `b24f592`; Phase A evaluation/fallback observability is in `c36e535`. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
 
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
 ## Next milestone
 
-Next, measure source-processing time on a sufficiently long controlled fixture, then begin the optional active-speaker visual heuristic. Keep Qwen advisory while it trails deterministic baseline. Do not use a five-second incomplete source as a quality benchmark.
+Next, measure source-processing time and visual-signal behavior on a sufficiently long controlled fixture. Keep the visual heuristic metadata-only until fixture results show stable face-count confidence. Keep Qwen advisory while it trails deterministic baseline. Do not use a five-second incomplete source as a quality benchmark.
 
 ## Documentation entry points
 

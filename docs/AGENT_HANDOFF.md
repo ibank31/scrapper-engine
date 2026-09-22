@@ -47,12 +47,13 @@ Implemented in the current working change:
 - Exact duplicate sources are recorded with `duplicate_of` and skipped before transcription; the first source remains authoritative for processing.
 - `core/clip_candidates.py`: silence and scene signals apply a bounded advisory score adjustment only; Whisper-derived `start` and `end` remain unchanged.
 - `CLIPPER_MEDIA_SIGNAL_BUDGET_SECONDS` defaults to 8 seconds per candidate. If the optional FFmpeg probes exceed the budget, the remaining optional probe is skipped and metadata records `budget_exceeded`.
+- `core/visual_crop.py` exposes `visual_speaker_signal()`, an optional OpenCV face-count heuristic. It is metadata-only for now: one stable face may recommend `speaker-focused`, two or uncertain faces recommend a wide frame, and unavailable/low-confidence detection always recommends `wide-unknown`.
 - Candidate, validation, and review artifacts now retain the media signal payload. Missing tools or source media produce explicit `available: false` metadata and do not stop deterministic clipping.
 - `tests/fixtures/media_signal_cases.json` and `tests/test_media_signals.py`: regression coverage for two-speaker wide framing, dominant-speaker framing, unavailable sources, and source preflight measurements.
 - `scripts/evaluate_semantic_fixture.py`: reproducible decision/risk accuracy report against the checked-in semantic corpus.
 - `.github/workflows/semantic-fixture.yml`: manual Qwen verification path that does not dispatch or process a production job.
 
-The full suite currently passes: **63 tests**. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
+The full suite currently passes: **64 tests**. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
 
 ## Model and fallback policy
 
@@ -95,8 +96,8 @@ Do not trigger a production job merely to test code when the known source is onl
 1. Add optional silence and scene-change signals to the semantic candidate payload.
 2. Add active-speaker heuristics for two-person podcast framing.
 3. Keep the manual Qwen fixture as a regression check; do not promote Qwen to automatic decision authority while it trails the deterministic baseline.
-4. Measure source-processing time on a sufficiently long controlled fixture, then add optional visual active-speaker evidence; keep silence/scene as conservative ranking signals and do not change timestamps.
-5. Improve active-speaker confidence with optional visual evidence; the current heuristic requires transcript speaker labels and recommends a wide frame when confidence is low.
+4. Measure source-processing time and visual-signal behavior on a sufficiently long controlled fixture; keep the visual heuristic metadata-only until confidence is stable.
+5. Improve active-speaker confidence with optional visual evidence; the current heuristic requires transcript speaker labels or face detections and recommends a wide frame when confidence is low.
 6. Re-enable worker authentication only after quality behavior is stable, because the current branch previously disabled it temporarily for debugging.
 
 ## Guardrails
