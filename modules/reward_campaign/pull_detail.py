@@ -4,10 +4,11 @@
 #   python modules/reward_campaign/pull_detail.py <campaign_id_atau_url>
 #   python modules/reward_campaign/pull_detail.py --local file.html
 # Flags: --no-translate --no-download
-import json, re, sys, os
+import json, re, sys, os, subprocess
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from core.fetch import fetch_text, FetchError, DEFAULT_HEADERS
+from core.google_drive import configured as google_drive_configured, download_file_oauth, download_folder_oauth
 from core.nextjs_flight import decode_blob, parse_balanced
 from core.textutil import money
 
@@ -58,11 +59,23 @@ def download_resources(resources, dest):
         print("-> download:", label, "|", url)
         try:
             if "drive.google.com" in url:
-                import gdown
-                if "/folders/" in url:
-                    gdown.download_folder(url=url, output=os.path.join(dest, label), quiet=False, use_cookies=False)
+                if google_drive_configured():
+                    if "/folders/" in url:
+                        status, error, _ = download_folder_oauth(url, os.path.join(dest, label), max_files=3)
+                    else:
+                        status, error = download_file_oauth(url, os.path.join(dest, label))
+                    if status != "downloaded":
+                        raise RuntimeError(error or "Google Drive download failed")
                 else:
-                    gdown.download(url=url, output=os.path.join(dest, label), quiet=False, fuzzy=True)
+                    timeout = max(30, int(os.environ.get("GOOGLE_DRIVE_PUBLIC_TIMEOUT_SECONDS", "180")))
+                    command = [sys.executable, "-m", "gdown"]
+                    if "/folders/" in url:
+                        command += ["--folder", url, "-O", os.path.join(dest, label), "--remaining-ok"]
+                    else:
+                        command += [url, "-O", os.path.join(dest, label), "--fuzzy"]
+                    result = subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
+                    if result.returncode != 0:
+                        raise RuntimeError((result.stderr or result.stdout or f"gdown exit {result.returncode}")[:300])
             else:
                 import requests
                 resp = requests.get(url, headers=DEFAULT_HEADERS, timeout=120, stream=True)

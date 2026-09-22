@@ -54,6 +54,10 @@ jobs:
         env:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_DRIVE_MAX_FILES: "3"
           JOB_ID: ${{ inputs.job_id }}
           PYTHONPATH: ${{ github.workspace }}
           # Fast free defaults for GitHub-hosted CPU runners

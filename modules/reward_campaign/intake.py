@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from core.fetch import DEFAULT_HEADERS, FetchError, fetch_bytes
+from core.google_drive import configured as google_drive_configured, download_file_oauth, download_folder_oauth
 from core.job_workspace import create_workspace, now_iso, read_json, sha256_file, write_json
 
 DIRECT_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a", ".png", ".jpg", ".jpeg", ".webp", ".srt", ".ass"}
@@ -49,12 +50,27 @@ def download_youtube(url: str, destination: str) -> tuple[str, str | None]:
 
 def download_drive(url: str, destination: str, folder: bool = False) -> tuple[str, str | None]:
     try:
-        import gdown
+        if google_drive_configured():
+            if folder:
+                status, error, _ = download_folder_oauth(
+                    url,
+                    destination,
+                    max_files=max(1, int(os.getenv("GOOGLE_DRIVE_MAX_FILES", "3"))),
+                )
+                return status, error
+            return download_file_oauth(url, destination)
+        timeout = max(30, int(os.getenv("GOOGLE_DRIVE_PUBLIC_TIMEOUT_SECONDS", "180")))
+        command = [sys.executable, "-m", "gdown"]
         if folder:
             os.makedirs(destination, exist_ok=True)
-            gdown.download_folder(url=url, output=destination, quiet=True, use_cookies=False)
+            command += ["--folder", url, "-O", destination, "--remaining-ok"]
+        else:
+            command += [url, "-O", destination, "--fuzzy"]
+        completed = subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
+        if completed.returncode != 0:
+            return "failed", (completed.stderr or completed.stdout or f"gdown exit {completed.returncode}")[:300]
+        if folder:
             return ("downloaded", None) if any(Path(destination).rglob("*")) else ("failed", "empty Drive folder")
-        gdown.download(url=url, output=destination, quiet=True, fuzzy=True)
         return ("downloaded", None) if os.path.exists(destination) and os.path.getsize(destination) > 0 else ("failed", "empty Drive file")
     except Exception as exc:
         return "failed", str(exc)[:300]
