@@ -1,0 +1,45 @@
+name: semantic-fixture
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate-qwen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install base dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Install optional local semantic ranker
+        run: |
+          python -m pip install -r requirements-semantic.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+          python - <<'PY'
+          from huggingface_hub import hf_hub_download
+          hf_hub_download(
+              repo_id="Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+              filename="qwen2.5-1.5b-instruct-q4_k_m.gguf",
+              local_dir="/home/runner/.cache/clipper-semantic",
+          )
+          PY
+      - name: Verify Qwen fixture path
+        env:
+          CLIPPER_SEMANTIC_MODEL: /home/runner/.cache/clipper-semantic/qwen2.5-1.5b-instruct-q4_k_m.gguf
+          CLIPPER_SEMANTIC_ENABLED: "true"
+          CLIPPER_SEMANTIC_THREADS: "4"
+        run: |
+          test -s "$CLIPPER_SEMANTIC_MODEL"
+          sha256sum "$CLIPPER_SEMANTIC_MODEL"
+          python scripts/evaluate_semantic_fixture.py --out semantic-evaluation-qwen.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qwen-semantic-evaluation
+          path: semantic-evaluation-qwen.json

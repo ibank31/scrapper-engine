@@ -114,14 +114,14 @@ def _extract_json(text: str) -> dict[str, Any] | None:
             return None
 
 
-def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]] | None:
+def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple[list[dict[str, Any]] | None, str | None]:
     model_path = os.environ.get("CLIPPER_SEMANTIC_MODEL", "").strip()
     if not model_path or os.environ.get("CLIPPER_SEMANTIC_ENABLED", "auto").lower() in {"0", "false", "off"}:
-        return None
+        return None, "model_disabled_or_path_missing"
     try:
         from llama_cpp import Llama
     except ImportError:
-        return None
+        return None, "llama_cpp_unavailable"
     try:
         llm = Llama(model_path=model_path, n_ctx=8192, n_threads=max(1, int(os.environ.get("CLIPPER_SEMANTIC_THREADS", "4"))), verbose=False)
         prompt_data = {
@@ -145,29 +145,39 @@ def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[
         parsed = _extract_json(content)
         results = parsed.get("results") if parsed else None
         if not isinstance(results, list):
-            return None
+            return None, "model_invalid_json_shape"
         by_rank = {int(x.get("rank")): x for x in results if isinstance(x, dict) and str(x.get("rank", "")).isdigit()}
         normalized = []
         for candidate in candidates:
             item = by_rank.get(int(candidate.get("rank") or 0))
             if not item:
-                return None
+                return None, "model_missing_candidate_result"
             item["rank"] = int(candidate.get("rank") or 0)
             normalized.append(item)
-        return normalized
-    except Exception:
-        return None
+        return normalized, None
+    except Exception as exc:
+        return None, f"model_inference_failed:{type(exc).__name__}"
 
 
-def rank_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
+def rank_candidates_with_metadata(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Return candidates with semantic metadata, preserving source timestamps."""
-    model_results = _model_rank(candidates, plan)
+    model_results, fallback_reason = _model_rank(candidates, plan)
     results = model_results or [_deterministic(candidate, plan) for candidate in candidates]
+    runtime = {
+        "schema_version": 1,
+        "engine": "qwen" if model_results is not None else "deterministic",
+        "fallback_used": model_results is None,
+        "fallback_reason": fallback_reason,
+        "candidate_count": len(candidates),
+    }
     by_rank = {int(item.get("rank") or 0): item for item in results}
     ranked: list[dict[str, Any]] = []
     for candidate in candidates:
         item = dict(candidate)
         semantic = by_rank.get(int(candidate.get("rank") or 0), _deterministic(candidate, plan))
+        semantic["engine"] = runtime["engine"]
+        semantic["fallback_used"] = runtime["fallback_used"]
+        semantic["fallback_reason"] = runtime["fallback_reason"]
         item["semantic"] = semantic
         item["score"] = round(float(candidate.get("score") or 0) * 0.35 + float(semantic.get("semantic_score") or 0) / 100 * 0.65, 4)
         ranked.append(item)
@@ -175,7 +185,13 @@ def rank_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> l
     for index, item in enumerate(ranked, 1):
         item["rank"] = index
         item["semantic"]["rank"] = index
+    return ranked, runtime
+
+
+def rank_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """Backward-compatible ranking API; use rank_candidates_with_metadata for diagnostics."""
+    ranked, _runtime = rank_candidates_with_metadata(candidates, plan)
     return ranked
 
 
-__all__ = ["rank_candidates", "SCHEMA"]
+__all__ = ["rank_candidates", "rank_candidates_with_metadata", "SCHEMA"]

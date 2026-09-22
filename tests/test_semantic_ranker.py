@@ -2,7 +2,7 @@ import json
 import os
 import unittest
 
-from core.semantic_ranker import rank_candidates
+from core.semantic_ranker import rank_candidates, rank_candidates_with_metadata
 
 
 class SemanticRankerTest(unittest.TestCase):
@@ -22,6 +22,24 @@ class SemanticRankerTest(unittest.TestCase):
         result = rank_candidates(candidates, plan)[0]
         self.assertEqual(result["semantic"]["decision"], "reject")
         self.assertIn("short_clip", result["semantic"]["risks"])
+
+    def test_fallback_runtime_is_explicit(self):
+        previous = os.environ.get("CLIPPER_SEMANTIC_ENABLED")
+        os.environ["CLIPPER_SEMANTIC_ENABLED"] = "false"
+        try:
+            ranked, runtime = rank_candidates_with_metadata(
+                [{"rank": 1, "start": 0, "end": 20, "duration": 20, "text": "A complete business lesson."}],
+                {"production": {"topic_terms": ["business"]}},
+            )
+        finally:
+            if previous is None:
+                os.environ.pop("CLIPPER_SEMANTIC_ENABLED", None)
+            else:
+                os.environ["CLIPPER_SEMANTIC_ENABLED"] = previous
+        self.assertEqual(runtime["engine"], "deterministic")
+        self.assertTrue(runtime["fallback_used"])
+        self.assertEqual(runtime["fallback_reason"], "model_disabled_or_path_missing")
+        self.assertEqual(ranked[0]["semantic"]["fallback_reason"], runtime["fallback_reason"])
 
     def test_prefers_complete_problem_solution_candidate(self):
         plan = {"production": {"topic_terms": ["business"]}}

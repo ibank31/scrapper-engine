@@ -19,5 +19,18 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
-      - run: python -m unittest discover -s tests -v
+      - name: Run deterministic regression suite
+        env:
+          CLIPPER_SEMANTIC_ENABLED: "false"
+        run: python -m unittest discover -s tests -v
+      - name: Evaluate semantic golden fixture
+        env:
+          CLIPPER_SEMANTIC_ENABLED: "false"
+        run: python scripts/evaluate_semantic_fixture.py --out semantic-evaluation.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deterministic-semantic-evaluation
+          path: semantic-evaluation.json
       - run: node --check cloudflare/api.js
+      - run: node --check web/app.js
