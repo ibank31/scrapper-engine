@@ -1,0 +1,29 @@
+name: preview-cleanup
+
+on:
+  schedule:
+    # Every day at 00:30 Jakarta time (17:30 UTC), after the daily sync window.
+    - cron: "30 17 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete previews older than 24 hours
+        env:
+          CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
+          CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLIPPER_API_URL"
+          test -n "$CLIPPER_WORKER_TOKEN"
+          curl --fail-with-body --max-time 60 -sS -X POST \
+            "$CLIPPER_API_URL/api/maintenance/cleanup-previews" \
+            -H "x-worker-token: $CLIPPER_WORKER_TOKEN" \
+            -H "content-type: application/json"
+          echo

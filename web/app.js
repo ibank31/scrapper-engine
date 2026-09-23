@@ -278,7 +278,7 @@ function renderReviews() {
       '<button class="primary-button review-action" data-review-action="approve">ACC upload manual <span>✓</span></button>' :
       '<span class="review-decision">' + escapeHtml(status.replaceAll("_", " ")) + (r.review_reason ? " · " + escapeHtml(r.review_reason) : "") + "</span>";
     return '<article class="review-card">' +
-      (src ? '<video class="review-video" controls preload="metadata" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
+      (src ? '<video class="review-video" controls preload="none" poster="' + escapeHtml(r.thumbnail_url || "") + '" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
       '<div class="review-body"><span class="status review">' + escapeHtml(status.replaceAll("_", " ").toUpperCase()) + '</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
       '<p>Periksa video penuh, validasi, dan checklist campaign sebelum mengambil keputusan.</p>' +
       '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
@@ -287,6 +287,9 @@ function renderReviews() {
       (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a>' : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
   }).join("") || '<div class="empty-state">Belum ada preview siap review.</div>';
+  document.querySelectorAll("video.review-video").forEach((video) => {
+    video.addEventListener("error", () => video.closest(".review-card")?.classList.add("video-load-error"), { once: true });
+  });
   document.querySelectorAll(".review-action").forEach((button) => button.addEventListener("click", () => {
     const card = button.closest(".review-card");
     const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card);

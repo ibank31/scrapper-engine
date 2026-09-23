@@ -159,9 +159,26 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean);
-    if (parts[0] !== "api") return json({ error: "not_found" }, 404);
-    try {
-      await ensureSchema(env.DB);
+      if (parts[0] !== "api") return json({ error: "not_found" }, 404);
+      try {
+        await ensureSchema(env.DB);
+      if (parts[1] === "maintenance" && parts[2] === "cleanup-previews" && request.method === "POST") {
+        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const oldPreviews = await env.DB.prepare("SELECT id,job_id,video_key,thumbnail_key FROM previews WHERE created_at < ?").bind(cutoff).all();
+        const oldJobs = await env.DB.prepare("SELECT id,manifest_key FROM jobs WHERE created_at < ? AND status IN ('review','blocked','error','cancelled')").bind(cutoff).all();
+        const keys = new Set();
+        for (const row of oldPreviews.results || []) { if (row.video_key) keys.add(row.video_key); if (row.thumbnail_key) keys.add(row.thumbnail_key); }
+        for (const row of oldJobs.results || []) if (row.manifest_key) keys.add(row.manifest_key);
+        if (env.CLIPS && keys.size) await env.CLIPS.delete([...keys]);
+        const statements = [];
+        for (const row of oldPreviews.results || []) statements.push(env.DB.prepare("DELETE FROM preview_events WHERE preview_id=?").bind(row.id));
+        statements.push(env.DB.prepare("DELETE FROM previews WHERE created_at < ?").bind(cutoff));
+        statements.push(env.DB.prepare("DELETE FROM job_stage_events WHERE job_id IN (SELECT id FROM jobs WHERE created_at < ?)").bind(cutoff));
+        statements.push(env.DB.prepare("DELETE FROM jobs WHERE created_at < ? AND status IN ('review','blocked','error','cancelled')").bind(cutoff));
+        if (statements.length) await env.DB.batch(statements);
+        return json({ ok: true, cutoff, deleted_previews: (oldPreviews.results || []).length, deleted_jobs: (oldJobs.results || []).length, deleted_objects: keys.size });
+      }
       if (parts[1] === "campaigns" && parts[2] === "sync" && request.method === "POST") {
         if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now(); let synced = 0;

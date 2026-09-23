@@ -377,7 +377,7 @@ def main() -> None:
             candidate_path = Path(item["transcript"]).parent / f"final-candidate-{global_rank:03d}.json"
             candidate_path.write_text(json.dumps(local_payload, ensure_ascii=False, indent=2), encoding="utf-8")
             local_render = Path(item["transcript"]).parent / f"final-render-{global_rank:03d}"
-            run([sys.executable, "run.py", "render_clips", item["source"], str(candidate_path), "--transcript", item["transcript"], "--plan", plan_path, "--out-dir", str(local_render)])
+            run([sys.executable, "run.py", "render_clips", item["source"], str(candidate_path), "--transcript", item["transcript"], "--plan", plan_path, "--force-subtitles", "--out-dir", str(local_render)])
             rendered = local_render / "clip-001.mp4"
             if rendered.exists():
                 target = render_dir / f"clip-{global_rank:03d}.mp4"
