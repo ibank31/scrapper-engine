@@ -245,9 +245,11 @@ The known failed Backyard job is:
 - Run ID: `35863583776`
 - Previous failure: `records: 4 | downloaded: 4 | failed: 0 | video_sources: 0`, followed by `tidak ada video asset langsung`.
 
-The code fix is **not yet considered production-verified** until this worker is run again and the intake log proves tracker dereference and media discovery, ideally showing non-zero `tracker_rows`, `discovered_media_sources`, `selected_media_sources`, and `video_sources`.
+The generic Sheet resolver is now **production-verified**. Live Pages verification found deployment `e4b739ea-01ce-460f-a3ee-ce594eaf13a6` on `main` commit `592742ed9dc72651167de21566dfe1242f32faee`, with D1/R2 bindings and required production secret names configured. The retry ran as GitHub Actions run `35888149181` and completed successfully. Its intake log reported `records: 6 | downloaded: 6 | failed: 0 | tracker_rows: 60 | media_sources: 56 | selected: 1 | video_sources: 1`.
 
-Important operational distinction: `clipper-worker.yml` is manually dispatchable. A code push does not automatically execute the known production job. Do not mark the Backyard fix as end-to-end successful from CI/Pages success alone.
+The complete trace was: campaign rules PASS; asset intake PASS; source preflight PASS (`source_count=1`, `usable_sources=1`); Whisper PASS (`transcribed=1`); selector PASS (`candidate_count=5`); semantic/rules gates PASS (`semantic_rejects=0`, `hard_policy_rejects=0`, `relevance_blocks=0`); render PASS (`rendered_count=2`); validation PASS (`result_count=2`, `pass_count=2`, both `needs_review`); R2 upload PASS (`preview_count=2`); manual review record PASS. R2 contains two final MP4s, two review MP4s, two thumbnails, and the durable manifest. D1 contains two `pending_review` records, and the job is `review` at 100%. Auto-publish remains disabled.
+
+Important operational distinction: `clipper-worker.yml` remains manually dispatchable. A code push does not automatically execute a job. The two previews still require human verification because campaign relevance is uncertain and the validator requests visual watermark/relevance checks.
 
 ### Exact next action for replacement agent
 
@@ -260,6 +262,6 @@ Do not restart the project audit. Continue from commit `186f938...`.
 5. Inspect the worker run logs and artifacts for Sheet discovery metrics.
 6. If asset discovery succeeds but the worker then fails on Drive permissions, diagnose the specific source permission/download path next. Do not revert the generic Sheet resolver.
 7. If the worker reaches Whisper/selection, continue through render/validation and record the exact first failing stage.
-8. Update this handoff with the actual smoke-test evidence. Do not call the fix production-complete before that evidence exists.
+8. The actual smoke-test evidence is recorded above. Do not alter campaign rules or auto-publish behavior based on this successful run.
 
-The target outcome is not merely “a preview exists.” The target is a traceable chain: **campaign tracker → tracker rows → selected media source → downloaded media → transcription → candidate → render → validation → durable review artifact**.
+The target outcome is now evidenced for this job: **campaign tracker → 60 tracker rows → 56 discovered media sources → 1 selected source → 6 downloaded records → 1 usable video source → transcription → 5 candidates → 2 rendered previews → validation → R2 artifacts → D1 review records**. One telemetry caveat remains: the D1 job row retains historical `run_id` `35863583776` because the job update uses `COALESCE`; stage events and `claimed_by` correctly identify successful run `35888149181`.

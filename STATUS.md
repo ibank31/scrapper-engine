@@ -54,7 +54,7 @@ The final deep audit is recorded in `docs/AGENT_HANDOFF.md`. Do not start anothe
 
 P0 reliability slice completed after the audit: worker-token authentication now fails closed; manual dispatch has an atomic `dispatch_token` claim; every worker atomically claims a queued job before asset intake; and 75 regression tests pass. P1 reliability now adds a partial unique index for one queued/processing job per campaign, runner identity on claims, a 1-hour bounded lease, authenticated stale-claim recovery, structured D1 stage events, and a sanitized durable R2 manifest with preview artifact keys. Remaining P1 work is a known-good non-production end-to-end fixture and live manual trial verification.
 
-Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolves `env.GITHUB_ACTIONS_TOKEN` as empty. The current Cloudflare production deployment was re-verified on 23 September 2026: project `clipper-engine`, production deployment `d463bd66`, commit `3887172`, all Pages stages successful. Clipping remains intentionally **manual-only** through the homepage; only `campaign-sync-ai.yml` runs daily at 00:00 WIB.
+Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolved `env.GITHUB_ACTIONS_TOKEN` as empty in an older deployment. The current production deployment `e4b739ea` has the required secret names configured and successfully dispatched the manual worker. Clipping remains intentionally **manual-only** through the homepage; only `campaign-sync-ai.yml` runs daily at 00:00 WIB.
 
 ## Latest quality implementation — 23 September 2026
 
@@ -71,12 +71,14 @@ The quality-first production changes are in commits `4748e12`, `024c867`, and `3
 Historical design notes and superseded trial/research reports are under `docs/archive/2026-09-22/`.
 
 
-## 23 September 2026 — latest handoff state
+## 23 September 2026 — latest production verification
 
-The known Backyard Breaks production failure was caused by a generic Google Sheets asset-discovery gap. The campaign's Clip Context Tracker contains direct Drive media URLs and row metadata, but the old intake resolver only expanded Google Docs. The generic Sheet resolver is now deployed.
+The known Backyard Breaks production failure was caused by a generic Google Sheets asset-discovery gap. The campaign's Clip Context Tracker contains direct Drive media URLs and row metadata, while the old intake resolver only expanded Google Docs. The generic Sheet resolver is now verified in production.
 
-The fix is not yet end-to-end production-verified. Known job: `0ca3b531-a506-4e51-80f2-ad2e92180641`. Previous worker run `35863583776` reported `records: 4 | downloaded: 4 | failed: 0 | video_sources: 0`. The next worker run must demonstrate non-zero tracker/media/selected/video counts before the issue is considered resolved.
+Live Cloudflare verification confirmed project `clipper-engine`, production branch `main`, Pages deployment `e4b739ea-01ce-460f-a3ee-ce594eaf13a6`, commit `592742ed9dc72651167de21566dfe1242f32faee`, successful Pages stages, D1 `ee8299d2-84e5-433b-b02f-553dcd4aea73`, R2 `clipper-engine-previews`, and production bindings for `DB`, `CLIPS`, and the required secret names. Secret values were not exposed.
 
-The current main head is `186f93814608087c87beb78e34bb6d6725bcdcdf`. Both the GitHub test check and Cloudflare Pages check succeeded for this commit. Cloudflare Pages reported successful deployment to preview `https://e32ee1e6.clipper-engine.pages.dev`.
+The production smoke test for job `0ca3b531-a506-4e51-80f2-ad2e92180641` ran in GitHub Actions run `35888149181` and completed successfully. The worker log proved `records: 6 | downloaded: 6 | failed: 0 | tracker_rows: 60 | media_sources: 56 | selected: 1 | video_sources: 1`. The full trace was successful: campaign rules, asset intake, source preflight (`source_count=1`, `usable_sources=1`), Whisper transcription (`transcribed=1`), selector (`candidate_count=5`), semantic/rules gates (`semantic_rejects=0`, `hard_policy_rejects=0`, `relevance_blocks=0`), render (`rendered_count=2`), validation (`2/2` technical passes), R2 upload (`preview_count=2`), and manual-review record creation.
 
-**Replacement-agent priority:** verify Cloudflare MCP → verify latest deployment → determine whether GitHub workflow dispatch is available → run Backyard smoke test → inspect tracker discovery metrics → continue from the first real runtime failure. Do not redo the entire project audit and do not add unrelated quality features first.
+The job is now `review` at 100% with two `pending_review` previews. R2 contains the two MP4 artifacts, two review MP4s, two thumbnails, and `jobs/0ca3b531-a506-4e51-80f2-ad2e92180641/manifest.json`; D1 contains the corresponding two review records. Auto-publish remains disabled. Both previews are marked `needs_review` because campaign relevance is uncertain and human verification of third-party watermark/relevance remains required.
+
+Operational note: the D1 job row retains the historical `run_id` `35863583776` because the current update uses `COALESCE`; the stage-event rows and `claimed_by` correctly identify the successful run `35888149181`. This metadata issue does not invalidate the completed smoke test, but should be corrected in a future telemetry-focused change rather than by changing campaign behavior.
