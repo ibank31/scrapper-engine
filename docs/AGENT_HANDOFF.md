@@ -3,7 +3,7 @@
 **Updated:** 23 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Production branch:** `main`
-**Latest implementation commit:** `4726b737` — documentation of the Google Sheets asset-intake fix, following `9a9ba780` Google Sheets source resolution and the quality commits `3887172`, `024c867`, and `4748e12`.
+**Latest implementation commit:** `d22dfb3` — restored intake helper after CI verification, following `9a9ba780` Google Sheets source resolution and the quality commits `3887172`, `024c867`, and `4748e12`.
 
 ## Product contract
 
