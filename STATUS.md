@@ -1,6 +1,6 @@
 # Scrapper Engine Status
 
-**Updated:** 23 September 2026
+**Updated:** 23 September 2026 — latest implementation/deployment verification
 **Branch:** `main`
 
 ## Current milestone
@@ -42,7 +42,7 @@ The next integration hardening keeps stage contracts explicit: a cheap asset-dur
 
 ## Verification
 
-The repository regression suite passes **80 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
+The repository regression suite passes **84 tests**. GitHub Actions run `35882633238` completed successfully: `Ran 84 tests in 7.091s`, `OK`. The deterministic semantic fixture reports `4/4` decision matches and `4/4` expected-risk matches (`decision_accuracy=1.0`, `risk_coverage=1.0`). The same run passed the Node syntax checks and semantic fixture workflow steps.
 
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
@@ -58,7 +58,7 @@ Production diagnosis on 22 September 2026 found that the Pages project lists `GI
 
 ## Latest quality implementation — 23 September 2026
 
-The quality-first production changes are in commits `4748e12`, `024c867`, and `3887172`. The latest asset-intake fix is commit `d22dfb3` (restored intake helper after CI compatibility check). The selector now searches multiple editorial duration bands, removes duplicate intervals, and ranks candidates using opening hook, context, payoff timing, completed ending, speech activity, and multi-speaker framing signals. Campaign minimum and maximum duration rules remain authoritative. The renderer uses larger outlined subtitles by default and fails normal rendering when a transcript is absent, so every production preview is captioned. The Cloudflare Pages production deployment was last verified for the prior quality commit `3887172`. Commit `9a9ba780` changes worker-side asset discovery and must be verified through the next production deployment before claiming the fix is live.
+The quality-first production changes are in commits `4748e12`, `024c867`, and `3887172`. The Google Sheets asset-intake fix is implemented in `9a9ba780`; the intake helper compatibility repair is `d22dfb36c3da3fe50636fe768329392dc1309b74`; documentation was updated in `50651193c1ba8113638442e8c7ed77f0a263a703` and `186f93814608087c87beb78e34bb6d6725bcdcdf`. The selector now searches multiple editorial duration bands, removes duplicate intervals, and ranks candidates using opening hook, context, payoff timing, completed ending, speech activity, and multi-speaker framing signals. Campaign minimum and maximum duration rules remain authoritative. The renderer uses larger outlined subtitles by default and fails normal rendering when a transcript is absent, so every production preview is captioned. The Cloudflare Pages production deployment was last verified for the prior quality commit `3887172`. For commit `186f938...`, the GitHub Cloudflare Pages check completed successfully and reported deployment success for project `clipper-engine`; preview deployment `https://e32ee1e6.clipper-engine.pages.dev`. This verifies the Pages deployment pipeline. It does not replace a worker production smoke test.
 
 ## Documentation entry points
 
@@ -69,3 +69,16 @@ The quality-first production changes are in commits `4748e12`, `024c867`, and `3
 - `cloudflare/FREE_COST_POLICY.md` — free-tier limits and storage policy.
 
 Historical design notes and superseded trial/research reports are under `docs/archive/2026-09-22/`.
+
+
+## 23 September 2026 — latest handoff state
+
+The known Backyard Breaks production failure was caused by a generic Google Sheets asset-discovery gap. The campaign's Clip Context Tracker contains direct Drive media URLs and row metadata, but the old intake resolver only expanded Google Docs. The generic Sheet resolver is now deployed.
+
+The fix is not yet end-to-end production-verified. Known job: `0ca3b531-a506-4e51-80f2-ad2e92180641`. Previous worker run `35863583776` reported `records: 4 | downloaded: 4 | failed: 0 | video_sources: 0`. The next worker run must demonstrate non-zero tracker/media/selected/video counts before the issue is considered resolved.
+
+The current main head is `186f93814608087c87beb78e34bb6d6725bcdcdf`. Both the GitHub test check and Cloudflare Pages check succeeded for this commit. Cloudflare Pages reported successful deployment to preview `https://e32ee1e6.clipper-engine.pages.dev`.
+
+**Connector note:** a direct Cloudflare developer MCP execution in the current ChatGPT conversation was rejected by the runtime with `FORBIDDEN: This conversation does not support developer MCPs`. A replacement agent must test its own session for actual Cloudflare MCP support rather than assuming access. Do not treat this as a Cloudflare-account permission failure.
+
+**Replacement-agent priority:** verify Cloudflare MCP → verify latest deployment → determine whether GitHub workflow dispatch is available → run Backyard smoke test → inspect tracker discovery metrics → continue from the first real runtime failure. Do not redo the entire project audit and do not add unrelated quality features first.
