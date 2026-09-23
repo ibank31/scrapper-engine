@@ -249,31 +249,12 @@ The code fix is **not yet considered production-verified** until this worker is 
 
 Important operational distinction: `clipper-worker.yml` is manually dispatchable. A code push does not automatically execute the known production job. Do not mark the Backyard fix as end-to-end successful from CI/Pages success alone.
 
-### Cloudflare connector limitation in the current ChatGPT session
-
-On 23 September 2026, a direct attempt to execute the Cloudflare developer MCP connector was rejected by the ChatGPT runtime with:
-
-`FORBIDDEN: This conversation does not support developer MCPs`.
-
-This is a **conversation/runtime capability limitation**, not evidence that the user's Cloudflare account or token lacks permission. Do not claim direct Cloudflare API access from this session. Available evidence can still include GitHub Actions Cloudflare Pages check-runs and repository configuration, but that is not equivalent to unrestricted Cloudflare API access.
-
-A replacement agent should first test whether its session actually supports the Cloudflare developer MCP. If supported, verify directly:
-
-1. Pages project `clipper-engine`, production branch `main`, latest deployment commit/status.
-2. D1 database `ee8299d2-84e5-433b-b02f-553dcd4aea73`.
-3. R2 bucket `clipper-engine-previews`.
-4. Production Worker/Pages environment bindings and required secret presence, without exposing secret values.
-5. Production D1 job `0ca3b531-a506-4e51-80f2-ad2e92180641`.
-6. Then run/trigger the manual worker smoke test if the available GitHub connector supports workflow dispatch.
-
-Never infer Cloudflare runtime state solely from an old deployment, an old job row, or a migration file.
-
 ### Exact next action for replacement agent
 
 Do not restart the project audit. Continue from commit `186f938...`.
 
 1. Verify current GitHub main head and latest checks.
-2. Verify direct Cloudflare MCP access. If available, inspect live Pages/D1/R2 state.
+2. Verify live Cloudflare Pages/D1/R2 state directly. The replacement agent is expected to have the normal Cloudflare access; do not treat the prior session's connector/runtime limitation as a project issue.
 3. Locate the worker workflow and determine whether workflow dispatch is writable through the GitHub connector.
 4. Run the known Backyard production job only after confirming the current code is deployed.
 5. Inspect the worker run logs and artifacts for Sheet discovery metrics.
