@@ -58,6 +58,16 @@ function workerAuthorized(request, env) {
   const bearer = request.headers.get("authorization") || "";
   return request.headers.get("x-worker-token") === env.WORKER_TOKEN || bearer === `Bearer ${env.WORKER_TOKEN}`;
 }
+async function cleanupAuthorized(request, env) {
+  if (workerAuthorized(request, env)) return true;
+  const token = request.headers.get("x-github-token") || "";
+  if (!token) return false;
+  const repo = env.GITHUB_REPOSITORY || "ibank31/scrapper-engine";
+  const response = await fetch(`https://api.github.com/repos/${repo}`, {
+    headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "clipper-preview-cleanup" }
+  });
+  return response.ok;
+}
 async function workerOrDispatchAuthorized(request, env, jobId) {
   if (workerAuthorized(request, env)) return true;
   const dispatchToken = request.headers.get("x-dispatch-token") || "";
@@ -163,7 +173,7 @@ export default {
       try {
         await ensureSchema(env.DB);
       if (parts[1] === "maintenance" && parts[2] === "cleanup-previews" && request.method === "POST") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        if (!(await cleanupAuthorized(request, env))) return json({ error: "cleanup_unauthorized" }, 401);
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const oldPreviews = await env.DB.prepare("SELECT id,job_id,video_key,thumbnail_key FROM previews WHERE created_at < ?").bind(cutoff).all();
         const oldJobs = await env.DB.prepare("SELECT id,manifest_key FROM jobs WHERE created_at < ? AND status IN ('review','blocked','error','cancelled')").bind(cutoff).all();
