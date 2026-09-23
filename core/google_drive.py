@@ -165,6 +165,15 @@ class GoogleDriveClient:
             raise GoogleDriveError(f"File Drive {file_id} kosong")
         return total
 
+    def export_file(self, file_id: str, mime_type: str) -> bytes:
+        """Export a Google Workspace file, such as a Sheet, in a supported format."""
+        response = self._request(
+            "GET",
+            f"/files/{file_id}/export",
+            params={"mimeType": mime_type},
+        )
+        return response.content
+
 
 def download_folder_oauth(folder_url: str, destination: str, max_files: int = 3) -> tuple[str, str | None, int]:
     folder_id = extract_drive_id(folder_url)
