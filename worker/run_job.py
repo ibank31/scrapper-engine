@@ -397,9 +397,15 @@ def main() -> None:
         run([sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)], check=False)
         validation = json.loads(validation_path.read_text(encoding="utf-8"))
         results = validation.get("results") or []
-        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "validation", "completed", {"result_count": len(results), "pass_count": sum(1 for item in results if item.get("status") != "fail")})
+        validation_summary = [{
+            "rank": index + 1,
+            "status": item.get("status"),
+            "issues": item.get("issues") or [],
+            "review": item.get("review") or [],
+        } for index, item in enumerate(results)]
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "validation", "completed", {"result_count": len(results), "pass_count": sum(1 for item in results if item.get("status") != "fail"), "results": validation_summary})
         if results and all(item.get("status") == "fail" for item in results):
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Semua kandidat gagal quality/compliance gate; source perlu momen yang lebih utuh")
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Semua kandidat gagal quality/compliance gate; lihat detail validasi per kandidat", json.dumps(validation_summary, ensure_ascii=False))
             return
         review_dir = workspace / "review"
         run([sys.executable, "run.py", "review_queue", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--validation", str(validation_path), "--rendered-dir", str(render_dir), "--out-dir", str(review_dir)])
