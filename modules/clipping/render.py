@@ -47,7 +47,7 @@ def main() -> None:
     out_dir = args.out_dir or os.path.join(os.path.dirname(os.path.abspath(args.candidates)), "renders")
     os.makedirs(out_dir, exist_ok=True)
     try:
-        base_crop = crop_filter(args.input) if not args.static_crop else "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
+        base_crop = f"{crop_filter(args.input)},setsar=1" if not args.static_crop else "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
     except Exception as exc:
         print(f"WARN: face tracking unavailable, using centered crop: {exc}", file=sys.stderr)
         base_crop = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
