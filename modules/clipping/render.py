@@ -42,6 +42,8 @@ def main() -> None:
     production = (plan or {}).get("production") or {}
     # Captions are a machine quality default for spoken short-form video.
     # --no-subtitles remains an explicit troubleshooting escape hatch.
+    if not args.no_subtitles and not transcript:
+        raise SystemExit("transcript wajib tersedia untuk render normal karena subtitle adalah quality policy")
     subtitles_enabled = bool(transcript and not args.no_subtitles)
     if production.get("watermark_required") and not args.watermark:
         raise SystemExit("campaign mewajibkan watermark, tetapi --watermark belum diberikan")
