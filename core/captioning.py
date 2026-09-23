@@ -29,7 +29,7 @@ def clean_words(words: list[dict]) -> list[dict]:
     return result
 
 
-def build_cues(transcript: dict, start: float, end: float, max_words: int = 5, max_chars: int = 30) -> list[dict]:
+def build_cues(transcript: dict, start: float, end: float, max_words: int = 4, max_chars: int = 24) -> list[dict]:
     words: list[dict] = []
     for segment in transcript.get("segments", []):
         ss, ee = float(segment.get("start", 0)), float(segment.get("end", 0))

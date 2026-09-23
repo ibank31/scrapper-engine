@@ -4,6 +4,7 @@ import unittest
 
 from core.captioning import build_cues, clean_words, write_srt
 from core.visual_crop import _piecewise
+from modules.clipping.render import SUBTITLE_STYLE
 from modules.clipping.validate import editorial_checks
 
 
@@ -36,6 +37,13 @@ class RenderQualityTest(unittest.TestCase):
             path = os.path.join(folder, "captions.srt")
             write_srt(transcript, {"start": 0, "end": 2}, path)
             self.assertIn("Hello world", open(path, encoding="utf-8").read())
+
+    def test_subtitle_style_uses_visible_libass_colors(self):
+        self.assertIn("PrimaryColour=&HFFFFFF", SUBTITLE_STYLE)
+        self.assertIn("OutlineColour=&H000000", SUBTITLE_STYLE)
+        self.assertNotIn("PrimaryColour=&H00FFFFFF", SUBTITLE_STYLE)
+        self.assertIn("FontSize=12", SUBTITLE_STYLE)
+        self.assertIn("MarginV=30", SUBTITLE_STYLE)
 
     def test_crop_expression_escapes_function_commas(self):
         expression = _piecewise([0, 10, 20], 2, 0)
