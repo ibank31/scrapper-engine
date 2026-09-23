@@ -27,6 +27,8 @@ The first end-to-end trial was audited against the exact source URLs. Both offic
 
 The Ryan Zofay baseline exposed a separate rule-compilation bug: its prior 5.419-second preview passed because the campaign's `Clip Length: 15–60 seconds` instruction existed only in fetched `docs_text`, which was not included in `compile_plan`. The compiler now includes fetched document text and extracts explicit duration ranges, so the campaign minimum and maximum reach `plan.json` and validation.
 
+Campaign asset intake now resolves Google Sheets trackers before source download. A tracker row can contain the actual Drive/YouTube/media URL plus campaign metadata such as Hype Level and Suggested Hook; the resolver preserves that metadata, ranks tracker candidates before the worker source cap, and records discovery counts in assets.json. Google Sheets are exported through the existing Drive OAuth path when available, with a public CSV fallback. Google Docs and Sheets references discovered inside campaign text are retained as asset references.
+
 The next integration hardening keeps stage contracts explicit: a cheap asset-duration gate runs before Whisper when a campaign has a minimum duration; selector artifacts include transcript span, unit count, bounds, pause budget, and an empty-result reason; short transcript pauses up to three seconds may be bridged without crossing long silence; and semantic ranking is skipped when selection returns no candidates. This prevents avoidable Qwen calls and makes a blocked job explain which stage produced zero output.
 
 ## Rules and quality behavior
@@ -56,7 +58,7 @@ Production diagnosis on 22 September 2026 found that the Pages project lists `GI
 
 ## Latest quality implementation — 23 September 2026
 
-The quality-first production changes are in commits `4748e12`, `024c867`, and `3887172`. The selector now searches multiple editorial duration bands, removes duplicate intervals, and ranks candidates using opening hook, context, payoff timing, completed ending, speech activity, and multi-speaker framing signals. Campaign minimum and maximum duration rules remain authoritative. The renderer uses larger outlined subtitles by default and fails normal rendering when a transcript is absent, so every production preview is captioned. The Cloudflare Pages production deployment was triggered from GitHub `main` at commit `3887172` and completed successfully at `2026-09-23T11:24:40Z`.
+The quality-first production changes are in commits `4748e12`, `024c867`, and `3887172`. The latest asset-intake fix is commit `9a9ba780`. The selector now searches multiple editorial duration bands, removes duplicate intervals, and ranks candidates using opening hook, context, payoff timing, completed ending, speech activity, and multi-speaker framing signals. Campaign minimum and maximum duration rules remain authoritative. The renderer uses larger outlined subtitles by default and fails normal rendering when a transcript is absent, so every production preview is captioned. The Cloudflare Pages production deployment was last verified for the prior quality commit `3887172`. Commit `9a9ba780` changes worker-side asset discovery and must be verified through the next production deployment before claiming the fix is live.
 
 ## Documentation entry points
 
