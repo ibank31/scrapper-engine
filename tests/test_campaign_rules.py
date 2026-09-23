@@ -38,6 +38,14 @@ class CampaignRulesTest(unittest.TestCase):
         self.assertFalse(plan["automation_policy"]["publish_allowed"])
         self.assertTrue(any(g["id"] == "human_review" and g["required"] for g in plan["gates"]))
 
+    def test_keeps_google_sheet_tracker_from_campaign_text(self):
+        tracker = "https://docs.google.com/spreadsheets/d/abc123456789/edit?usp=sharing"
+        plan = compile_plan({
+            "campaign": {"title": "Tracker clipping", "description": f"Use the official tracker: {tracker}"},
+            "staticDetails": {},
+        })
+        self.assertIn(tracker, plan["production"]["asset_urls"])
+
     def test_markdown_contains_gates(self):
         plan = compile_plan({"campaign": {"title": "Empty", "status": "active"}})
         markdown = plan_markdown(plan)
