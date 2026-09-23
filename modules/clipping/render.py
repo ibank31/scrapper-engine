@@ -40,8 +40,9 @@ def main() -> None:
     transcript = json.load(open(args.transcript, encoding="utf-8")) if args.transcript else None
     plan = json.load(open(args.plan, encoding="utf-8")) if args.plan else None
     production = (plan or {}).get("production") or {}
-    subtitles_required = bool(production.get("subtitle_required"))
-    subtitles_enabled = bool(transcript and not args.no_subtitles and (subtitles_required or args.force_subtitles))
+    # Captions are a machine quality default for spoken short-form video.
+    # --no-subtitles remains an explicit troubleshooting escape hatch.
+    subtitles_enabled = bool(transcript and not args.no_subtitles)
     if production.get("watermark_required") and not args.watermark:
         raise SystemExit("campaign mewajibkan watermark, tetapi --watermark belum diberikan")
     out_dir = args.out_dir or os.path.join(os.path.dirname(os.path.abspath(args.candidates)), "renders")

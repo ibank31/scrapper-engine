@@ -307,6 +307,7 @@ def main() -> None:
             run([
                 sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
                 "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", f"{adaptive_max:.3f}", "--limit", "10",
+                "--source", str(source), "--plan", plan_path,
             ])
             local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             selection = local_candidates.get("selection") or {}
@@ -331,6 +332,7 @@ def main() -> None:
                 run([
                     sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
                     "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", "60", "--limit", "10",
+                    "--source", str(source), "--plan", plan_path,
                 ])
                 local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
                 if local_candidates.get("candidates"):

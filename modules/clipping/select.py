@@ -23,7 +23,8 @@ def main() -> None:
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     transcript = json.load(open(args.transcript, encoding="utf-8"))
-    candidates = select_candidates(transcript, args.min_seconds, args.max_seconds, args.limit, source_path=args.source)
+    plan = json.load(open(args.plan, encoding="utf-8")) if args.plan else None
+    candidates = select_candidates(transcript, args.min_seconds, args.max_seconds, args.limit, source_path=args.source, plan=plan)
     out = args.out or os.path.join(os.path.dirname(os.path.abspath(args.transcript)), "candidates.json")
     units = segment_transcript(transcript)
     transcript_span = max((float(segment.get("end", 0)) for segment in transcript.get("segments", [])), default=0.0)
@@ -35,6 +36,7 @@ def main() -> None:
             "min_seconds": args.min_seconds,
             "max_seconds": args.max_seconds,
             "max_gap_seconds": 3.0,
+            "production_policy": "campaign-aware hook/context/payoff/pacing ranking",
             "transcript_span_seconds": round(transcript_span, 3),
             "unit_count": len(units),
             "candidate_count": len(candidates),

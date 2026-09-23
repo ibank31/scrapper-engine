@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from core.media_signals import candidate_signals, media_score_adjustment, source_quality_preflight
+from core.production_policy import enrich_candidate
 
 HOOKS = ("how", "why", "what", "the truth", "nobody", "most people", "the biggest", "here's", "here is", "mistake", "secret")
 SIGNALS = ("because", "but", "however", "instead", "first", "finally", "million", "percent", "%", "$", "step", "lesson", "problem", "solution")
@@ -160,7 +161,7 @@ def segment_transcript(transcript: dict[str, Any]) -> list[dict[str, Any]]:
     return units
 
 
-def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10, source_path: str | None = None, max_gap_seconds: float = 3.0) -> list[dict[str, Any]]:
+def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10, source_path: str | None = None, max_gap_seconds: float = 3.0, plan: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     units = segment_transcript(transcript)
     if not units:
         return []
@@ -206,6 +207,8 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
                         item["media_score_adjustment"] = adjustment
                         item["score"] = round(max(0.0, min(1.0, item["score"] + adjustment)), 4)
                         item["reasons"].extend(signal_reasons)
+                    item = enrich_candidate(item, plan)
+                    item["reasons"].extend(item.get("production_quality_reasons") or [])
                     candidates.append(item)
                 else:
                     break
