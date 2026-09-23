@@ -24,6 +24,7 @@ import requests
 
 from core.relevance import check_candidate
 from core.media_signals import source_quality_preflight
+from core.production_policy import duration_bands
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 MAX_REVIEW_CANDIDATES = 2
@@ -280,8 +281,6 @@ def main() -> None:
         render_dir = workspace / "outputs"
         transcript_root.mkdir(exist_ok=True)
         render_dir.mkdir(exist_ok=True)
-        editorial_min_duration = campaign_min_duration or (8.0 if not campaign_max_duration or campaign_max_duration >= 8.0 else 3.0)
-        editorial_max_duration = campaign_max_duration if campaign_max_duration > 0 else 60.0
         all_candidates = []
         candidate_stats = {"transcribed": 0, "raw_candidates": 0, "semantic_rejects": 0, "hard_policy_rejects": 0, "relevance_blocks": 0}
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "transcription", "started", {"source_count": len(sources)})
@@ -296,22 +295,36 @@ def main() -> None:
             candidate_stats["transcribed"] += 1
             transcript_payload = json.loads((transcript_dir / "transcript.json").read_text(encoding="utf-8"))
             transcript_duration = max((float(segment.get("end", 0)) for segment in transcript_payload.get("segments", [])), default=0.0)
-            # Eight seconds is an editorial floor, not a campaign duration rule.
-            # It prevents the old 3–5 second fallback from producing incomplete posts.
-            if campaign_max_duration:
-                adaptive_min = campaign_min_duration or max(1.0, campaign_max_duration * 0.60)
-                adaptive_max = campaign_max_duration
-            else:
-                adaptive_min = max(editorial_min_duration, min(20.0, transcript_duration * 0.45))
-                adaptive_max = min(editorial_max_duration, max(adaptive_min + 1.0, min(60.0, max(10.0, transcript_duration))))
-            run([
-                sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
-                "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", f"{adaptive_max:.3f}", "--limit", "10",
-                "--source", str(source), "--plan", plan_path,
-            ])
-            local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
-            selection = local_candidates.get("selection") or {}
-            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "selector", "completed", {"source_index": source_index, "candidate_count": len(local_candidates.get("candidates") or []), "diagnostics": selection.get("diagnostics") or {}})
+            bands = duration_bands(plan, transcript_duration)
+            band_candidates: list[dict] = []
+            band_diagnostics: list[dict] = []
+            for band_index, (adaptive_min, adaptive_max) in enumerate(bands, 1):
+                band_path = transcript_dir / f"candidates-band-{band_index:02d}.json"
+                run([
+                    sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
+                    "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", f"{adaptive_max:.3f}", "--limit", "10",
+                    "--source", str(source), "--plan", plan_path, "--out", str(band_path),
+                ])
+                band_payload = json.loads(band_path.read_text(encoding="utf-8"))
+                band_candidates.extend(band_payload.get("candidates") or [])
+                band_diagnostics.append({"min_seconds": adaptive_min, "max_seconds": adaptive_max, "candidate_count": len(band_payload.get("candidates") or [])})
+            unique_candidates: dict[tuple[float, float], dict] = {}
+            for candidate in band_candidates:
+                key = (round(float(candidate.get("start") or 0), 3), round(float(candidate.get("end") or 0), 3))
+                previous = unique_candidates.get(key)
+                if previous is None or float(candidate.get("score") or 0) > float(previous.get("score") or 0):
+                    unique_candidates[key] = candidate
+            band_candidates = sorted(unique_candidates.values(), key=lambda item: (-float(item.get("score") or 0), float(item.get("start") or 0)))
+            for candidate_rank, candidate in enumerate(band_candidates, 1):
+                candidate["rank"] = candidate_rank
+            local_candidates = {
+                "schema_version": 2,
+                "transcript": transcript_payload.get("input"),
+                "selection": {"duration_bands": band_diagnostics, "candidate_count": len(band_candidates)},
+                "candidates": band_candidates,
+            }
+            (transcript_dir / "candidates.json").write_text(json.dumps(local_candidates, ensure_ascii=False, indent=2), encoding="utf-8")
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "selector", "completed", {"source_index": source_index, "duration_bands": band_diagnostics, "candidate_count": len(band_candidates)})
             if local_candidates.get("candidates"):
                 run([
                     sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
@@ -319,28 +332,8 @@ def main() -> None:
                 ])
                 local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             else:
-                local_candidates["semantic_runtime"] = {
-                    "schema_version": 1,
-                    "engine": "skipped",
-                    "fallback_used": False,
-                    "reason": selection.get("reason_if_empty") or "selector_returned_no_candidates",
-                }
+                local_candidates["semantic_runtime"] = {"schema_version": 1, "engine": "skipped", "fallback_used": False, "reason": "no complete candidate in any editorial duration band"}
                 (transcript_dir / "candidates.json").write_text(json.dumps(local_candidates, ensure_ascii=False, indent=2), encoding="utf-8")
-            # A source below the editorial floor is reported as unsuitable rather
-            # than forced into a three-second preview.
-            if not local_candidates.get("candidates") and transcript_duration >= adaptive_min and adaptive_max < 60:
-                run([
-                    sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
-                    "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", "60", "--limit", "10",
-                    "--source", str(source), "--plan", plan_path,
-                ])
-                local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
-                if local_candidates.get("candidates"):
-                    run([
-                        sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
-                        "--plan", plan_path,
-                    ])
-                    local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
             for local_item in local_candidates.get("candidates", []):
                 candidate_stats["raw_candidates"] += 1
                 semantic = local_item.get("semantic") or {}

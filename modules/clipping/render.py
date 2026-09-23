@@ -61,7 +61,7 @@ def main() -> None:
             if subtitles_enabled:
                 subtitle_path = os.path.join(temp, f"{rank:03d}.srt")
                 write_srt(transcript, item, subtitle_path)
-                subtitle_style = "FontName=DejaVu Sans,FontSize=24,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=430,MarginL=90,MarginR=90,WrapStyle=2"
+                subtitle_style = "FontName=DejaVu Sans,FontSize=42,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=4,Shadow=1,Alignment=2,MarginV=430,MarginL=90,MarginR=90,WrapStyle=2"
                 filters.append("subtitles='" + _escape_filter_path(subtitle_path) + "':force_style='" + subtitle_style + "'")
             command = ["ffmpeg", "-y", "-ss", str(item["start"]), "-t", str(item["duration"]), "-i", args.input]
             if args.watermark:

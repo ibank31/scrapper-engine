@@ -1,6 +1,6 @@
 import unittest
 
-from core.production_policy import enrich_candidate, score_production_candidate
+from core.production_policy import duration_bands, enrich_candidate, score_production_candidate
 
 
 class ProductionPolicyTest(unittest.TestCase):
@@ -23,6 +23,17 @@ class ProductionPolicyTest(unittest.TestCase):
         delta, reasons = score_production_candidate({"duration": 30, "text": "What happened? The answer is clear."}, plan)
         self.assertLess(delta, 0)
         self.assertIn("outside production duration bounds", reasons)
+
+    def test_duration_bands_search_multiple_editorial_shapes(self):
+        bands = duration_bands({}, 55)
+        self.assertGreaterEqual(len(bands), 3)
+        self.assertTrue(all(low <= high <= 55 for low, high in bands))
+
+    def test_duration_bands_never_exceed_campaign_maximum(self):
+        plan = {"production": {"min_duration_seconds": 7, "max_duration_seconds": 15}}
+        bands = duration_bands(plan, 60)
+        self.assertTrue(bands)
+        self.assertTrue(all(high <= 15 for _, high in bands))
 
 
 if __name__ == "__main__":

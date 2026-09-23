@@ -47,6 +47,32 @@ def effective_bounds(plan: dict[str, Any] | None) -> tuple[float, float]:
     return min(minimum, maximum), maximum
 
 
+def duration_bands(plan: dict[str, Any] | None, transcript_duration: float) -> list[tuple[float, float]]:
+    """Return editorial duration bands to search before final ranking.
+
+    Campaign bounds always win. The bands create alternatives instead of
+    assuming that the first valid 20–60 second window is the best edit.
+    """
+    minimum, maximum = effective_bounds(plan)
+    available = max(0.0, float(transcript_duration or 0))
+    maximum = min(maximum, available) if available else maximum
+    if maximum < minimum:
+        return []
+    raw = [(minimum, min(maximum, 18.0)),
+           (max(minimum, 18.0), min(maximum, 35.0)),
+           (max(minimum, 30.0), min(maximum, 50.0)),
+           (max(minimum, 45.0), maximum)]
+    bands: list[tuple[float, float]] = []
+    for low, high in raw:
+        low, high = round(low, 3), round(high, 3)
+        if high < low or high - low < 0.75:
+            continue
+        pair = (low, high)
+        if pair not in bands:
+            bands.append(pair)
+    return bands
+
+
 def _duration_score(duration: float, minimum: float, maximum: float) -> tuple[float, str]:
     """Prefer compact complete clips without enforcing a universal duration."""
     if duration < minimum or duration > maximum:
@@ -156,4 +182,4 @@ def enrich_candidate(candidate: dict[str, Any], plan: dict[str, Any] | None = No
     return enriched
 
 
-__all__ = ["effective_bounds", "enrich_candidate", "score_production_candidate"]
+__all__ = ["duration_bands", "effective_bounds", "enrich_candidate", "score_production_candidate"]
