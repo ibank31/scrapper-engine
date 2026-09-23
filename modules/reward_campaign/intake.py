@@ -40,6 +40,12 @@ def _reference_text(url: str) -> tuple[str, str | None]:
         return "", str(exc)[:300]
 
 
+def _reference_urls(url: str) -> list[str]:
+    """Return URLs embedded in a public Google Doc; kept for intake compatibility."""
+    text, _ = _reference_text(url)
+    return [u.rstrip(".,;") for u in URL_RE.findall(text)]
+
+
 def download_youtube(url: str, destination: str) -> tuple[str, str | None]:
     try:
         command = [
