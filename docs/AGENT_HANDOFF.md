@@ -1,9 +1,9 @@
 # Scrapper Engine — Current Agent Handoff
 
-**Updated:** 22 September 2026
+**Updated:** 23 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Production branch:** `main`
-**Latest implementation commit:** `57091ee` — production dispatch diagnostic, following `7cf7059` pipeline stage-contract hardening and `5f2574a` document-only duration-rule enforcement.
+**Latest implementation commit:** `3887172` — mandatory subtitles for normal renders, following `024c867` multi-band quality-first selection and `4748e12` campaign-aware production policy.
 
 ## Product contract
 
@@ -16,7 +16,8 @@ campaign selection
   -> campaign detail and plan compiler
   -> official Drive/YouTube/direct asset intake
   -> faster-whisper word timestamps
-  -> sentence/turn candidate windows
+  -> multi-band sentence/turn candidate windows
+  -> hook/context/payoff/pacing production policy
   -> optional local Qwen subtitle semantic ranking
   -> campaign relevance and duration gates
   -> FFmpeg vertical render with face-aware crop
@@ -37,8 +38,10 @@ Implemented in the current working change:
 - `requirements-semantic.txt`: optional `llama-cpp-python` and `huggingface-hub` dependencies;
 - `.github/workflows/clipper-worker.yml`: CPU model install, Hugging Face cache, Q4_K_M download, and semantic environment variables;
 - `modules/clipping/validate.py`: campaign-aware duration validation;
-- `modules/clipping/render.py`: subtitle output only when required by the campaign or explicitly forced;
-- `core/clip_candidates.py`: stronger boundary and payoff scoring;
+- `modules/clipping/render.py`: mandatory readable subtitles for normal renders; missing transcript is a hard quality failure unless `--no-subtitles` is explicitly used for troubleshooting;
+- `core/production_policy.py`: campaign-bounded duration bands and deterministic hook/context/payoff/pacing/media ranking;
+- `core/clip_candidates.py`: stronger boundary and payoff scoring plus production-policy enrichment;
+- `worker/run_job.py`: searches multiple duration bands, deduplicates intervals, assigns global ranks, then runs semantic ranking and renders the best candidates;
 - `tests/test_semantic_ranker.py`: fallback semantic regression tests and evaluation corpus execution.
 - `tests/fixtures/semantic_cases.json`: evaluation corpus for complete, incomplete, short-cap, and mid-thought candidates.
 - Review queue and dashboard now expose semantic decision, hook/context/payoff/completeness scores, and the model reason.
@@ -58,7 +61,7 @@ Implemented in the current working change:
 - `scripts/evaluate_semantic_fixture.py`: reproducible decision/risk accuracy report against the checked-in semantic corpus.
 - `.github/workflows/semantic-fixture.yml`: manual Qwen verification path that does not dispatch or process a production job.
 
-The full suite currently passes: **72 tests**. The first end-to-end trial's two official videos were technically healthy at 21.333 s and 20.833 s, 1080×1920, HEVC/AAC. The block was editorial: one candidate ended mid-thought and hit `unfinished_sentence`/`short_clip`; the second source yielded no complete candidate. The Ryan Zofay baseline also exposed a document-only duration rule that was previously missed; `compile_plan` now extracts it. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
+The full suite currently passes: **80 tests**. The first end-to-end trial's two official videos were technically healthy at 21.333 s and 20.833 s, 1080×1920, HEVC/AAC. The block was editorial: one candidate ended mid-thought and hit `unfinished_sentence`/`short_clip`; the second source yielded no complete candidate. The Ryan Zofay baseline also exposed a document-only duration rule that was previously missed; `compile_plan` now extracts it. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
 
 ## Model and fallback policy
 
@@ -77,7 +80,7 @@ CLIPPER_SEMANTIC_THREADS=4
 - No candidate below the effective editorial/campaign floor should be forced into a preview.
 - A candidate beginning mid-thought or ending unfinished is rejected before render.
 - Campaign minimum and maximum duration rules override defaults.
-- Subtitle rendering follows `production.subtitle_required`; it is not automatically added to campaigns that do not require it.
+- Subtitle rendering is mandatory for every normal production render when a transcript exists. It uses 42px bold outlined captions for 1080×1920 output. Only explicit `--no-subtitles` troubleshooting may bypass it.
 - Renderer output remains H.264/AAC vertical preview, with face-aware crop when detection is available and deterministic center fallback otherwise.
 - Human approval remains required. The system does not upload or submit to social platforms.
 
@@ -92,7 +95,7 @@ python run.py render_clips source.mp4 candidates.json --transcript transcript.js
 
 ## GitHub Actions
 
-`clipper-worker.yml` runs on schedule every fifteen minutes and can be dispatched with a `job_id`. It installs the base dependencies, installs the optional semantic dependency, caches Whisper and Qwen assets, downloads the Q4_K_M model, and runs `worker/run_job.py`. The worker is still CPU-oriented and may take longer on long sources.
+`clipper-worker.yml` is manually dispatchable with a `job_id`; the current workflow file does not define a fifteen-minute schedule. It installs the base dependencies, installs the optional semantic dependency, caches Whisper and Qwen assets, downloads the Q4_K_M model, and runs `worker/run_job.py`. The worker is still CPU-oriented and may take longer on long sources.
 
 Do not trigger a production job merely to test code when the known source is only a five-second incomplete excerpt. Use the local regression suite or a campaign with a source long enough to contain a complete moment.
 

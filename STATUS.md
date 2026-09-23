@@ -1,6 +1,6 @@
 # Scrapper Engine Status
 
-**Updated:** 22 September 2026
+**Updated:** 23 September 2026
 **Branch:** `main`
 
 ## Current milestone
@@ -10,9 +10,11 @@ The campaign-aware clipping pipeline is operational through manual review. It su
 The current quality path is:
 
 ```text
-campaign plan -> official assets -> Whisper word timestamps -> candidate windows
+campaign plan -> official assets -> Whisper word timestamps
+-> multi-band candidate windows (compact/dialogue/story)
+-> deterministic hook/context/payoff/pacing policy
 -> Qwen subtitle semantic ranker when available -> rules/relevance gates
--> vertical render -> technical/editorial validation -> manual review
+-> mandatory readable subtitles -> vertical render -> technical/editorial validation -> manual review
 ```
 
 The optional semantic model is Qwen2.5-1.5B-Instruct-GGUF Q4_K_M through `llama-cpp-python`. If the model or dependency is unavailable, the deterministic fallback in `core/semantic_ranker.py` keeps the worker running.
@@ -33,12 +35,12 @@ The next integration hardening keeps stage contracts explicit: a cheap asset-dur
 - Campaign duration bounds override defaults.
 - Without campaign bounds, the default editorial floor is 8 seconds and the ceiling is 60 seconds.
 - Mid-thought, unfinished, and structurally incomplete candidates are rejected before rendering.
-- Subtitle rendering follows `production.subtitle_required` rather than a global default.
+- Subtitle rendering is mandatory for every normal production render when a transcript exists; `--no-subtitles` is reserved for explicit troubleshooting.
 - Human approval and manual posting remain mandatory; auto-publish is disabled.
 
 ## Verification
 
-The repository regression suite passes **72 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
+The repository regression suite passes **80 tests**. The deterministic golden fixture reports **100% decision accuracy and 100% expected-risk coverage** across four cases. Required checks also pass: `node --check web/app.js`, `node --check cloudflare/api.js`, `python3 -m py_compile ...`, and `git diff --check`.
 
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
@@ -50,7 +52,11 @@ The final deep audit is recorded in `docs/AGENT_HANDOFF.md`. Do not start anothe
 
 P0 reliability slice completed after the audit: worker-token authentication now fails closed; manual dispatch has an atomic `dispatch_token` claim; every worker atomically claims a queued job before asset intake; and 75 regression tests pass. P1 reliability now adds a partial unique index for one queued/processing job per campaign, runner identity on claims, a 1-hour bounded lease, authenticated stale-claim recovery, structured D1 stage events, and a sanitized durable R2 manifest with preview artifact keys. Remaining P1 work is a known-good non-production end-to-end fixture and live manual trial verification.
 
-Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolves `env.GITHUB_ACTIONS_TOKEN` as empty. Clipping is intentionally **manual-only** through the homepage; only `campaign-sync-ai.yml` runs daily at 00:00 WIB. Until the Pages Function receives the token at runtime, the API reports a configuration error and does not leave a job waiting for a nonexistent clipping schedule.
+Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolves `env.GITHUB_ACTIONS_TOKEN` as empty. The current Cloudflare production deployment was re-verified on 23 September 2026: project `clipper-engine`, production deployment `d463bd66`, commit `3887172`, all Pages stages successful. Clipping remains intentionally **manual-only** through the homepage; only `campaign-sync-ai.yml` runs daily at 00:00 WIB.
+
+## Latest quality implementation — 23 September 2026
+
+The quality-first production changes are in commits `4748e12`, `024c867`, and `3887172`. The selector now searches multiple editorial duration bands, removes duplicate intervals, and ranks candidates using opening hook, context, payoff timing, completed ending, speech activity, and multi-speaker framing signals. Campaign minimum and maximum duration rules remain authoritative. The renderer uses larger outlined subtitles by default and fails normal rendering when a transcript is absent, so every production preview is captioned. The Cloudflare Pages production deployment was triggered from GitHub `main` at commit `3887172` and completed successfully at `2026-09-23T11:24:40Z`.
 
 ## Documentation entry points
 
