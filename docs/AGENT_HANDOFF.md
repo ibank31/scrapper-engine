@@ -3,7 +3,7 @@
 **Updated:** 23 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Production branch:** `main`
-**Latest implementation commit:** `d22dfb3` — restored intake helper after CI verification, following `9a9ba780` Google Sheets source resolution and the quality commits `3887172`, `024c867`, and `4748e12`.
+**Latest implementation commit:** `186f93814608087c87beb78e34bb6d6725bcdcdf` — documentation update after the Google Sheets intake fix and CI verification. The implementation fix is `9a9ba780`; compatibility repair is `d22dfb36c3da3fe50636fe768329392dc1309b74`; subsequent documentation commits are `50651193c1ba8113638442e8c7ed77f0a263a703` and `186f93814608087c87beb78e34bb6d6725bcdcdf`.
 
 ## Product contract
 
@@ -199,3 +199,86 @@ Every worker calls authenticated `/api/jobs/:id/claim` before downloading or tra
 Verification after this slice: **75 tests pass**, Python compilation/compileall pass, `node --check cloudflare/api.js` and `node --check web/app.js` pass, `pip check` reports no broken requirements, and `git diff --check` passes. This does not yet solve the job-creation check-then-insert race, stale claim recovery, structured stage telemetry, or durable manifest storage; those remain the next P1 items. Do not claim the entire reliability program is complete merely because P0 dispatch/claim is implemented.
 
 Operational requirement: the GitHub Actions secret `CLIPPER_WORKER_TOKEN` must equal the Cloudflare Pages Production secret `WORKER_TOKEN`. The production API also needs `GITHUB_ACTIONS_TOKEN` for manual dispatch. Never put either secret value in logs or documentation. Scheduled workers use an ephemeral claim token when no dispatch token exists.
+
+
+## Session handoff — 23 September 2026: Google Sheets tracker fix and connector limitation
+
+### Verified implementation state
+
+The Backyard Breaks failure was traced to a generic asset-discovery gap, not a campaign-specific failure. The campaign uses a Google Sheet named **Backyard Breaks – Clip Context Tracker** as the source of truth for clip links and context. The sheet contains direct Google Drive media URLs plus metadata such as Hype Level, Suggested Hook, card value, and rarity. The previous intake implementation handled Google Docs but did not dereference Google Sheets, so the worker could download the reference documents while still reporting `video_sources: 0`.
+
+The generic fix is now implemented:
+
+- `core/google_sheets.py` detects Google Sheets, exports CSV through Drive OAuth when available, falls back to public CSV export, parses rows, extracts supported media URLs, preserves row metadata, and ranks candidates using Hype Level, Suggested Hook, and numeric value.
+- `core/google_drive.py` supports Google Workspace file export.
+- `modules/reward_campaign/intake.py` dereferences Sheet trackers, stores tracker rows, carries provenance into `assets.json`, reports tracker/discovery/selection counts, and selects media by tracker priority rather than alphabetical URL order.
+- Google Docs behavior remains intact.
+- The fix is campaign-generic. Do not add a Backyard-specific URL list or campaign-id special case.
+- Current resolver limitation: CSV export covers the first Sheet tab. Multi-tab Sheets API range traversal remains future hardening.
+
+### Verification evidence
+
+Current `main` head is `186f93814608087c87beb78e34bb6d6725bcdcdf`.
+
+GitHub Actions run `35882633238` completed successfully:
+
+```
+Ran 84 tests in 7.091s
+OK
+
+semantic fixture:
+case_count=4
+decision_matches=4
+risk_matches=4
+decision_accuracy=1.0
+risk_coverage=1.0
+```
+
+For commit `186f938...`, both the test check and the Cloudflare Pages check completed successfully. The Cloudflare Pages check reports a successful deployment of project `clipper-engine` for commit `186f938...`, with preview deployment `https://e32ee1e6.clipper-engine.pages.dev`. This verifies the Pages deployment pipeline, but the preview URL was not independently rendered through the web reader.
+
+### Production smoke-test status
+
+The known failed Backyard job is:
+
+- Job: `0ca3b531-a506-4e51-80f2-ad2e92180641`
+- Previous worker run: `clipper-worker #45`
+- Run ID: `35863583776`
+- Previous failure: `records: 4 | downloaded: 4 | failed: 0 | video_sources: 0`, followed by `tidak ada video asset langsung`.
+
+The code fix is **not yet considered production-verified** until this worker is run again and the intake log proves tracker dereference and media discovery, ideally showing non-zero `tracker_rows`, `discovered_media_sources`, `selected_media_sources`, and `video_sources`.
+
+Important operational distinction: `clipper-worker.yml` is manually dispatchable. A code push does not automatically execute the known production job. Do not mark the Backyard fix as end-to-end successful from CI/Pages success alone.
+
+### Cloudflare connector limitation in the current ChatGPT session
+
+On 23 September 2026, a direct attempt to execute the Cloudflare developer MCP connector was rejected by the ChatGPT runtime with:
+
+`FORBIDDEN: This conversation does not support developer MCPs`.
+
+This is a **conversation/runtime capability limitation**, not evidence that the user's Cloudflare account or token lacks permission. Do not claim direct Cloudflare API access from this session. Available evidence can still include GitHub Actions Cloudflare Pages check-runs and repository configuration, but that is not equivalent to unrestricted Cloudflare API access.
+
+A replacement agent should first test whether its session actually supports the Cloudflare developer MCP. If supported, verify directly:
+
+1. Pages project `clipper-engine`, production branch `main`, latest deployment commit/status.
+2. D1 database `ee8299d2-84e5-433b-b02f-553dcd4aea73`.
+3. R2 bucket `clipper-engine-previews`.
+4. Production Worker/Pages environment bindings and required secret presence, without exposing secret values.
+5. Production D1 job `0ca3b531-a506-4e51-80f2-ad2e92180641`.
+6. Then run/trigger the manual worker smoke test if the available GitHub connector supports workflow dispatch.
+
+Never infer Cloudflare runtime state solely from an old deployment, an old job row, or a migration file.
+
+### Exact next action for replacement agent
+
+Do not restart the project audit. Continue from commit `186f938...`.
+
+1. Verify current GitHub main head and latest checks.
+2. Verify direct Cloudflare MCP access. If available, inspect live Pages/D1/R2 state.
+3. Locate the worker workflow and determine whether workflow dispatch is writable through the GitHub connector.
+4. Run the known Backyard production job only after confirming the current code is deployed.
+5. Inspect the worker run logs and artifacts for Sheet discovery metrics.
+6. If asset discovery succeeds but the worker then fails on Drive permissions, diagnose the specific source permission/download path next. Do not revert the generic Sheet resolver.
+7. If the worker reaches Whisper/selection, continue through render/validation and record the exact first failing stage.
+8. Update this handoff with the actual smoke-test evidence. Do not call the fix production-complete before that evidence exists.
+
+The target outcome is not merely “a preview exists.” The target is a traceable chain: **campaign tracker → tracker rows → selected media source → downloaded media → transcription → candidate → render → validation → durable review artifact**.
