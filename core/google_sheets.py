@@ -10,8 +10,8 @@ from urllib.parse import urlparse
 from core.fetch import DEFAULT_HEADERS, fetch_bytes
 from core.google_drive import GoogleDriveClient, configured as google_drive_configured
 
-URL_RE = re.compile(r"https?://[^\s<>\]\\)\\\"]+", re.I)
-SHEET_RE = re.compile(r"docs\\.google\\.com/spreadsheets/d/([A-Za-z0-9_-]+)", re.I)
+URL_RE = re.compile(r"https?://[^\s<>]+", re.I)
+SHEET_RE = re.compile(r"docs\.google\.com/spreadsheets/d/([A-Za-z0-9_-]+)", re.I)
 MEDIA_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a"}
 
 
