@@ -224,4 +224,38 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
     return selected
 
 
-__all__ = ["segment_transcript", "select_candidates"]
+def _candidate_tokens(candidate: dict[str, Any]) -> set[str]:
+    return set(re.findall(r"[a-z0-9$%]+", str(candidate.get("text") or "").lower()))
+
+
+def candidates_are_near_duplicates(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    """Detect previews that would look the same to a human reviewer."""
+    if str(left.get("source") or "") != str(right.get("source") or ""):
+        return False
+    left_start, left_end = float(left.get("start") or 0), float(left.get("end") or 0)
+    right_start, right_end = float(right.get("start") or 0), float(right.get("end") or 0)
+    intersection = max(0.0, min(left_end, right_end) - max(left_start, right_start))
+    shortest = max(0.001, min(left_end - left_start, right_end - right_start))
+    if intersection / shortest >= 0.45:
+        return True
+    left_tokens, right_tokens = _candidate_tokens(left), _candidate_tokens(right)
+    if left_tokens and right_tokens:
+        similarity = len(left_tokens & right_tokens) / max(1, len(left_tokens | right_tokens))
+        if similarity >= 0.82 and abs((left_end - left_start) - (right_end - right_start)) <= 12:
+            return True
+    return False
+
+
+def select_distinct_candidates(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """Keep high-scoring candidates while preventing duplicate-looking previews."""
+    selected: list[dict[str, Any]] = []
+    for item in sorted(items, key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0))):
+        if any(candidates_are_near_duplicates(item, chosen) for chosen in selected):
+            continue
+        selected.append(item)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+__all__ = ["segment_transcript", "select_candidates", "candidates_are_near_duplicates", "select_distinct_candidates"]

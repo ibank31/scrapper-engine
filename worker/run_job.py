@@ -25,6 +25,7 @@ import requests
 from core.relevance import check_candidate
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
+from core.clip_candidates import select_distinct_candidates
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 MAX_REVIEW_CANDIDATES = 2
@@ -362,8 +363,13 @@ def main() -> None:
                 _candidate_audit_reason(candidate_stats, len(preflight_records), len(sources)),
             )
             return
-        all_candidates.sort(key=lambda item: (-float(item["candidate"].get("score", 0)), item["candidate"].get("start", 0)))
-        selected = all_candidates[:MAX_REVIEW_CANDIDATES]
+        distinct_pool = [dict(item["candidate"], source=item["source"], _item_index=index) for index, item in enumerate(all_candidates)]
+        distinct = select_distinct_candidates(distinct_pool, MAX_REVIEW_CANDIDATES)
+        selected = [all_candidates[int(item["_item_index"])] for item in distinct]
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "selected", {
+            "selected_count": len(selected),
+            "duplicate_candidates_removed": max(0, len(all_candidates) - len(distinct)),
+        })
         final_candidates = []
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "started", {"selected_count": len(selected)})
         for global_rank, item in enumerate(selected, 1):

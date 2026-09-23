@@ -3,6 +3,7 @@ import tempfile
 import unittest
 
 from core.captioning import build_cues, clean_words, is_emphasis_word, write_ass, write_srt
+from core.clip_candidates import candidates_are_near_duplicates, select_distinct_candidates
 from core.visual_crop import _piecewise
 from modules.clipping.validate import editorial_checks
 
@@ -49,12 +50,20 @@ class RenderQualityTest(unittest.TestCase):
             write_ass(transcript, {"start": 0, "end": 3}, path)
             rendered = open(path, encoding="utf-8").read()
             self.assertIn("PlayResX: 1080", rendered)
-            self.assertIn("&H0B9EF5&", rendered)
-            self.assertIn("&HD6F4FF", rendered)
-            self.assertEqual(rendered.count("&H0B9EF5&"), 1)
+            self.assertIn("&HE9FF6F&", rendered)
+            self.assertIn("&HFFE8F3&", rendered)
+            self.assertIn("Fontsize, PrimaryColour", rendered)
+            self.assertEqual(rendered.count("&HE9FF6F&"), 1)
         self.assertTrue(is_emphasis_word("free"))
         self.assertTrue(is_emphasis_word("$500"))
         self.assertFalse(is_emphasis_word("the"))
+
+    def test_distinct_preview_filter_removes_overlapping_windows(self):
+        first = {"source": "source-a.mp4", "start": 10, "end": 45, "score": 0.9, "text": "The big reveal is free and nobody expected it"}
+        duplicate = {"source": "source-a.mp4", "start": 12, "end": 47, "score": 0.8, "text": "The big reveal is free and nobody expected it"}
+        different = {"source": "source-a.mp4", "start": 60, "end": 95, "score": 0.7, "text": "Here is the lesson and the answer changes everything"}
+        self.assertTrue(candidates_are_near_duplicates(first, duplicate))
+        self.assertEqual(select_distinct_candidates([first, duplicate, different], 2), [first, different])
 
     def test_crop_expression_escapes_function_commas(self):
         expression = _piecewise([0, 10, 20], 2, 0)

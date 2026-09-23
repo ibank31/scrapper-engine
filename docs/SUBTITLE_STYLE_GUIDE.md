@@ -21,18 +21,18 @@ Subtitle menggunakan satu atau dua baris sebagai default. Tiga baris hanya digun
 
 Panduan BBC untuk subtitle video vertikal menyarankan area tengah sekitar 75% secara vertikal dan 90% secara horizontal. Panduan tersebut juga mengizinkan sampai tiga baris untuk video vertikal, tetapi praktik produksi ini memilih satu atau dua baris sebagai default karena lebih ringan dan lebih aman terhadap UI [4].
 
-## Palet yang digunakan
+## Palet global dan ukuran baru
 
-Permintaan untuk menghindari putih murni dan hitam murni diterapkan sebagai berikut:
+Palet amber sebelumnya diganti karena terlalu datar dan tidak cukup selaras dengan visual neon campaign. Renderer global sekarang menggunakan kombinasi violet-cyan yang lebih energik:
 
 | Peran | Warna | Fungsi |
 |---|---|---|
-| Base caption | `#FFF4D6` | Krem hangat yang lebih berkarakter daripada putih murni. |
-| Outline | `#18283B` | Navy gelap untuk pemisahan dari footage, bukan hitam murni. |
-| Emphasis | `#F59E0B` | Amber untuk kata penting seperti “free”, “insane”, angka, nominal, dan klaim utama. |
-| Optional backing | `#111827` dengan opacity tinggi | Panel atau pill ketika footage terlalu ramai. |
+| Base caption | `#F3E8FF` | Lavender terang untuk body caption. |
+| Outline | `#21103D` | Deep violet untuk pemisahan dari footage. |
+| Emphasis | `#6FFFE9` | Electric cyan-lime untuk kata penting dan payoff. |
+| Optional backing | `#21103D` dengan opacity tinggi | Panel atau pill ketika footage terlalu ramai. |
 
-Hue tidak boleh menjadi satu-satunya pembawa makna. Kata emphasis harus tetap dapat dipahami ketika video dilihat dalam grayscale. Karena itu, kata tersebut juga diberi bold atau perubahan weight. Kontras minimum yang dijadikan target adalah 4.5:1 untuk teks biasa dan 3:1 hanya untuk teks yang benar-benar memenuhi kriteria large text [5] [6].
+Ukuran font global dinaikkan dari 42 menjadi 48 pada canvas 1080 × 1920. Margin bawah juga dinaikkan agar baseline tetap berada di lower-middle dan tidak masuk ke UI bawah. Hue tidak boleh menjadi satu-satunya pembawa makna. Kata emphasis tetap diberi bold sehingga pesan tidak hilang dalam grayscale. Kontras minimum yang dijadikan target adalah 4.5:1 untuk teks biasa dan 3:1 hanya untuk teks yang benar-benar memenuhi kriteria large text [5] [6].
 
 ## Aturan kata penekanan
 
@@ -40,7 +40,11 @@ Renderer menandai paling banyak dua kata per cue agar penekanan tidak berubah me
 
 Penekanan hanya dipakai pada unit semantik terkecil yang penting. Seluruh kalimat tidak diberi warna amber. Kata emphasis disinkronkan dengan ucapan, tetap terbaca tanpa warna, dan tidak menggunakan flicker cepat. Jika cue berisi banyak kata menarik, sistem tetap membatasi aksen agar hierarki visual tidak runtuh.
 
-Kata-kata tersebut adalah baseline heuristik, bukan klasifikasi bahasa yang sempurna. Tahap berikutnya dapat menambahkan daftar istilah per campaign atau memilih emphasis berdasarkan struktur kalimat, angka, tanda seru, dan payoff kandidat.
+Kata-kata tersebut adalah baseline heuristik global, bukan konfigurasi khusus Backyard Breaks. Semua campaign yang melewati renderer yang sama akan mendapatkan style, ukuran, dan emphasis ini. Tahap berikutnya dapat menambahkan daftar istilah per campaign atau memilih emphasis berdasarkan struktur kalimat, angka, tanda seru, dan payoff kandidat.
+
+## Pencegahan preview duplikat
+
+Pipeline sebelumnya mengambil dua kandidat dengan skor tertinggi setelah setiap duration band, tetapi hanya menghapus duplikat dengan start dan end yang persis sama. Akibatnya, dua window yang sangat overlap dapat tampil sebagai dua preview walaupun secara visual hampir sama. Pipeline global sekarang membandingkan source asset, rasio overlap waktu, dan kemiripan token transcript. Kandidat kedua dibuang jika overlap-nya minimal 45% dari window yang lebih pendek atau kemiripan teksnya sangat tinggi dengan durasi yang hampir sama. Dengan begitu, dua preview yang dikirim ke review queue harus mewakili bagian video yang berbeda.
 
 ## Verifikasi yang wajib dilakukan
 
