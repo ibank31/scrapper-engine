@@ -337,7 +337,12 @@ export default {
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "GET") {
         const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
-        return json({ previews: result.results || [] });
+        const previews = await Promise.all((result.results || []).map(async (preview) => ({
+          ...preview,
+          download_url: preview.video_key ? await previewUrl(request, env, preview.video_key, 3600) : preview.download_url,
+          thumbnail_url: preview.thumbnail_key ? await previewUrl(request, env, preview.thumbnail_key, 3600) : null,
+        })));
+        return json({ previews });
       }
       if (parts[1] === "previews" && parts[2] && parts[3] === "url" && request.method === "GET") {
         if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
@@ -404,8 +409,26 @@ export default {
           const expected = expires > Math.floor(Date.now() / 1000) ? await previewSignature(env.PREVIEW_SIGNING_SECRET, key, expires) : "";
           if (!expected || provided.length !== expected.length || provided !== expected) return json({ error: "preview_url_expired" }, 403);
         }
-        const object = await env.CLIPS.get(key); if (!object) return json({ error: "file_not_found" }, 404);
-        const headers = new Headers(cors); object.writeHttpMetadata(headers); headers.set("etag", object.httpEtag); return new Response(object.body, { headers });
+        const rangeHeader = request.headers.get("range");
+        let range = null;
+        if (rangeHeader) {
+          const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeHeader.trim());
+          if (!match) return new Response(null, { status: 416, headers: { ...cors, "content-range": "bytes */*" } });
+          const start = match[1] === "" ? null : Number(match[1]);
+          const end = match[2] === "" ? null : Number(match[2]);
+          if ((start !== null && !Number.isSafeInteger(start)) || (end !== null && !Number.isSafeInteger(end))) return new Response(null, { status: 416, headers: cors });
+          range = start === null ? { suffix: end } : { offset: start, ...(end === null ? {} : { length: end - start + 1 }) };
+        }
+        const object = await env.CLIPS.get(key, range ? { range } : undefined); if (!object) return json({ error: "file_not_found" }, 404);
+        const headers = new Headers(cors); object.writeHttpMetadata(headers); headers.set("etag", object.httpEtag); headers.set("accept-ranges", "bytes");
+        if (rangeHeader && object.range) {
+          const offset = object.range.offset || 0;
+          const length = object.range.length || object.size;
+          headers.set("content-range", `bytes ${offset}-${offset + length - 1}/${object.size}`);
+          headers.set("content-length", String(length));
+          return new Response(object.body, { status: 206, headers });
+        }
+        return new Response(object.body, { headers });
       }
       if (parts[1] === "jobs" && parts[2] && request.method === "PATCH") {
         if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
