@@ -100,7 +100,7 @@ async function ensureSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status)").run();
   const previewInfo = await db.prepare("PRAGMA table_info(previews)").all();
   const previewColumns = new Set((previewInfo.results || []).map((row) => row.name));
-  for (const [name, definition] of Object.entries({ review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT" })) {
+  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT" })) {
     if (!previewColumns.has(name)) await db.prepare("ALTER TABLE previews ADD COLUMN " + name + " " + definition).run();
   }
   await db.prepare("CREATE TABLE IF NOT EXISTS preview_events (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, from_status TEXT, to_status TEXT NOT NULL, action TEXT NOT NULL, reason TEXT, actor TEXT, created_at TEXT NOT NULL)").run();
@@ -175,10 +175,10 @@ export default {
       if (parts[1] === "maintenance" && parts[2] === "cleanup-previews" && request.method === "POST") {
         if (!(await cleanupAuthorized(request, env))) return json({ error: "cleanup_unauthorized" }, 401);
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const oldPreviews = await env.DB.prepare("SELECT id,job_id,video_key,thumbnail_key FROM previews WHERE created_at < ?").bind(cutoff).all();
+        const oldPreviews = await env.DB.prepare("SELECT id,job_id,video_key,review_video_key,thumbnail_key FROM previews WHERE created_at < ?").bind(cutoff).all();
         const oldJobs = await env.DB.prepare("SELECT id,manifest_key FROM jobs WHERE created_at < ? AND status IN ('review','blocked','error','cancelled')").bind(cutoff).all();
         const keys = new Set();
-        for (const row of oldPreviews.results || []) { if (row.video_key) keys.add(row.video_key); if (row.thumbnail_key) keys.add(row.thumbnail_key); }
+        for (const row of oldPreviews.results || []) { if (row.video_key) keys.add(row.video_key); if (row.review_video_key) keys.add(row.review_video_key); if (row.thumbnail_key) keys.add(row.thumbnail_key); }
         for (const row of oldJobs.results || []) if (row.manifest_key) keys.add(row.manifest_key);
         if (env.CLIPS && keys.size) await env.CLIPS.delete([...keys]);
         const statements = [];
@@ -363,9 +363,10 @@ export default {
         return json({ job: row });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
+        const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         const previews = await Promise.all((result.results || []).map(async (preview) => ({
           ...preview,
+          video_url: preview.review_video_key ? await previewUrl(request, env, preview.review_video_key, 3600) : null,
           download_url: preview.video_key ? await previewUrl(request, env, preview.video_key, 3600) : preview.download_url,
           thumbnail_url: preview.thumbnail_key ? await previewUrl(request, env, preview.thumbnail_key, 3600) : null,
         })));
@@ -416,7 +417,7 @@ export default {
         if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now();
         for (const preview of body.previews || []) {
-          await env.DB.prepare("INSERT OR REPLACE INTO previews (id,job_id,rank,status,video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, JSON.stringify(preview.checklist || []), timestamp).run();
+          await env.DB.prepare("INSERT OR REPLACE INTO previews (id,job_id,rank,status,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.video_key || null, preview.review_video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, JSON.stringify(preview.checklist || []), timestamp).run();
         }
         await env.DB.prepare("UPDATE jobs SET status='review',progress=100,message=?,updated_at=? WHERE id=?").bind(`${(body.previews || []).length} preview siap review`, timestamp, parts[2]).run();
         return json({ ok: true });

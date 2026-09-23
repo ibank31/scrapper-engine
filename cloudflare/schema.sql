@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS previews (
   rank INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending_review',
   video_key TEXT,
+  review_video_key TEXT,
   thumbnail_key TEXT,
   download_url TEXT,
   validation_json TEXT NOT NULL DEFAULT '{}',

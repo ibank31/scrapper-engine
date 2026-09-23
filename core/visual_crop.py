@@ -52,8 +52,15 @@ def detect_centers(path: str, sample_seconds: float = 0.5) -> tuple[int, int, fl
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(max(30, width // 12), max(30, height // 12)))
         if len(faces):
-            x, y, w, h = max(faces, key=lambda item: item[2] * item[3])
-            last = (float(x + w / 2), float(y + h * 0.48))
+            if len(faces) >= 2:
+                left = min(int(face[0]) for face in faces)
+                right = max(int(face[0] + face[2]) for face in faces)
+                top = min(int(face[1]) for face in faces)
+                bottom = max(int(face[1] + face[3]) for face in faces)
+                last = (float((left + right) / 2), float(top + (bottom - top) * 0.48))
+            else:
+                x, y, w, h = max(faces, key=lambda item: item[2] * item[3])
+                last = (float(x + w / 2), float(y + h * 0.48))
         centers.append(last)
     cap.release()
     if not centers:

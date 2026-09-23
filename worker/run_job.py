@@ -417,6 +417,10 @@ def main() -> None:
             video_path = review_dir / item["video"]; thumbnail_path = review_dir / item["thumbnail"] if item.get("thumbnail") else None
             prefix = f"jobs/{args.job_id}/clip-{int(item['rank']):03d}"
             video_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(video_path), prefix + ".mp4", "video/mp4")
+            review_path = review_dir / f"review-{int(item['rank']):03d}.mp4"
+            run(["ffmpeg", "-y", "-i", str(video_path), "-vf", "scale=720:1280:flags=lanczos,setsar=1", "-c:v", "libx264", "-preset", "veryfast", "-crf", "27", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-ar", "48000", "-movflags", "+faststart", str(review_path)])
+            review_prefix = prefix + ".review.mp4"
+            review_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(review_path), review_prefix, "video/mp4")
             thumb_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(thumbnail_path), prefix + ".jpg", "image/jpeg") if thumbnail_path and thumbnail_path.exists() else None
             validation_payload = dict(item.get("validation", {}))
             validation_payload.pop("path", None)
@@ -429,7 +433,7 @@ def main() -> None:
             validation_payload["video_codec"] = metadata.get("video_codec_name")
             validation_payload["audio_codec"] = metadata.get("audio_codec_name")
             validation_payload["semantic"] = item.get("semantic") or {}
-            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "checklist": item.get("checklist", [])})
+            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "checklist": item.get("checklist", [])})
             manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "artifact_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
         manifest = {"schema_version": 1, "job_id": args.job_id, "run_id": run_id, "source_preflight": {"source_count": len(preflight_records), "usable_sources": len(sources), "records": [{"source_asset_id": Path(item.get("source", "")).name, "quality": item.get("quality", {}), "duplicate_of": Path(item["duplicate_of"]).name if item.get("duplicate_of") else None, "excluded_before_transcription": item.get("excluded_before_transcription", False)} for item in preflight_records]}, "transcript_summary": {"source_count": candidate_stats["transcribed"]}, "selector": candidate_stats, "validation": {"result_count": len(results), "statuses": [item.get("status") for item in results]}, "review": {"item_count": len(manifest_previews), "items": manifest_previews}}
         manifest_path = workspace / "manifest.json"
