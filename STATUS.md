@@ -79,6 +79,4 @@ The fix is not yet end-to-end production-verified. Known job: `0ca3b531-a506-4e5
 
 The current main head is `186f93814608087c87beb78e34bb6d6725bcdcdf`. Both the GitHub test check and Cloudflare Pages check succeeded for this commit. Cloudflare Pages reported successful deployment to preview `https://e32ee1e6.clipper-engine.pages.dev`.
 
-**Connector note:** a direct Cloudflare developer MCP execution in the current ChatGPT conversation was rejected by the runtime with `FORBIDDEN: This conversation does not support developer MCPs`. A replacement agent must test its own session for actual Cloudflare MCP support rather than assuming access. Do not treat this as a Cloudflare-account permission failure.
-
 **Replacement-agent priority:** verify Cloudflare MCP → verify latest deployment → determine whether GitHub workflow dispatch is available → run Backyard smoke test → inspect tracker discovery metrics → continue from the first real runtime failure. Do not redo the entire project audit and do not add unrelated quality features first.
