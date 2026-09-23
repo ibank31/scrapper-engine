@@ -5,10 +5,19 @@ from __future__ import annotations
 import re
 
 FILLERS = {"um", "uh", "erm", "mm", "mhm", "hmm"}
+EMPHASIS_WORDS = {
+    "absolutely", "back", "big", "case", "crazy", "free", "hit", "huge", "insane",
+    "never", "rare", "stop", "viral", "wow", "yes",
+}
 
 
 def _token(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip())
+
+
+def is_emphasis_word(text: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9$%.-]", "", text.lower())
+    return normalized in EMPHASIS_WORDS or bool(re.search(r"(?:\$\d|\d+[kKmM]?\b)", normalized))
 
 
 def clean_words(words: list[dict]) -> list[dict]:
@@ -53,12 +62,12 @@ def build_cues(transcript: dict, start: float, end: float, max_words: int = 4, m
     for word in words:
         candidate = chars + len(word["word"]) + (1 if bucket else 0)
         if bucket and (len(bucket) >= max_words or candidate > max_chars):
-            cues.append({"start": bucket[0]["start"] - start, "end": bucket[-1]["end"] - start, "text": " ".join(w["word"] for w in bucket)})
+            cues.append({"start": bucket[0]["start"] - start, "end": bucket[-1]["end"] - start, "text": " ".join(w["word"] for w in bucket), "words": list(bucket)})
             bucket, chars = [], 0
         bucket.append(word)
         chars += len(word["word"]) + (1 if chars else 0)
     if bucket:
-        cues.append({"start": bucket[0]["start"] - start, "end": bucket[-1]["end"] - start, "text": " ".join(w["word"] for w in bucket)})
+        cues.append({"start": bucket[0]["start"] - start, "end": bucket[-1]["end"] - start, "text": " ".join(w["word"] for w in bucket), "words": list(bucket)})
     return cues
 
 
@@ -78,3 +87,40 @@ def write_srt(transcript: dict, candidate: dict, path: str) -> list[dict]:
     with open(path, "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines))
     return cues
+
+
+def _ass_escape(text: str) -> str:
+    return _token(text).replace("{", "(").replace("}", ")")
+
+
+def write_ass(transcript: dict, candidate: dict, path: str) -> list[dict]:
+    """Write styled ASS captions with restrained semantic word emphasis."""
+    cues = build_cues(transcript, float(candidate["start"]), float(candidate["end"]))
+    lines = [
+        "[Script Info]", "ScriptType: v4.00+", "PlayResX: 1080", "PlayResY: 1920", "",
+        "[V4+ Styles]", "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        "Style: Default,DejaVu Sans,42,&HD6F4FF,&HD6F4FF,&H18283B,&H18283B,1,0,0,0,100,100,0,0,1,2,1,2,80,80,690,1", "",
+        "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+    for index, cue in enumerate(cues, 1):
+        styled_words = []
+        highlighted = 0
+        for word in cue.get("words", []):
+            text = _ass_escape(word["word"])
+            if is_emphasis_word(text) and highlighted < 2:
+                text = r"{\c&H0B9EF5&\b1}" + text + r"{\c&H D6F4FF&\b0}".replace(" ", "")
+                highlighted += 1
+            styled_words.append(text)
+        text = " ".join(styled_words) or _ass_escape(cue["text"])
+        lines.append(f"Dialogue: 0,{_ass_time(cue['start'])},{_ass_time(cue['end'])},Default,,0,0,0,,{text}")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+    return cues
+
+
+def _ass_time(seconds: float) -> str:
+    total = max(0, int(round(seconds * 100)))
+    hours, remainder = divmod(total, 360000)
+    minutes, remainder = divmod(remainder, 6000)
+    seconds_part, centiseconds = divmod(remainder, 100)
+    return f"{hours}:{minutes:02d}:{seconds_part:02d}.{centiseconds:02d}"

@@ -2,9 +2,8 @@ import os
 import tempfile
 import unittest
 
-from core.captioning import build_cues, clean_words, write_srt
+from core.captioning import build_cues, clean_words, is_emphasis_word, write_ass, write_srt
 from core.visual_crop import _piecewise
-from modules.clipping.render import SUBTITLE_STYLE
 from modules.clipping.validate import editorial_checks
 
 
@@ -38,12 +37,24 @@ class RenderQualityTest(unittest.TestCase):
             write_srt(transcript, {"start": 0, "end": 2}, path)
             self.assertIn("Hello world", open(path, encoding="utf-8").read())
 
-    def test_subtitle_style_uses_visible_libass_colors(self):
-        self.assertIn("PrimaryColour=&HFFFFFF", SUBTITLE_STYLE)
-        self.assertIn("OutlineColour=&H000000", SUBTITLE_STYLE)
-        self.assertNotIn("PrimaryColour=&H00FFFFFF", SUBTITLE_STYLE)
-        self.assertIn("FontSize=12", SUBTITLE_STYLE)
-        self.assertIn("MarginV=30", SUBTITLE_STYLE)
+    def test_ass_captions_have_safe_profile_and_limited_emphasis(self):
+        transcript = {"segments": [{"start": 0, "end": 3, "words": [
+            {"start": 0, "end": 0.7, "word": "This"},
+            {"start": 0.7, "end": 1.4, "word": "is"},
+            {"start": 1.4, "end": 2.1, "word": "a"},
+            {"start": 2.1, "end": 3, "word": "free"},
+        ]}]}
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "captions.ass")
+            write_ass(transcript, {"start": 0, "end": 3}, path)
+            rendered = open(path, encoding="utf-8").read()
+            self.assertIn("PlayResX: 1080", rendered)
+            self.assertIn("&H0B9EF5&", rendered)
+            self.assertIn("&HD6F4FF", rendered)
+            self.assertEqual(rendered.count("&H0B9EF5&"), 1)
+        self.assertTrue(is_emphasis_word("free"))
+        self.assertTrue(is_emphasis_word("$500"))
+        self.assertFalse(is_emphasis_word("the"))
 
     def test_crop_expression_escapes_function_commas(self):
         expression = _piecewise([0, 10, 20], 2, 0)
