@@ -3,7 +3,7 @@
 **Updated:** 23 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Production branch:** `main`
-**Latest implementation commit:** `3887172` — mandatory subtitles for normal renders, following `024c867` multi-band quality-first selection and `4748e12` campaign-aware production policy.
+**Latest implementation commit:** `4726b737` — documentation of the Google Sheets asset-intake fix, following `9a9ba780` Google Sheets source resolution and the quality commits `3887172`, `024c867`, and `4748e12`.
 
 ## Product contract
 
@@ -50,6 +50,11 @@ Implemented in the current working change:
 - `core/campaign_exclusions.py` and `worker/sync_campaigns.py`: deterministic gambling/money-game exclusions run before detail hydration and AI analysis. Matching campaigns are marked `blocked` with `EXCLUDED:GAMBLING_OR_MONEY_GAME` and are not eligible for the active list or auto-queue.
 - `worker/run_job.py`: live campaign status is checked before asset intake; zero-candidate blocks now include counts for usable sources, transcription, raw candidates, semantic rejects, hard-policy rejects, and relevance blocks.
 - `core/campaign_rules.py`: fetched `docs_text` is included in plan compilation and explicit clip/video duration ranges such as `15–60 seconds` are extracted when AI rules omit them. This fixes the Ryan Zofay baseline where a 5.419-second preview bypassed the document-only duration rule.
+- `core/google_sheets.py`: generic Google Sheets asset resolver exports the tracker through Drive OAuth when available and falls back to public CSV export, extracts supported media URLs from tracker rows, preserves row metadata, and ranks tracker rows using Hype Level, Suggested Hook, and value.
+- `core/google_drive.py`: existing Drive client can export Google Workspace files to supported MIME types, including Google Sheets CSV.
+- `modules/reward_campaign/intake.py`: dereferences Google Sheet trackers before media discovery, carries tracker provenance into assets.json, reports tracker/discovery counts, and no longer marks unreadable Google Docs as successfully downloaded. Source selection no longer alphabetically discards the campaign tracker’s preferred rows.
+- `tests/test_google_sheets.py`: regression coverage for Sheet detection, CSV parsing, media URL extraction, and tracker priority.
+- `core/campaign_rules.py`: Google Docs/Sheets URLs found in campaign text are now retained as production asset references.
 - `core/clip_candidates.py`, `modules/clipping/select.py`, and `worker/run_job.py`: stage contracts now carry selector diagnostics, bridge transcript units across pauses up to three seconds, gate impossible minimum-duration jobs before Whisper, and skip semantic ranking when the selector has no candidates.
 - Exact duplicate sources are recorded with `duplicate_of` and skipped before transcription; the first source remains authoritative for processing.
 - `core/clip_candidates.py`: silence and scene signals apply a bounded advisory score adjustment only; Whisper-derived `start` and `end` remain unchanged.
@@ -61,7 +66,7 @@ Implemented in the current working change:
 - `scripts/evaluate_semantic_fixture.py`: reproducible decision/risk accuracy report against the checked-in semantic corpus.
 - `.github/workflows/semantic-fixture.yml`: manual Qwen verification path that does not dispatch or process a production job.
 
-The full suite currently passes: **80 tests**. The first end-to-end trial's two official videos were technically healthy at 21.333 s and 20.833 s, 1080×1920, HEVC/AAC. The block was editorial: one candidate ended mid-thought and hit `unfinished_sentence`/`short_clip`; the second source yielded no complete candidate. The Ryan Zofay baseline also exposed a document-only duration rule that was previously missed; `compile_plan` now extracts it. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
+The pre-fix full suite was recorded at **80 tests**. The Google Sheets fix adds dedicated regression coverage; the next GitHub test run should verify the updated suite on main before a production retry. The first end-to-end trial's two official videos were technically healthy at 21.333 s and 20.833 s, 1080×1920, HEVC/AAC. The block was editorial: one candidate ended mid-thought and hit `unfinished_sentence`/`short_clip`; the second source yielded no complete candidate. The Ryan Zofay baseline also exposed a document-only duration rule that was previously missed; `compile_plan` now extracts it. The semantic fixture reports 4/4 decision matches and 4/4 expected-risk matches in deterministic mode. The isolated Qwen workflow loaded the GGUF and produced valid output for 4/4 cases, but matched only 3/4 decisions (75%) while covering 4/4 expected risks. `node --check web/app.js`, `node --check cloudflare/api.js`, Python compilation, and `git diff --check` also pass.
 
 ## Model and fallback policy
 
