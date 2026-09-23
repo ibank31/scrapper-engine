@@ -91,7 +91,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             asset_urls.append(str(resource["url"]))
     for url in urls:
         host = urlparse(url).netloc.lower()
-        if any(x in host for x in ("drive.google", "dropbox", "frame.io", "youtube", "youtu.be", "vimeo")):
+        if any(x in host for x in ("drive.google", "docs.google.com", "dropbox", "frame.io", "youtube", "youtu.be", "vimeo")):
             if url not in asset_urls:
                 asset_urls.append(url)
 
