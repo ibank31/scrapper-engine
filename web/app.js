@@ -263,6 +263,16 @@ async function reviewPreview(preview, action) {
     showToast("Review gagal disimpan: " + error.message);
   }
 }
+async function editCaption(preview) {
+  const text = window.prompt("Caption revision baru (rules wajib tetap terpenuhi):", preview.caption_draft || "");
+  if (text == null || text === preview.caption_draft) return;
+  try {
+    const headers = { "content-type": "application/json" }; if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/caption-revisions", { method: "POST", headers, body: JSON.stringify({ text, fields: { hashtags: (text.match(/#[A-Za-z0-9_]+/g) || []) }, reviewer: cfg.REVIEWER || "manual-user" }) });
+    Object.assign(preview, { caption_draft: response.revision.text, caption_revision_id: response.revision.revision_id, caption_hash: response.revision.caption_hash });
+    renderReviews(); showToast("Caption revision v" + response.revision.revision_number + " tersimpan");
+  } catch (error) { showToast("Caption revision ditolak: " + error.message); }
+}
 async function openBufferUpload(preview) {
   try {
     if (!state.bufferChannels.length) state.bufferChannels = (await api("/api/buffer/channels")).channels || [];
@@ -306,6 +316,8 @@ function renderReviews() {
     const semantic = validation.semantic || {};
     const tierLabel = r.tier === "tier_1" ? "Audience Tier 1" : r.tier === "tier_2" ? "Audience Tier 2" : "Audience belum terklasifikasi";
     const distinctness = parseObject(r.distinctness_json, r.distinctness || {});
+    const subtitle = parseObject(r.subtitle_delivery_json, r.subtitle_delivery || {});
+    const sound = parseObject(r.sound_tags_json, r.sound_tags || {});
     const semanticLine = semantic.semantic_score == null ? "Semantic fallback belum tersedia" :
       "Semantic " + Number(semantic.semantic_score).toFixed(0) + " · Hook " + Number(semantic.hook_score || 0).toFixed(0) + " · Context " + Number(semantic.context_score || 0).toFixed(0) + " · Payoff " + Number(semantic.payoff_score || 0).toFixed(0) + " · Complete " + Number(semantic.completeness_score || 0).toFixed(0);
     const status = String(r.status || "pending_review");
@@ -317,13 +329,13 @@ function renderReviews() {
     return '<article class="review-card">' +
       (src ? '<video class="review-video" controls preload="none" poster="' + escapeHtml(r.thumbnail_url || "") + '" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
       '<div class="review-body"><span class="status review">' + escapeHtml(status.replaceAll("_", " ").toUpperCase()) + '</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
-      '<div class="review-contract"><strong>' + escapeHtml(tierLabel) + '</strong>' + (r.candidate_id ? '<span>Candidate terverifikasi</span>' : '<span>Candidate ID belum tersedia</span>') + (distinctness.distinct ? '<span>Berbeda secara material</span>' : '') + '</div>' +
+      '<div class="review-contract"><strong>' + escapeHtml(tierLabel) + '</strong>' + (r.candidate_id ? '<span>Candidate terverifikasi</span>' : '<span>Candidate ID belum tersedia</span>') + (distinctness.distinct ? '<span>Berbeda secara material</span>' : '') + (subtitle.mode ? '<span>Subtitle: ' + escapeHtml(subtitle.mode) + '</span>' : '') + (sound.status ? '<span>Sound: ' + escapeHtml(sound.status) + '</span>' : '') + '</div>' +
       '<p>Periksa video penuh, validasi, dan checklist campaign sebelum mengambil keputusan.</p>' +
       (r.rules_summary_id ? '<div class="rules-summary"><strong>Ringkasan rules campaign</strong><p>' + escapeHtml(r.rules_summary_id) + '</p></div>' : '') +
-      '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
+      '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption revision ' + escapeHtml(r.caption_revision_id || "draft") + '</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
       '<div class="review-actions">' +
-      (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a>' + (status === "approved_for_manual_post" ? '<button class="primary-button buffer-upload-button" type="button">Upload ke Buffer <span>↗</span></button>' : '') : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
+      (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a>' + ((status === "pending_review" || status === "changes_requested") ? '<button class="secondary-button caption-edit-button" type="button">Edit caption</button>' : '') + (status === "approved_for_manual_post" ? '<button class="primary-button buffer-upload-button" type="button">Upload ke Buffer <span>↗</span></button>' : '') : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
   }).join("") || '<div class="empty-state">Belum ada preview siap review.</div>';
   document.querySelectorAll("video.review-video").forEach((video) => {
@@ -338,6 +350,10 @@ function renderReviews() {
   document.querySelectorAll(".buffer-upload-button").forEach((button) => button.addEventListener("click", () => {
     const card = button.closest(".review-card"); const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card); const preview = state.reviews[index];
     if (preview) openBufferUpload(preview);
+  }));
+  document.querySelectorAll(".caption-edit-button").forEach((button) => button.addEventListener("click", () => {
+    const card = button.closest(".review-card"); const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card); const preview = state.reviews[index];
+    if (preview) editCaption(preview);
   }));
 }
 function showView(name) {

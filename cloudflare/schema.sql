@@ -83,6 +83,10 @@ CREATE TABLE IF NOT EXISTS previews (
   reviewed_at TEXT,
   artifact_hash TEXT,
   distinctness_json TEXT NOT NULL DEFAULT '{}',
+  platform TEXT,
+  platform_profile_json TEXT NOT NULL DEFAULT '{}',
+  subtitle_delivery_json TEXT NOT NULL DEFAULT '{}',
+  sound_tags_json TEXT NOT NULL DEFAULT '{}',
   caption_revision_id TEXT,
   caption_hash TEXT,
   approval_artifact_hash TEXT,
@@ -93,6 +97,25 @@ CREATE TABLE IF NOT EXISTS previews (
   rules_summary_id TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (job_id) REFERENCES jobs(id)
+);
+
+CREATE TABLE IF NOT EXISTS caption_revisions (
+  id TEXT PRIMARY KEY,
+  preview_id TEXT NOT NULL,
+  revision_number INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  fields_json TEXT NOT NULL DEFAULT '{}',
+  platform TEXT NOT NULL,
+  editor TEXT NOT NULL,
+  character_count_method TEXT NOT NULL,
+  character_count INTEGER NOT NULL,
+  caption_hash TEXT NOT NULL,
+  rules_hash TEXT NOT NULL,
+  platform_profile_version TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (preview_id) REFERENCES previews(id),
+  UNIQUE (preview_id, revision_number),
+  UNIQUE (preview_id, caption_hash)
 );
 
 CREATE TABLE IF NOT EXISTS preview_events (

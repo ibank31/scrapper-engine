@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from core.caption_revisions import create_caption_revision
+from core.sound_tags import normalize_sound_tags
 
 
 def _values(value) -> list[str]:
@@ -106,6 +108,15 @@ def build_queue(plan: dict, candidates: dict, validation: dict, rendered_dir: st
     queue = []
     index_lines = ["# Review Queue", "", "Pilih hanya clip yang lolos pemeriksaan teknis dan review manual campaign.", "", "| Rank | Status | Video | Thumbnail |", "|---:|---|---|---|"]
     candidate_by_rank = {int(x.get("rank", 0)): x for x in candidates.get("candidates", [])}
+    subtitle_delivery = {}
+    subtitle_path = Path(rendered_dir) / "subtitle-delivery.json"
+    if subtitle_path.exists():
+        try:
+            subtitle_delivery = json.loads(subtitle_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            subtitle_delivery = {"mode": "manual_required", "compliant": False}
+    profiles = plan.get("platform_profiles") or {}
+    platform = next(iter(profiles), "instagram")
     for video in sorted(Path(rendered_dir).glob("*.mp4")):
         result = validation_by_path.get(str(video.resolve()), validation_by_path.get(str(video)))
         if not result:
@@ -139,6 +150,12 @@ def build_queue(plan: dict, candidates: dict, validation: dict, rendered_dir: st
             "rules_summary_id": caption_metadata(plan, candidate)["rules_summary_id"],
             "checklist": _checklist(plan, result),
         }
+        profile = profiles.get(platform) or {"platform": platform, "version": plan.get("platform_profile_version", "unknown")}
+        item["platform"] = platform
+        item["caption_revision"] = create_caption_revision(text=item["caption_draft"], fields={"hashtags": caption_metadata(plan, candidate)["hashtags"]}, platform=platform, revision_number=1, editor="system", rules_hash=str(plan.get("provenance", {}).get("rules_hash") or plan.get("rules_hash") or ""), platform_profile_version=str(profile.get("version") or ""))
+        item["platform_profile"] = profile
+        item["subtitle_delivery"] = subtitle_delivery
+        item["sound_tags"] = normalize_sound_tags(platform=platform, policy=(plan.get("production") or {}).get("sound_policy"), native_tags=(plan.get("production") or {}).get("native_tags"))
         queue.append(item)
         index_lines.append(f"| {rank} | **{queue_status}** | [{video.name}]({video.name}) | {('[' + Path(thumbnail).name + '](' + Path(thumbnail).name + ')') if thumbnail else '-'} |")
         item_md = os.path.join(output_dir, f"clip-{rank:03d}.md")

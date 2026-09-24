@@ -10,7 +10,8 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from core.captioning import write_ass
+from core.captioning import write_ass, write_srt
+from core.subtitle_delivery import attach_artifact_hash, resolve_subtitle_profile
 from core.visual_crop import crop_filter
 
 def _escape_filter_path(path: str) -> str:
@@ -31,6 +32,7 @@ def main() -> None:
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--no-subtitles", action="store_true")
     ap.add_argument("--force-subtitles", action="store_true", help="add captions as a quality enhancement even when campaign does not require them")
+    ap.add_argument("--subtitle-profile", choices=["burned_in", "native_caption_file", "none", "manual_required"], default=None)
     ap.add_argument("--static-crop", action="store_true", help="disable face tracking for troubleshooting")
     ap.add_argument("--preset", default=os.environ.get("CLIPPER_FFMPEG_PRESET", "medium"), help="x264 preset (veryfast/faster/medium)")
     ap.add_argument("--crf", default=os.environ.get("CLIPPER_FFMPEG_CRF", "19"), help="x264 CRF quality (higher=faster/smaller)")
@@ -43,7 +45,13 @@ def main() -> None:
     # --no-subtitles remains an explicit troubleshooting escape hatch.
     if not args.no_subtitles and not transcript:
         raise SystemExit("transcript wajib tersedia untuk render normal karena subtitle adalah quality policy")
-    subtitles_enabled = bool(transcript and not args.no_subtitles)
+    subtitle_profile = resolve_subtitle_profile(args.subtitle_profile or production.get("subtitle_delivery_profile"), transcript_available=bool(transcript), required=bool(production.get("subtitle_required")))
+    if args.no_subtitles:
+        subtitle_profile = resolve_subtitle_profile("none", transcript_available=bool(transcript), required=bool(production.get("subtitle_required")))
+    if production.get("subtitle_required") and not subtitle_profile["compliant"]:
+        raise SystemExit("subtitle delivery profile tidak compliant: transcript/artifact tidak tersedia")
+    subtitles_enabled = bool(transcript and subtitle_profile["mode"] == "burned_in")
+    native_caption_enabled = bool(transcript and subtitle_profile["mode"] == "native_caption_file")
     if production.get("watermark_required") and not args.watermark:
         raise SystemExit("campaign mewajibkan watermark, tetapi --watermark belum diberikan")
     out_dir = args.out_dir or os.path.join(os.path.dirname(os.path.abspath(args.candidates)), "renders")
@@ -63,6 +71,9 @@ def main() -> None:
                 subtitle_path = os.path.join(temp, f"{rank:03d}.ass")
                 write_ass(transcript, item, subtitle_path)
                 filters.append("subtitles='" + _escape_filter_path(subtitle_path) + "'")
+            elif native_caption_enabled:
+                subtitle_path = os.path.join(out_dir, f"clip-{rank:03d}.srt")
+                write_srt(transcript, item, subtitle_path)
             command = ["ffmpeg", "-y", "-ss", str(item["start"]), "-t", str(item["duration"]), "-i", args.input]
             if args.watermark:
                 command += ["-i", args.watermark]
@@ -79,7 +90,11 @@ def main() -> None:
                 print("FAIL:", output, file=sys.stderr)
                 print(exc.stderr[-1600:] if exc.stderr else "ffmpeg error", file=sys.stderr)
                 raise
-    print("rendered:", out_dir)
+    delivery = attach_artifact_hash(subtitle_profile, json.dumps({"mode": subtitle_profile["mode"], "out_dir": out_dir}, sort_keys=True))
+    with open(os.path.join(out_dir, "subtitle-delivery.json"), "w", encoding="utf-8") as handle:
+        json.dump(delivery, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+    print("rendered:", out_dir, "subtitle_profile:", delivery["mode"])
 
 
 if __name__ == "__main__":

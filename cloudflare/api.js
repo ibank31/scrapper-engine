@@ -1,3 +1,5 @@
+import { validateCaptionRevision } from "./caption_compliance.js";
+
 const cors = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
@@ -120,11 +122,12 @@ async function ensureSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status)").run();
   const previewInfo = await db.prepare("PRAGMA table_info(previews)").all();
   const previewColumns = new Set((previewInfo.results || []).map((row) => row.name));
-  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT", tier: "TEXT", candidate_id: "TEXT", source_asset_id: "TEXT", artifact_hash: "TEXT", distinctness_json: "TEXT NOT NULL DEFAULT '{}'", caption_revision_id: "TEXT", caption_hash: "TEXT", approval_artifact_hash: "TEXT", approval_caption_revision_id: "TEXT", approval_rules_hash: "TEXT", platform_profile_version: "TEXT", schedule_intent_hash: "TEXT", rules_summary_id: "TEXT" })) {
+  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT", tier: "TEXT", candidate_id: "TEXT", source_asset_id: "TEXT", artifact_hash: "TEXT", distinctness_json: "TEXT NOT NULL DEFAULT '{}'", platform: "TEXT", platform_profile_json: "TEXT NOT NULL DEFAULT '{}'", subtitle_delivery_json: "TEXT NOT NULL DEFAULT '{}'", sound_tags_json: "TEXT NOT NULL DEFAULT '{}'", caption_revision_id: "TEXT", caption_hash: "TEXT", approval_artifact_hash: "TEXT", approval_caption_revision_id: "TEXT", approval_rules_hash: "TEXT", platform_profile_version: "TEXT", schedule_intent_hash: "TEXT", rules_summary_id: "TEXT" })) {
     if (!previewColumns.has(name)) await db.prepare("ALTER TABLE previews ADD COLUMN " + name + " " + definition).run();
   }
   await db.prepare("CREATE TABLE IF NOT EXISTS preview_events (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, from_status TEXT, to_status TEXT NOT NULL, action TEXT NOT NULL, reason TEXT, actor TEXT, created_at TEXT NOT NULL)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at)").run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS caption_revisions (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, revision_number INTEGER NOT NULL, text TEXT NOT NULL, fields_json TEXT NOT NULL DEFAULT '{}', platform TEXT NOT NULL, editor TEXT NOT NULL, character_count_method TEXT NOT NULL, character_count INTEGER NOT NULL, caption_hash TEXT NOT NULL, rules_hash TEXT NOT NULL, platform_profile_version TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE (preview_id, revision_number), UNIQUE (preview_id, caption_hash))").run();
   const jobInfo = await db.prepare("PRAGMA table_info(jobs)").all();
   const jobColumns = new Set((jobInfo.results || []).map((row) => row.name));
   for (const [name, definition] of Object.entries({ dispatch_token: "TEXT", claimed_at: "TEXT", claimed_by: "TEXT", run_id: "TEXT", plan_snapshot_json: "TEXT", rules_hash: "TEXT", plan_schema_version: "INTEGER", source_fingerprint_json: "TEXT NOT NULL DEFAULT '{}'", execution_generation: "INTEGER NOT NULL DEFAULT 1", output_contract_json: "TEXT NOT NULL DEFAULT '{}'", output_selection_json: "TEXT NOT NULL DEFAULT '{}'", output_contract_status: "TEXT NOT NULL DEFAULT 'pending'", cancelled_at: "TEXT", active_run_token: "TEXT", manifest_key: "TEXT", manifest_schema_version: "INTEGER" })) {
@@ -247,7 +250,7 @@ export default {
       if (parts[1] === "previews" && parts[2] && parts[3] === "buffer" && request.method === "POST") {
         if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
         const body = await request.json();
-        const preview = await env.DB.prepare("SELECT p.id,p.status,p.video_key,p.caption_draft,p.artifact_hash,p.caption_revision_id,p.approval_artifact_hash,p.approval_caption_revision_id,p.approval_rules_hash,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id=?").bind(parts[2]).first();
+        const preview = await env.DB.prepare("SELECT p.id,p.status,p.video_key,p.caption_draft,p.artifact_hash,p.caption_revision_id,p.approval_artifact_hash,p.approval_caption_revision_id,p.approval_rules_hash,p.platform,p.platform_profile_json,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id=?").bind(parts[2]).first();
         if (!preview || !preview.video_key) return json({ error: "preview_not_found" }, 404);
         if (preview.status !== "approved_for_manual_post") return json({ error: "preview_not_approved", status: preview.status }, 409);
         if (!preview.approval_artifact_hash || preview.approval_artifact_hash !== preview.artifact_hash || preview.approval_caption_revision_id !== preview.caption_revision_id || preview.approval_rules_hash !== preview.rules_hash) return json({ error: "approval_provenance_invalid" }, 409);
@@ -256,6 +259,10 @@ export default {
         if (!channelIds.length) return json({ error: "channel_ids_required" }, 400);
         const text = String(body.text || preview.caption_draft || "").trim();
         if (!text) return json({ error: "caption_required", message: "Caption dan tagar wajib tersedia sebelum upload." }, 400);
+        const revision = await env.DB.prepare("SELECT * FROM caption_revisions WHERE id=? AND preview_id=?").bind(preview.caption_revision_id, preview.id).first();
+        if (!revision || text !== String(revision.text)) return json({ error: "caption_revision_mismatch" }, 409);
+        const compliance = validateCaptionRevision({ ...revision, fields: parseJson(revision.fields_json, {}) }, parseJson(preview.platform_profile_json, { platform: preview.platform }), preview.rules_hash);
+        if (!compliance.ok) return json({ error: "caption_compliance_failed", compliance }, 422);
         const uploaded = [];
         for (const channelId of channelIds) {
           const channel = (body.channels || []).find((item) => String(item.id) === channelId) || {};
@@ -482,7 +489,7 @@ export default {
         return json({ job: row });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id,job_id,rank,status,tier,candidate_id,source_asset_id,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,approval_artifact_hash,approval_caption_revision_id,approval_rules_hash,rules_summary_id,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
+        const result = await env.DB.prepare("SELECT id,job_id,rank,status,tier,candidate_id,source_asset_id,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,platform,platform_profile_json,subtitle_delivery_json,sound_tags_json,approval_artifact_hash,approval_caption_revision_id,approval_rules_hash,rules_summary_id,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         const previews = await Promise.all((result.results || []).map(async (preview) => ({
           ...preview,
           video_url: preview.review_video_key ? await previewUrl(request, env, preview.review_video_key, 3600) : null,
@@ -506,7 +513,7 @@ export default {
         if (!Object.prototype.hasOwnProperty.call(transitions, action)) return json({ error: "invalid_review_action" }, 400);
         const reason = String(body.reason || "").trim().slice(0, 1000);
         if ((action === "reject" || action === "request_rerender") && !reason) return json({ error: "review_reason_required" }, 400);
-        const current = await env.DB.prepare("SELECT p.id,p.status,p.job_id,p.artifact_hash,p.caption_revision_id,p.caption_hash,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id = ?").bind(parts[2]).first();
+        const current = await env.DB.prepare("SELECT p.id,p.status,p.job_id,p.artifact_hash,p.caption_revision_id,p.caption_hash,p.platform,p.platform_profile_json,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id = ?").bind(parts[2]).first();
         if (!current) return json({ error: "preview_not_found" }, 404);
         if (!["pending_review", "changes_requested"].includes(current.status)) return json({ error: "preview_not_reviewable", status: current.status }, 409);
         const next = transitions[action];
@@ -517,10 +524,40 @@ export default {
         const artifactHash = String(body.artifact_hash || current.artifact_hash || "");
         const captionRevisionId = String(body.caption_revision_id || current.caption_revision_id || "");
         if (action === "approve" && (artifactHash !== current.artifact_hash || captionRevisionId !== current.caption_revision_id)) return json({ error: "approval_revision_mismatch" }, 409);
+        if (action === "approve") {
+          const revision = await env.DB.prepare("SELECT * FROM caption_revisions WHERE id=? AND preview_id=?").bind(captionRevisionId, parts[2]).first();
+          if (!revision) return json({ error: "caption_revision_missing" }, 409);
+          const compliance = validateCaptionRevision({ ...revision, fields: parseJson(revision.fields_json, {}) }, parseJson(current.platform_profile_json, { platform: current.platform }), current.rules_hash);
+          if (!compliance.ok) return json({ error: "caption_compliance_failed", compliance }, 422);
+        }
         const updated = await env.DB.prepare("UPDATE previews SET status=?,review_reason=?,reviewed_by=?,reviewed_at=?,approval_artifact_hash=?,approval_caption_revision_id=?,approval_rules_hash=? WHERE id=? AND status IN ('pending_review','changes_requested')").bind(next, reason || null, actor, timestamp, action === "approve" ? artifactHash : null, action === "approve" ? captionRevisionId : null, action === "approve" ? current.rules_hash : null, parts[2]).run();
         if (!(updated.meta?.changes > 0)) return json({ error: "review_transition_lost" }, 409);
         await env.DB.prepare("INSERT INTO preview_events (id,preview_id,from_status,to_status,action,reason,actor,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(eventId, parts[2], current.status, next, action, reason || null, actor, timestamp).run();
         return json({ ok: true, preview: { id: parts[2], job_id: current.job_id, status: next, review_reason: reason || null, reviewed_by: actor, reviewed_at: timestamp } });
+      }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "caption-revisions" && request.method === "POST") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const body = await request.json();
+        const current = await env.DB.prepare("SELECT p.id,p.platform,p.platform_profile_json,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id=?").bind(parts[2]).first();
+        if (!current) return json({ error: "preview_not_found" }, 404);
+        const profile = parseJson(current.platform_profile_json, { platform: current.platform });
+        const text = String(body.text || "");
+        const profileVersion = String(profile.version || "unknown");
+        const revisionNumber = Number((await env.DB.prepare("SELECT COALESCE(MAX(revision_number),0)+1 AS next_revision FROM caption_revisions WHERE preview_id=?").bind(parts[2]).first())?.next_revision || 1);
+        const base = { text, fields: body.fields || {}, platform: body.platform || current.platform || profile.platform || "unknown", revision_number: revisionNumber, editor: reviewActor(request, body), character_count_method: "unicode-codepoints-v1", character_count: text.length, rules_hash: current.rules_hash || "", platform_profile_version: profileVersion };
+        const captionHash = await sha256Hex(base);
+        const revision = { ...base, caption_hash: captionHash, revision_id: `caption-${captionHash.slice(0, 20)}` };
+        const compliance = validateCaptionRevision(revision, profile, current.rules_hash || null);
+        if (!compliance.ok) return json({ error: "caption_compliance_failed", compliance }, 422);
+        const timestamp = now();
+        await env.DB.prepare("INSERT INTO caption_revisions (id,preview_id,revision_number,text,fields_json,platform,editor,character_count_method,character_count,caption_hash,rules_hash,platform_profile_version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(revision.revision_id, parts[2], revisionNumber, text, JSON.stringify(revision.fields), revision.platform, revision.editor, revision.character_count_method, revision.character_count, captionHash, revision.rules_hash, profileVersion, timestamp).run();
+        await env.DB.prepare("UPDATE previews SET caption_draft=?,caption_revision_id=?,caption_hash=? WHERE id=?").bind(text, revision.revision_id, captionHash, parts[2]).run();
+        return json({ ok: true, revision, compliance });
+      }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "caption-revisions" && request.method === "GET") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const result = await env.DB.prepare("SELECT id,preview_id,revision_number,text,fields_json,platform,editor,character_count_method,character_count,caption_hash,rules_hash,platform_profile_version,created_at FROM caption_revisions WHERE preview_id=? ORDER BY revision_number").bind(parts[2]).all();
+        return json({ revisions: result.results || [] });
       }
       if (parts[1] === "previews" && parts[2] && parts[3] === "events" && request.method === "GET") {
         if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
@@ -541,7 +578,11 @@ export default {
         const auth = await executionAuthorized(request, env, parts[2], body);
         if (!auth.ok) return json({ error: auth.error }, auth.status);
         for (const preview of body.previews || []) {
-          await env.DB.prepare("INSERT INTO previews (id,job_id,rank,status,tier,candidate_id,source_asset_id,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,rules_summary_id,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,tier=excluded.tier,candidate_id=excluded.candidate_id,source_asset_id=excluded.source_asset_id,video_key=excluded.video_key,review_video_key=excluded.review_video_key,thumbnail_key=excluded.thumbnail_key,download_url=excluded.download_url,validation_json=excluded.validation_json,caption_draft=excluded.caption_draft,caption_revision_id=excluded.caption_revision_id,caption_hash=excluded.caption_hash,artifact_hash=excluded.artifact_hash,distinctness_json=excluded.distinctness_json,rules_summary_id=excluded.rules_summary_id,checklist_json=excluded.checklist_json").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.tier || null, preview.candidate_id || null, preview.source_asset_id || null, preview.video_key || null, preview.review_video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, preview.caption_revision_id || "draft-v1", preview.caption_hash || null, preview.artifact_hash || preview.video_key || null, JSON.stringify(preview.distinctness || {}), preview.rules_summary_id || null, JSON.stringify(preview.checklist || []), timestamp).run();
+          await env.DB.prepare("INSERT INTO previews (id,job_id,rank,status,tier,candidate_id,source_asset_id,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,platform,platform_profile_json,subtitle_delivery_json,sound_tags_json,rules_summary_id,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,tier=excluded.tier,candidate_id=excluded.candidate_id,source_asset_id=excluded.source_asset_id,video_key=excluded.video_key,review_video_key=excluded.review_video_key,thumbnail_key=excluded.thumbnail_key,download_url=excluded.download_url,validation_json=excluded.validation_json,caption_draft=excluded.caption_draft,caption_revision_id=excluded.caption_revision_id,caption_hash=excluded.caption_hash,artifact_hash=excluded.artifact_hash,distinctness_json=excluded.distinctness_json,platform=excluded.platform,platform_profile_json=excluded.platform_profile_json,subtitle_delivery_json=excluded.subtitle_delivery_json,sound_tags_json=excluded.sound_tags_json,rules_summary_id=excluded.rules_summary_id,checklist_json=excluded.checklist_json").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.tier || null, preview.candidate_id || null, preview.source_asset_id || null, preview.video_key || null, preview.review_video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, preview.caption_revision_id || "draft-v1", preview.caption_hash || null, preview.artifact_hash || preview.video_key || null, JSON.stringify(preview.distinctness || {}), preview.platform || null, JSON.stringify(preview.platform_profile || {}), JSON.stringify(preview.subtitle_delivery || {}), JSON.stringify(preview.sound_tags || {}), preview.rules_summary_id || null, JSON.stringify(preview.checklist || []), timestamp).run();
+          const revision = preview.caption_revision || {};
+          if (revision.revision_id && revision.text != null) {
+            await env.DB.prepare("INSERT INTO caption_revisions (id,preview_id,revision_number,text,fields_json,platform,editor,character_count_method,character_count,caption_hash,rules_hash,platform_profile_version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING").bind(revision.revision_id, preview.id, Number(revision.revision_number || 1), String(revision.text), JSON.stringify(revision.fields || {}), revision.platform || preview.platform || "unknown", revision.editor || "system", revision.character_count_method || "unicode-codepoints-v1", Number(revision.character_count || String(revision.text).length), revision.caption_hash || preview.caption_hash || "", revision.rules_hash || "", revision.platform_profile_version || "", timestamp).run();
+          }
         }
         await env.DB.prepare("UPDATE jobs SET status='review',progress=100,message=?,output_contract_status='review_ready',output_selection_json=?,updated_at=? WHERE id=? AND status='processing' AND execution_generation=? AND active_run_token=?").bind(`${(body.previews || []).length} preview siap review`, JSON.stringify(body.output_selection || {}), timestamp, parts[2], Number(body.execution_generation || 1), request.headers.get("x-claim-token") || request.headers.get("x-dispatch-token") || "").run();
         return json({ ok: true });

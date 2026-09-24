@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from core.output_contract import build_output_contract
+from core.platform_profiles import PROFILE_VERSION, build_platform_profiles
 
 URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']+", re.I)
 
@@ -193,6 +194,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
         "min_duration_seconds": ai_rule_set.get("min_duration_seconds") or parsed_min_duration,
         "max_duration_seconds": ai_rule_set.get("max_duration_seconds") or parsed_max_duration,
         "subtitle_required": bool(ai_rule_set.get("subtitle_required")),
+        "subtitle_delivery_profile": str(ai_rule_set.get("subtitle_delivery_profile") or "burned_in"),
         "official_audio_required": official_audio_required,
         "watermark_required": watermark_required,
         "no_third_party_watermark": no_third_party_watermark,
@@ -209,6 +211,17 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
         "account_rules": [str(x) for x in (ai_rule_set.get("account_rules") or []) if x],
         "cta_text": ai_rule_set.get("cta_text"),
         "audience_tiers": ai_rule_set.get("audience_tiers") if isinstance(ai_rule_set.get("audience_tiers"), dict) else {},
+        "platform_rules": ai_rule_set.get("platform_rules") if isinstance(ai_rule_set.get("platform_rules"), dict) else {},
+        "sound_policy": str(ai_rule_set.get("sound_policy") or ("manual_required" if official_audio_required else "unsupported")),
+        "native_tags": [str(x) for x in (ai_rule_set.get("native_tags") or []) if str(x).strip()],
+    }
+    source_of_truth = {
+        "description": description,
+        "requirements": requirements,
+        "docs_text": docs_text,
+        "source_urls": urls,
+        "normalized_requirements": normalized_requirements,
+        "rule_evidence": [{"source": "description", "quote": description[:500]}] + ([{"source": "docs_text", "quote": docs_text[:500]}] if docs_text else []),
     }
 
     return {
@@ -221,14 +234,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             "platforms": campaign.get("socialPlatforms") or campaign.get("platforms") or [],
             "campaign_type": campaign.get("campaignType") or campaign.get("type"),
         },
-        "source_of_truth": {
-            "description": description,
-            "requirements": requirements,
-            "docs_text": docs_text,
-            "source_urls": urls,
-            "normalized_requirements": normalized_requirements,
-            "rule_evidence": [{"source": "description", "quote": description[:500]}] + ([{"source": "docs_text", "quote": docs_text[:500]}] if docs_text else []),
-        },
+        "source_of_truth": source_of_truth,
         "ai_rules": ai_rules,
         "ai_rules_status": ai_status if ai_rules else "unavailable",
         "production": production,
@@ -236,6 +242,8 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             production["min_duration_seconds"],
             production["max_duration_seconds"],
         ),
+        "platform_profile_version": PROFILE_VERSION,
+        "platform_profiles": build_platform_profiles(detail, production, source_of_truth),
         "gates": gates,
         "automation_policy": {
             "render_allowed": bool(ai_rules) and ai_status == "pass",
