@@ -46,6 +46,7 @@ The P1-A working tree verification completed with **95 tests passing**. The focu
 ## Relevant entry points
 
 - `docs/IMPLEMENTATION_ROADMAP.md` — authoritative slice definitions and acceptance gates.
+- `docs/SCRAPPER_ENGINE_DEEP_AUDIT_2026-09-24.md` — detailed architecture/context pack for the audited HEAD.
 - `STATUS.md` — current milestone and verification state.
 - `core/campaign_rules.py` — compiled campaign plan.
 - `core/output_contract.py` — P1-A contract construction and validation.
