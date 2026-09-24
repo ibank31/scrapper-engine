@@ -286,17 +286,36 @@ async function openBufferUpload(preview) {
       const selected = [...document.querySelectorAll(".buffer-channel input:checked")];
       const channel_ids = selected.map((input) => input.value);
       if (!channel_ids.length) return showToast("Pilih minimal satu channel Buffer");
-      if (!window.confirm("Masukkan video ini ke queue Buffer pada " + channel_ids.length + " channel?")) return;
       const button = $("#confirmBufferUpload"); button.disabled = true; button.textContent = "Mengirim…";
       try {
         const headers = { "content-type": "application/json" };
         if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
-        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers, body: JSON.stringify({ channel_ids, channels: selected.map((input) => ({ id: input.value, service: input.dataset.service })), text: $("#bufferCaption").value, artifact_hash: preview.approval_artifact_hash || preview.artifact_hash, caption_revision_id: preview.approval_caption_revision_id || preview.caption_revision_id }) });
-        const ok = (response.uploads || []).filter((item) => item.status === "queued").length;
-        $("#detailModal").classList.add("hidden"); showToast(ok + " channel berhasil masuk ke queue Buffer");
+        const request = { channel_ids, text: $("#bufferCaption").value, artifact_hash: preview.approval_artifact_hash || preview.artifact_hash, caption_revision_id: preview.approval_caption_revision_id || preview.caption_revision_id };
+        const preflight = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer/preflight", { method: "POST", headers, body: JSON.stringify(request) });
+        if (!preflight.ok) throw new Error((preflight.channels || []).filter((item) => !item.valid).map((item) => item.service + ": " + item.error).join("; ") || "Preflight Buffer gagal");
+        if (!window.confirm("Masukkan video ini ke queue Buffer pada " + channel_ids.length + " channel? Kontrak: next queue slot.")) { button.disabled = false; button.textContent = "Upload ke Buffer →"; return; }
+        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers, body: JSON.stringify(request) });
+        const operations = response.operations || [];
+        const scheduled = operations.filter((item) => item.status === "scheduled").length;
+        const unknown = operations.filter((item) => item.status === "unknown").length;
+        $("#detailModal").classList.add("hidden"); showToast(response.outcome + ": " + scheduled + " scheduled" + (unknown ? ", " + unknown + " unknown" : ""));
       } catch (error) { button.disabled = false; button.textContent = "Upload ke Buffer →"; showToast("Upload Buffer gagal: " + error.message); }
     });
   } catch (error) { showToast("Buffer belum siap: " + error.message); }
+}
+async function retryOperation(operationKey) {
+  try {
+    const headers = {}; if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    await api("/api/delivery-operations/" + encodeURIComponent(operationKey) + "/retry", { method: "POST", headers });
+    showToast("Operation ditandai untuk retry; jalankan queue lagi setelah rekonsiliasi bila diperlukan");
+  } catch (error) { showToast("Retry operation gagal: " + error.message); }
+}
+async function reconcileOperation(operationKey) {
+  try {
+    const headers = {}; if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    await api("/api/delivery-operations/" + encodeURIComponent(operationKey) + "/reconcile", { method: "POST", headers });
+    await loadJobs(); showToast("Status provider direkonsiliasi");
+  } catch (error) { showToast("Rekonsiliasi gagal: " + error.message); }
 }
 function startPolling() {
   if (cfg.DEMO_MODE || state.pollTimer) return;
@@ -318,6 +337,8 @@ function renderReviews() {
     const distinctness = parseObject(r.distinctness_json, r.distinctness || {});
     const subtitle = parseObject(r.subtitle_delivery_json, r.subtitle_delivery || {});
     const sound = parseObject(r.sound_tags_json, r.sound_tags || {});
+    const operations = r.operations || [];
+    const operationLine = operations.length ? '<div class="review-operations"><strong>Buffer operations · next queue slot</strong>' + operations.map((operation) => { const intent = parseObject(operation.schedule_intent_json, {}); return '<span class="operation-row"><b>' + escapeHtml(operation.channel_id) + '</b> ' + escapeHtml(operation.provider_state) + (intent.timezone ? ' · intent ' + escapeHtml(intent.timezone) + (intent.requested_utc ? ' / ' + escapeHtml(intent.requested_utc) : '') : '') + (operation.provider_due_at ? ' · dueAt ' + escapeHtml(operation.provider_due_at) : '') + (operation.last_error ? ' · ' + escapeHtml(operation.last_error) : '') + (operation.provider_state === "failed" ? ' <button class="operation-retry-button" data-operation-key="' + escapeHtml(operation.operation_key) + '" type="button">Retry</button>' : '') + (operation.provider_state === "unknown" ? ' <button class="operation-reconcile-button" data-operation-key="' + escapeHtml(operation.operation_key) + '" type="button">Reconcile</button>' : '') + '</span>'; }).join("") + '</div>' : '';
     const semanticLine = semantic.semantic_score == null ? "Semantic fallback belum tersedia" :
       "Semantic " + Number(semantic.semantic_score).toFixed(0) + " · Hook " + Number(semantic.hook_score || 0).toFixed(0) + " · Context " + Number(semantic.context_score || 0).toFixed(0) + " · Payoff " + Number(semantic.payoff_score || 0).toFixed(0) + " · Complete " + Number(semantic.completeness_score || 0).toFixed(0);
     const status = String(r.status || "pending_review");
@@ -330,6 +351,7 @@ function renderReviews() {
       (src ? '<video class="review-video" controls preload="none" poster="' + escapeHtml(r.thumbnail_url || "") + '" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
       '<div class="review-body"><span class="status review">' + escapeHtml(status.replaceAll("_", " ").toUpperCase()) + '</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
       '<div class="review-contract"><strong>' + escapeHtml(tierLabel) + '</strong>' + (r.candidate_id ? '<span>Candidate terverifikasi</span>' : '<span>Candidate ID belum tersedia</span>') + (distinctness.distinct ? '<span>Berbeda secara material</span>' : '') + (subtitle.mode ? '<span>Subtitle: ' + escapeHtml(subtitle.mode) + '</span>' : '') + (sound.status ? '<span>Sound: ' + escapeHtml(sound.status) + '</span>' : '') + '</div>' +
+      operationLine +
       '<p>Periksa video penuh, validasi, dan checklist campaign sebelum mengambil keputusan.</p>' +
       (r.rules_summary_id ? '<div class="rules-summary"><strong>Ringkasan rules campaign</strong><p>' + escapeHtml(r.rules_summary_id) + '</p></div>' : '') +
       '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption revision ' + escapeHtml(r.caption_revision_id || "draft") + '</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
@@ -355,6 +377,8 @@ function renderReviews() {
     const card = button.closest(".review-card"); const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card); const preview = state.reviews[index];
     if (preview) editCaption(preview);
   }));
+  document.querySelectorAll(".operation-retry-button").forEach((button) => button.addEventListener("click", () => retryOperation(button.dataset.operationKey)));
+  document.querySelectorAll(".operation-reconcile-button").forEach((button) => button.addEventListener("click", () => reconcileOperation(button.dataset.operationKey)));
 }
 function showView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));

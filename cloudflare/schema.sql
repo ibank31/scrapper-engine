@@ -152,4 +152,29 @@ CREATE TABLE IF NOT EXISTS buffer_uploads (
   created_at TEXT NOT NULL,
   FOREIGN KEY (preview_id) REFERENCES previews(id)
 );
+
+CREATE TABLE IF NOT EXISTS delivery_operations (
+  operation_key TEXT PRIMARY KEY,
+  preview_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  schedule_revision TEXT NOT NULL,
+  caption_revision_id TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  schedule_intent_json TEXT NOT NULL DEFAULT '{}',
+  provider_state TEXT NOT NULL DEFAULT 'pending',
+  retry_class TEXT NOT NULL DEFAULT 'not_attempted',
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  provider_post_id TEXT,
+  provider_due_at TEXT,
+  provider_status TEXT,
+  provider_response_json TEXT NOT NULL DEFAULT '{}',
+  last_error TEXT,
+  last_observed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (preview_id) REFERENCES previews(id),
+  UNIQUE (preview_id, channel_id, schedule_revision, caption_revision_id)
+);
+CREATE INDEX IF NOT EXISTS idx_delivery_operations_preview ON delivery_operations(preview_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_delivery_operations_state ON delivery_operations(provider_state, updated_at);
 CREATE INDEX IF NOT EXISTS idx_buffer_uploads_preview ON buffer_uploads(preview_id, created_at);

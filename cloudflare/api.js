@@ -139,6 +139,9 @@ async function ensureSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_job_stage_events_run ON job_stage_events(run_id, stage, created_at)").run();
   await db.prepare("CREATE TABLE IF NOT EXISTS buffer_uploads (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, channel_id TEXT NOT NULL, buffer_post_id TEXT, status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL, FOREIGN KEY (preview_id) REFERENCES previews(id))").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_buffer_uploads_preview ON buffer_uploads(preview_id, created_at)").run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS delivery_operations (operation_key TEXT PRIMARY KEY, preview_id TEXT NOT NULL, channel_id TEXT NOT NULL, schedule_revision TEXT NOT NULL, caption_revision_id TEXT NOT NULL, payload_hash TEXT NOT NULL, schedule_intent_json TEXT NOT NULL DEFAULT '{}', provider_state TEXT NOT NULL DEFAULT 'pending', retry_class TEXT NOT NULL DEFAULT 'not_attempted', attempt_count INTEGER NOT NULL DEFAULT 0, provider_post_id TEXT, provider_due_at TEXT, provider_status TEXT, provider_response_json TEXT NOT NULL DEFAULT '{}', last_error TEXT, last_observed_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE (preview_id, channel_id, schedule_revision, caption_revision_id))").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_delivery_operations_preview ON delivery_operations(preview_id, created_at)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_delivery_operations_state ON delivery_operations(provider_state, updated_at)").run();
 }
 
 function claimLeaseSeconds(env) {
@@ -182,6 +185,16 @@ async function bufferRequest(env, query, variables = {}) {
   const payload = await response.json();
   if (!response.ok || payload.errors?.length) throw new Error(payload.errors?.map((x) => x.message).join("; ") || `Buffer HTTP ${response.status}`);
   return payload.data;
+}
+
+async function resolveBufferChannels(env) {
+  const orgData = await bufferRequest(env, "query { account { organizations { id name } } }");
+  const channels = [];
+  for (const organization of orgData.account?.organizations || []) {
+    const data = await bufferRequest(env, "query($organizationId: OrganizationId!) { channels(input: { organizationId: $organizationId }) { id name service } }", { organizationId: organization.id });
+    for (const channel of data.channels || []) channels.push({ ...channel, organizationId: organization.id, organizationName: organization.name });
+  }
+  return channels;
 }
 
 function bufferTextLimit(service) {
@@ -239,13 +252,30 @@ export default {
       try {
         await ensureSchema(env.DB);
       if (parts[1] === "buffer" && parts[2] === "channels" && request.method === "GET") {
-        const orgData = await bufferRequest(env, "query { account { organizations { id name } } }");
-        const channels = [];
-        for (const organization of orgData.account?.organizations || []) {
-          const data = await bufferRequest(env, "query($organizationId: OrganizationId!) { channels(input: { organizationId: $organizationId }) { id name service } }", { organizationId: organization.id });
-          for (const channel of data.channels || []) channels.push({ ...channel, organizationId: organization.id, organizationName: organization.name });
-        }
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const channels = await resolveBufferChannels(env);
         return json({ channels });
+      }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "buffer" && parts[4] === "preflight" && request.method === "POST") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const body = await request.json();
+        const preview = await env.DB.prepare("SELECT p.id,p.status,p.video_key,p.caption_draft,p.artifact_hash,p.caption_revision_id,p.approval_artifact_hash,p.approval_caption_revision_id,p.approval_rules_hash,p.platform,p.platform_profile_json,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id=?").bind(parts[2]).first();
+        if (!preview || !preview.video_key) return json({ error: "preview_not_found" }, 404);
+        if (preview.status !== "approved_for_manual_post") return json({ error: "preview_not_approved", status: preview.status }, 409);
+        const channelIds = [...new Set((body.channel_ids || []).map(String).filter(Boolean))].slice(0, 3);
+        if (!channelIds.length) return json({ error: "channel_ids_required" }, 400);
+        const channels = await resolveBufferChannels(env);
+        const channelMap = new Map(channels.map((channel) => [String(channel.id), channel]));
+        const missing = channelIds.filter((id) => !channelMap.has(id));
+        if (missing.length) return json({ error: "channel_not_found", channel_ids: missing }, 400);
+        const text = String(body.text || preview.caption_draft || "").trim();
+        const revision = await env.DB.prepare("SELECT * FROM caption_revisions WHERE id=? AND preview_id=?").bind(preview.caption_revision_id, preview.id).first();
+        if (!revision || text !== String(revision.text)) return json({ error: "caption_revision_mismatch" }, 409);
+        const compliance = validateCaptionRevision({ ...revision, fields: parseJson(revision.fields_json, {}) }, parseJson(preview.platform_profile_json, { platform: preview.platform }), preview.rules_hash);
+        if (!compliance.ok) return json({ error: "caption_compliance_failed", compliance }, 422);
+        const scheduleIntent = { schema_version: 1, contract: "next_queue_slot", provider: "buffer", capability_version: "schedule-capability-v1", timezone: String(body.timezone || "UTC"), requested_local: body.requested_local || null, requested_utc: null, provider_mode: "automatic/addToQueue", provider_due_at: null };
+        const checks = channelIds.map((channelId) => { const channel = channelMap.get(channelId); const limit = bufferTextLimit(channel.service); return { channel_id: channelId, service: channel.service, name: channel.name, valid: text.length <= limit, character_count: text.length, limit, error: text.length <= limit ? null : `Caption melebihi batas ${limit} untuk ${channel.service || "channel"}` }; });
+        return json({ ok: checks.every((item) => item.valid), preview_id: preview.id, schedule_intent: scheduleIntent, channels: checks });
       }
       if (parts[1] === "previews" && parts[2] && parts[3] === "buffer" && request.method === "POST") {
         if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
@@ -255,7 +285,7 @@ export default {
         if (preview.status !== "approved_for_manual_post") return json({ error: "preview_not_approved", status: preview.status }, 409);
         if (!preview.approval_artifact_hash || preview.approval_artifact_hash !== preview.artifact_hash || preview.approval_caption_revision_id !== preview.caption_revision_id || preview.approval_rules_hash !== preview.rules_hash) return json({ error: "approval_provenance_invalid" }, 409);
         if (String(body.artifact_hash || "") !== preview.approval_artifact_hash || String(body.caption_revision_id || "") !== preview.approval_caption_revision_id) return json({ error: "approval_revision_mismatch" }, 409);
-        const channelIds = [...new Set((body.channel_ids || []).map(String).filter(Boolean))].slice(0, 10);
+        const channelIds = [...new Set((body.channel_ids || []).map(String).filter(Boolean))].slice(0, 3);
         if (!channelIds.length) return json({ error: "channel_ids_required" }, 400);
         const text = String(body.text || preview.caption_draft || "").trim();
         if (!text) return json({ error: "caption_required", message: "Caption dan tagar wajib tersedia sebelum upload." }, 400);
@@ -263,28 +293,72 @@ export default {
         if (!revision || text !== String(revision.text)) return json({ error: "caption_revision_mismatch" }, 409);
         const compliance = validateCaptionRevision({ ...revision, fields: parseJson(revision.fields_json, {}) }, parseJson(preview.platform_profile_json, { platform: preview.platform }), preview.rules_hash);
         if (!compliance.ok) return json({ error: "caption_compliance_failed", compliance }, 422);
-        const uploaded = [];
+        const channels = await resolveBufferChannels(env);
+        const channelMap = new Map(channels.map((channel) => [String(channel.id), channel]));
+        const missing = channelIds.filter((id) => !channelMap.has(id));
+        if (missing.length) return json({ error: "channel_not_found", channel_ids: missing }, 400);
+        const scheduleRevision = "schedule-capability-v1";
+        const scheduleIntent = { schema_version: 1, contract: "next_queue_slot", provider: "buffer", capability_version: scheduleRevision, timezone: String(body.timezone || "UTC"), requested_local: body.requested_local || null, requested_utc: null, provider_mode: "automatic/addToQueue", provider_due_at: null };
+        const outcomes = [];
         for (const channelId of channelIds) {
-          const channel = (body.channels || []).find((item) => String(item.id) === channelId) || {};
+          const channel = channelMap.get(channelId);
+          const payload = { text, channelId, schedulingType: "automatic", mode: "addToQueue", asset_url: publicMediaUrl(request, env, preview.video_key) };
+          const key = `delivery-${(await sha256Hex({ preview_id: preview.id, channel_id: channelId, schedule_revision: scheduleRevision, caption_revision_id: preview.caption_revision_id })).slice(0, 32)}`;
+          const hash = await sha256Hex(payload);
+          const existing = await env.DB.prepare("SELECT * FROM delivery_operations WHERE operation_key=?").bind(key).first();
+          if (existing && ["scheduled", "published"].includes(existing.provider_state)) { outcomes.push({ channel_id: channelId, operation_key: key, status: existing.provider_state, provider_post_id: existing.provider_post_id, due_at: existing.provider_due_at, idempotent: true }); continue; }
+          if (existing && ["attempting", "unknown"].includes(existing.provider_state)) { outcomes.push({ channel_id: channelId, operation_key: key, status: existing.provider_state, retryable: false, idempotent: true }); continue; }
+          const timestamp = now();
+          await env.DB.prepare("INSERT OR IGNORE INTO delivery_operations (operation_key,preview_id,channel_id,schedule_revision,caption_revision_id,payload_hash,schedule_intent_json,provider_state,retry_class,attempt_count,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(key, preview.id, channelId, scheduleRevision, preview.caption_revision_id, hash, JSON.stringify(scheduleIntent), "pending", "not_attempted", 0, timestamp, timestamp).run();
+          await env.DB.prepare("UPDATE delivery_operations SET provider_state='attempting',attempt_count=attempt_count+1,retry_class='provider_request',updated_at=? WHERE operation_key=? AND provider_state IN ('pending','failed')").bind(timestamp, key).run();
           const limit = bufferTextLimit(channel.service);
-          if (text.length > limit) {
-            const error = `Caption ${text.length} UTF-16 code units melebihi batas konservatif ${limit} untuk ${channel.service || "channel ini"}.`;
-            await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, null, "preflight_error", error, now()).run();
-            uploaded.push({ channel_id: channelId, status: "preflight_error", error });
-            continue;
-          }
+          if (text.length > limit) { const error = `Caption melebihi batas ${limit} untuk ${channel.service || "channel"}`; await env.DB.prepare("UPDATE delivery_operations SET provider_state='failed',retry_class='permanent',last_error=?,updated_at=? WHERE operation_key=?").bind(error, now(), key).run(); outcomes.push({ channel_id: channelId, operation_key: key, status: "failed", retryable: false, error }); continue; }
           try {
-            const data = await bufferRequest(env, "mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id dueAt channelId } } ... on MutationError { message } } }", { input: { text, channelId, schedulingType: "automatic", mode: "addToQueue", assets: [{ video: { url: publicMediaUrl(request, env, preview.video_key) } }] } });
-            const result = data.createPost || {};
-            if (result.message && !result.post) throw new Error(result.message);
-            await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, result.post?.id || null, "queued", null, now()).run();
-            uploaded.push({ channel_id: channelId, post: result.post || null, status: "queued" });
+            const data = await bufferRequest(env, "mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id dueAt channelId } } ... on MutationError { message } } }", { input: { text, channelId, schedulingType: "automatic", mode: "addToQueue", assets: [{ video: { url: payload.asset_url } }] } });
+            const result = data.createPost || {}; const post = result.post || {};
+            if (!post.id || (!post.dueAt && !post.channelId)) {
+              const error = result.message || "malformed_or_unknown_provider_success";
+              await env.DB.prepare("UPDATE delivery_operations SET provider_state='unknown',retry_class='unknown_outcome',last_error=?,provider_response_json=?,updated_at=? WHERE operation_key=?").bind(error, JSON.stringify(result).slice(0, 4000), now(), key).run();
+              outcomes.push({ channel_id: channelId, operation_key: key, status: "unknown", retryable: false, error }); continue;
+            }
+            await env.DB.prepare("UPDATE delivery_operations SET provider_state='scheduled',retry_class='none',provider_post_id=?,provider_due_at=?,provider_status='scheduled',provider_response_json=?,last_observed_at=?,updated_at=? WHERE operation_key=?").bind(post.id, post.dueAt || null, JSON.stringify(result).slice(0, 4000), now(), now(), key).run();
+            await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, post.id, "scheduled", null, now()).run();
+            outcomes.push({ channel_id: channelId, operation_key: key, status: "scheduled", provider_post_id: post.id, due_at: post.dueAt || null });
           } catch (error) {
-            await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, null, "error", String(error.message || error).slice(0, 1000), now()).run();
-            uploaded.push({ channel_id: channelId, status: "error", error: String(error.message || error) });
+            await env.DB.prepare("UPDATE delivery_operations SET provider_state='unknown',retry_class='unknown_outcome',last_error=?,updated_at=? WHERE operation_key=?").bind(String(error.message || error).slice(0, 1000), now(), key).run();
+            outcomes.push({ channel_id: channelId, operation_key: key, status: "unknown", retryable: false, error: String(error.message || error) });
           }
         }
-        return json({ ok: uploaded.some((item) => item.status === "queued"), preview_id: preview.id, uploads: uploaded });
+        const counts = { scheduled: outcomes.filter((item) => item.status === "scheduled").length, failed: outcomes.filter((item) => item.status === "failed").length, unknown: outcomes.filter((item) => item.status === "unknown").length };
+        const outcome = counts.unknown ? "unknown" : counts.scheduled === channelIds.length ? "all_succeeded" : counts.scheduled ? "partial" : "none";
+        return json({ ok: outcome === "all_succeeded", outcome, preview_id: preview.id, schedule_intent: scheduleIntent, counts, operations: outcomes });
+      }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "operations" && request.method === "GET") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const result = await env.DB.prepare("SELECT operation_key,preview_id,channel_id,schedule_revision,caption_revision_id,payload_hash,schedule_intent_json,provider_state,retry_class,attempt_count,provider_post_id,provider_due_at,provider_status,provider_response_json,last_error,last_observed_at,created_at,updated_at FROM delivery_operations WHERE preview_id=? ORDER BY channel_id").bind(parts[2]).all();
+        return json({ operations: result.results || [] });
+      }
+      if (parts[1] === "delivery-operations" && parts[2] && parts[3] === "retry" && request.method === "POST") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const operation = await env.DB.prepare("SELECT * FROM delivery_operations WHERE operation_key=?").bind(parts[2]).first();
+        if (!operation) return json({ error: "operation_not_found" }, 404);
+        if (operation.provider_state === "unknown") return json({ error: "unknown_requires_reconciliation" }, 409);
+        if (!["failed"].includes(operation.provider_state)) return json({ error: "operation_not_retryable", status: operation.provider_state }, 409);
+        await env.DB.prepare("UPDATE delivery_operations SET provider_state='pending',retry_class='operator_retry',last_error=NULL,updated_at=? WHERE operation_key=? AND provider_state='failed'").bind(now(), parts[2]).run();
+        return json({ ok: true, operation_key: parts[2], status: "pending" });
+      }
+      if (parts[1] === "delivery-operations" && parts[2] && parts[3] === "reconcile" && request.method === "POST") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const operation = await env.DB.prepare("SELECT * FROM delivery_operations WHERE operation_key=?").bind(parts[2]).first();
+        if (!operation) return json({ error: "operation_not_found" }, 404);
+        if (!operation.provider_post_id) return json({ error: "provider_post_id_missing" }, 409);
+        const data = await bufferRequest(env, "query($id: ID!) { post(id: $id) { id status dueAt channelId } }", { id: operation.provider_post_id });
+        const post = data.post;
+        if (!post) return json({ error: "provider_post_not_found", operation_key: parts[2] }, 404);
+        const status = String(post.status || "").toLowerCase();
+        const localState = status === "sent" || status === "published" ? "published" : status === "error" ? "failed" : "scheduled";
+        await env.DB.prepare("UPDATE delivery_operations SET provider_state=?,provider_status=?,provider_due_at=?,provider_response_json=?,last_observed_at=?,updated_at=? WHERE operation_key=?").bind(localState, post.status || null, post.dueAt || null, JSON.stringify(post).slice(0, 4000), now(), now(), parts[2]).run();
+        return json({ ok: true, operation_key: parts[2], provider: post, provider_state: localState });
       }
       if (parts[1] === "maintenance" && parts[2] === "cleanup-previews" && request.method === "POST") {
         if (!(await cleanupAuthorized(request, env))) return json({ error: "cleanup_unauthorized" }, 401);
@@ -492,6 +566,7 @@ export default {
         const result = await env.DB.prepare("SELECT id,job_id,rank,status,tier,candidate_id,source_asset_id,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,platform,platform_profile_json,subtitle_delivery_json,sound_tags_json,approval_artifact_hash,approval_caption_revision_id,approval_rules_hash,rules_summary_id,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         const previews = await Promise.all((result.results || []).map(async (preview) => ({
           ...preview,
+          operations: (await env.DB.prepare("SELECT operation_key,channel_id,schedule_intent_json,provider_state,retry_class,provider_post_id,provider_due_at,last_error,attempt_count,updated_at FROM delivery_operations WHERE preview_id=? ORDER BY channel_id").bind(preview.id).all()).results || [],
           video_url: preview.review_video_key ? await previewUrl(request, env, preview.review_video_key, 3600) : null,
           download_url: preview.video_key ? await previewUrl(request, env, preview.video_key, 3600) : preview.download_url,
           thumbnail_url: preview.thumbnail_key ? await previewUrl(request, env, preview.thumbnail_key, 3600) : null,
