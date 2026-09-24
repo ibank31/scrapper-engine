@@ -1,0 +1,47 @@
+name: phase5-acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'core/**'
+      - 'modules/**'
+      - 'scripts/run_known_good_fixture.py'
+      - 'scripts/run_staging_failure_matrix.py'
+      - 'tests/test_known_good_fixture.py'
+      - 'tests/test_phase5_readiness.py'
+      - '.github/workflows/phase5-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  known-good-and-staging-mocks:
+    runs-on: ubuntu-latest
+    env:
+      CLIPPER_PROVIDER_MUTATION_ENABLED: 'false'
+      CLIPPER_SEMANTIC_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: pip install -r requirements.txt
+      - name: Run known-good legal fixture
+        run: python scripts/run_known_good_fixture.py --out phase5-known-good
+      - name: Run non-production failure matrix
+        run: python scripts/run_staging_failure_matrix.py --out phase5-failure-matrix.json
+      - name: Run Phase 5 readiness tests
+        run: python -m unittest tests.test_known_good_fixture tests.test_phase5_readiness -v
+      - name: Upload acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5-acceptance-evidence
+          path: |
+            phase5-known-good/review-manifest.json
+            phase5-known-good/plan.json
+            phase5-known-good/transcript.json
+            phase5-known-good/candidates.json
+            phase5-known-good/renders/subtitle-delivery.json
+            phase5-failure-matrix.json

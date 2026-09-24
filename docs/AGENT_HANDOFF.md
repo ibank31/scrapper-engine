@@ -3,31 +3,27 @@
 **Updated:** 24 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Branch:** `main`
-**Phase:** Phase 4 complete; Phase 5 not started
+**Phase:** Phase 5 local acceptance complete; controlled pilot not executed
 
 ## Current product contract
 
 The user selects a campaign in Worker Pages. The worker snapshots rules, gathers official assets, transcribes sources, classifies candidates for explicit audience tiers, selects one distinct Tier 1 and one distinct Tier 2 output, renders and validates the pair, and publishes previews to review. Reviewers edit captions only through immutable validated revisions. After approval, the user runs server-side Buffer preflight and sends the approved artifact to the next Buffer queue slot. Buffer operations are tracked per preview/channel, protected from duplicate creation, reconciled, and retained until terminal. The user submits manually to Whop; Whop submission remains outside the engine.
 
-## Phase 4 completion
+## Phase 5 completion status
 
-Phase 1 through Phase 3 remain complete. Phase 4 is complete through P4-C:
+Phase 1 through Phase 4 remain complete. Phase 5 acceptance work is complete locally through P5-B and the P5-C evidence contract:
 
-- **P4-A — Retention safety:** cleanup now evaluates preview status and delivery-operation dependencies before deleting objects or metadata. Planned, pending, attempting, unknown, scheduled, and unresolved operations retain media. Review and approval windows are status-aware. Every decision is written to `retention_events`. A media probe checks stable HTTPS, video content type, positive length, byte-range support, and reports artifact evidence.
-- **P4-B — Recovery and capacity:** provider errors are classified into transient, throttled, permanent, unknown, and capacity classes. Retries are bounded to three attempts with deterministic jitter policy. Request-budget ledger and per-channel capacity guards run before mutation. Provider reconciliation maps scheduled, published, and failed states; missing provider objects become failed. Stuck attempting/unknown operations are exposed as server-side high-severity alerts.
-- **P4-C — Rerender lineage:** a rerender request creates a new `pending_render` preview revision with `parent_preview_id`, revision number, and render revision, while preserving the parent. The previous preview is marked `changes_requested`, approval fields are cleared, and the new revision must re-enter rendering, caption validation, and review. Existing execution generation and claim fencing remain in place for stale workers.
-
-## Operational and safety boundaries
-
-No production Cloudflare deployment, D1 migration, Buffer mutation, provider smoke test, or Whop mutation was performed by this implementation session. The D1 schema and self-healing migrations require a separately authorized deployment. Provider request accounting and reconciliation are implemented server-side but must be tested against the actual Buffer GraphQL schema/account before production enablement.
-
-Phase 4 does not implement known-good fixture staging, full staging failure-matrix execution, controlled pilot, or Whop automation. Those remain Phase 5 roadmap work.
+- **P5-A — Known-good fixture:** `scripts/run_known_good_fixture.py` creates a synthetic legal 38-second 9:16 MP4, generated word-timestamp transcript, campaign plan with explicit 15–30 second rules, two audience-tier expectations, distinct candidate pair, rendered subtitle artifacts, technical/editorial validation, and pending review manifest. It performs the complete intake → transcript → candidate → selection → render → validation → review-manifest trace.
+- **P5-B — Staging readiness:** `core/staging_matrix.py` and `scripts/run_staging_failure_matrix.py` cover approval failure, caption failure, unsupported field, duplicate click, timeout, partial result, cleanup dependency, and stale worker. The matrix is local-mock only and hard-fails when provider mutation is enabled.
+- **P5-C — Controlled pilot evidence:** `core/pilot_evidence.py` defines the required job/run/rules/source/operation/provider/due-time/terminal/rollback evidence and requires human confirmation immediately before mutation. The contract is ready, but no controlled pilot was executed.
 
 ## Verification baseline
 
 ```bash
-python3 -m unittest discover -s tests -q   # 138 tests, OK
-python3 -m py_compile core/*.py modules/*/*.py worker/*.py tests/*.py
+python3 -m unittest discover -s tests -q   # 142 tests, OK
+python3 scripts/run_known_good_fixture.py --out /tmp/scrapper-known-good-trace
+python3 scripts/run_staging_failure_matrix.py --out /tmp/phase5-failure-matrix.json
+python3 -m py_compile core/*.py modules/*/*.py worker/*.py scripts/*.py tests/*.py
 python3 -m compileall -q core modules worker
 python3 -m pip check
 node --check cloudflare/api.js
@@ -38,22 +34,22 @@ git diff --check
 
 The existing subtitle tests still emit two unrelated `ResourceWarning` messages for unclosed fixture reads; they do not fail the suite. Gemini mock/retry diagnostics are expected in campaign-AI tests and do not indicate a production request.
 
-## Next milestone
+## Safety boundary
 
-The next planned slice is **Phase 5 — acceptance and staging readiness**, beginning with P5-A. It must remain separate from Phase 4. Do not deploy D1 schema changes, enable provider mutations, or run a provider smoke test without a separately authorized deployment task.
+No production Cloudflare deployment, D1 migration, Buffer mutation, provider smoke test, staging-provider mutation, or Whop mutation was performed. The new workflow is non-production and sets provider mutation off. The controlled pilot remains blocked until a dedicated low-volume account, staging evidence, exact rollback procedure, and explicit human confirmation immediately before the first provider mutation are available.
+
+Do not enable broad automation in the same task as the first pilot. Stop after pilot evidence is complete.
 
 ## Relevant entry points
 
 - `docs/IMPLEMENTATION_ROADMAP.md` — authoritative roadmap and acceptance gates.
-- `docs/PHASE_1_COMPLETION_2026-09-24.md` — Phase 1 report.
-- `docs/PHASE_2_COMPLETION_2026-09-24.md` — Phase 2 report.
-- `docs/PHASE_3_COMPLETION_2026-09-24.md` — Phase 3 report.
-- `docs/PHASE_4_COMPLETION_2026-09-24.md` — Phase 4 report.
+- `docs/PHASE_5_COMPLETION_2026-09-24.md` — Phase 5 report.
+- `scripts/run_known_good_fixture.py` — local legal end-to-end trace.
+- `scripts/run_staging_failure_matrix.py` — provider-off failure matrix.
+- `core/pilot_evidence.py` — controlled-pilot evidence gate.
+- `.github/workflows/phase5-acceptance.yml` — non-production CI workflow.
 - `STATUS.md` — current milestone and verification state.
-- `core/retention_safety.py` — retention dependency and media reachability contract.
-- `core/recovery_policy.py` — error classes, retry budget, jitter, capacity, and stuck alerts.
-- `cloudflare/api.js` and `cloudflare/schema.sql` — cleanup evidence, request ledger, lineage, and operation recovery.
 
 ## Archived handoff
 
-The superseded Phase 3 handoff is preserved at [`docs/archive/2026-09-24/AGENT_HANDOFF-PHASE3-2026-09-24.md`](archive/2026-09-24/AGENT_HANDOFF-PHASE3-2026-09-24.md).
+The superseded Phase 4 handoff is preserved at [`docs/archive/2026-09-24/AGENT_HANDOFF-PHASE4-2026-09-24.md`](archive/2026-09-24/AGENT_HANDOFF-PHASE4-2026-09-24.md).
