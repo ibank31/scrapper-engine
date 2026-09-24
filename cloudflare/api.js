@@ -216,7 +216,6 @@ export default {
       try {
         await ensureSchema(env.DB);
       if (parts[1] === "buffer" && parts[2] === "channels" && request.method === "GET") {
-        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
         const orgData = await bufferRequest(env, "query { account { organizations { id name } } }");
         const channels = [];
         for (const organization of orgData.account?.organizations || []) {
