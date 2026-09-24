@@ -1,6 +1,6 @@
 # Scrapper Engine Status
 
-**Updated:** 24 September 2026 — P1-A output contract foundation complete; P1-B blocked on tier semantics
+**Updated:** 24 September 2026 — Phase 1 complete through P1-E; Phase 2 not started
 **Branch:** `main`
 
 ## Current milestone
@@ -42,7 +42,7 @@ The next integration hardening keeps stage contracts explicit: a cheap asset-dur
 
 ## Verification
 
-The repository regression suite passes **84 tests**. GitHub Actions run `35882633238` completed successfully: `Ran 84 tests in 7.091s`, `OK`. The deterministic semantic fixture reports `4/4` decision matches and `4/4` expected-risk matches (`decision_accuracy=1.0`, `risk_coverage=1.0`). The same run passed the Node syntax checks and semantic fixture workflow steps.
+The repository regression suite passes **110 tests** locally after Phase 1. Python compilation, compileall, pip check, both Node syntax checks, and diff check also pass. The deterministic semantic fixture remains `4/4` decision matches and `4/4` expected-risk matches (`decision_accuracy=1.0`, `risk_coverage=1.0`). Existing subtitle tests still emit two unrelated unclosed-file `ResourceWarning` messages without failing.
 
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
@@ -54,9 +54,9 @@ Jobs now capture an immutable plan snapshot, canonical rules hash, source finger
 
 ## Next milestone
 
-The remaining implementation is split into bounded agent slices in `docs/IMPLEMENTATION_ROADMAP.md`. **P1-A — output contract foundation** is complete in the current working tree: compiled plans contain the versioned two-output contract and pure validation returns `blocked_invalid_output_contract` for malformed contracts. **P1-B — candidate identity and tiers is blocked** until the business owner defines the clip-level Tier 1/Tier 2 taxonomy, evidence required for classification, and the handling of unclassifiable candidates. The existing campaign `EN/Tier-1` metadata flag is explicitly not a candidate-tier definition. Each session must execute one slice, pass its acceptance gate, update `docs/AGENT_HANDOFF.md` and this file, and stop. No production deployment, Buffer mutation, publication, or expensive trial is part of the Phase 1 foundation work.
+The remaining implementation is split into bounded agent slices in `docs/IMPLEMENTATION_ROADMAP.md`. **Phase 1 — P1-A through P1-E** is complete locally: plans carry the two-output contract; candidates have durable identity and explicit audience-tier evidence; exact Tier 1/Tier 2 selection blocks before rendering when incomplete; render and validation are all-or-nothing; and the API, manifest, D1 schema, and Worker Pages expose the contract. The next milestone is **P2-A — platform rule profiles**. No production deployment, Buffer mutation, publication, or Whop submission was performed by the Phase 1 implementation.
 
-Phase 0 provenance, approval, and stale-write fencing is implemented in commit `0b6e019` and verified by GitHub Actions run `35985728295` with 88 tests passing. The old P1/P2/P3 labels in historical notes are retained for audit context; the actionable sequence is now P1-A through P5-C in the implementation roadmap. The next agent must not combine slices or treat a green unit suite as proof of end-to-end readiness.
+Phase 0 provenance, approval, and stale-write fencing is implemented in commit `0b6e019`. Phase 1 completion details are recorded in `docs/PHASE_1_COMPLETION_2026-09-24.md`; the previous handoff containing the obsolete P1-B blocker is archived under `docs/archive/2026-09-24/`. The old P1/P2/P3 labels in historical notes are retained for audit context; the actionable sequence is now P1-A through P5-C in the implementation roadmap. A green local suite is not proof of production readiness or a Cloudflare deployment.
 
 Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolved `env.GITHUB_ACTIONS_TOKEN` as empty in an older deployment. The current production deployment `e4b739ea` has the required secret names configured and successfully dispatched the manual worker. Clipping remains intentionally **manual-only** through the homepage; only `campaign-sync-ai.yml` runs daily at 00:00 WIB.
 

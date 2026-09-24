@@ -22,6 +22,15 @@ function escapeHtml(value) {
 }
 function showToast(message) { const el = $("#toast"); el.textContent = message; el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2800); }
 function api(path, options) { return fetch((cfg.API_BASE_URL || "") + path, options).then(async (r) => { const payload = await r.json().catch(() => ({})); if (!r.ok) throw new Error(payload.message || payload.error || "API " + r.status); return payload; }); }
+function parseObject(value, fallback) { if (value && typeof value === "object") return value; try { const parsed = JSON.parse(value || ""); return parsed && typeof parsed === "object" ? parsed : (fallback || {}); } catch (_) { return fallback || {}; } }
+function outputContractSummary(job) {
+  const selection = parseObject(job.output_selection_json, {});
+  const actual = selection.actual_selected || selection.actual || {};
+  const t1 = Number(actual.tier_1 || 0); const t2 = Number(actual.tier_2 || 0);
+  if (job.output_contract_status === "review_ready") return "Target output · Tier 1 1/1 · Tier 2 1/1";
+  if (job.output_contract_status === "blocked") return "Output belum lengkap · Tier 1 " + t1 + "/1 · Tier 2 " + t2 + "/1";
+  return "Target output · Tier 1 1 · Tier 2 1";
+}
 function readinessClass(status) {
   if (status === "siap") return "ready-siap";
   if (status === "ketat") return "ready-ketat";
@@ -201,6 +210,7 @@ function renderJobs() {
       '<div class="job-main">' +
         '<div class="job-head"><div class="job-title-wrap"><strong>' + escapeHtml(j.campaign_title || j.campaign_id) + '</strong><span class="job-phase">' + escapeHtml(phase.label) + '</span></div><span class="status ' + escapeHtml(j.status) + '">' + statusText(j.status) + '</span></div>' +
         '<p class="job-message"><b>' + escapeHtml(j.message || phase.detail || "Menunggu update…") + '</b>' + (j.error ? " · " + escapeHtml(j.error) : "") + '</p>' +
+        '<div class="job-output-contract">' + escapeHtml(outputContractSummary(j)) + '</div>' +
         '<div class="job-progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><span class="progress-number">' + progress + '%</span></div>' +
         '<div class="job-meta"><span>Update ' + formatAge(j.updated_at) + '</span><span>·</span><span>' + escapeHtml(phase.detail || "") + '</span>' + (stale ? '<span class="stale-warning">⚠ Tidak ada update terbaru</span>' : "") + '</div>' +
         ((j.status === "queued" || j.status === "processing") ? '<button class="stop-button" data-stop-id="' + escapeHtml(j.id) + '" type="button">Stop proses</button>' : "") +
@@ -294,6 +304,8 @@ function renderReviews() {
     let validation = {};
     try { validation = typeof r.validation_json === "string" ? JSON.parse(r.validation_json) : (r.validation_json || {}); } catch (_) { validation = {}; }
     const semantic = validation.semantic || {};
+    const tierLabel = r.tier === "tier_1" ? "Audience Tier 1" : r.tier === "tier_2" ? "Audience Tier 2" : "Audience belum terklasifikasi";
+    const distinctness = parseObject(r.distinctness_json, r.distinctness || {});
     const semanticLine = semantic.semantic_score == null ? "Semantic fallback belum tersedia" :
       "Semantic " + Number(semantic.semantic_score).toFixed(0) + " · Hook " + Number(semantic.hook_score || 0).toFixed(0) + " · Context " + Number(semantic.context_score || 0).toFixed(0) + " · Payoff " + Number(semantic.payoff_score || 0).toFixed(0) + " · Complete " + Number(semantic.completeness_score || 0).toFixed(0);
     const status = String(r.status || "pending_review");
@@ -305,6 +317,7 @@ function renderReviews() {
     return '<article class="review-card">' +
       (src ? '<video class="review-video" controls preload="none" poster="' + escapeHtml(r.thumbnail_url || "") + '" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
       '<div class="review-body"><span class="status review">' + escapeHtml(status.replaceAll("_", " ").toUpperCase()) + '</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
+      '<div class="review-contract"><strong>' + escapeHtml(tierLabel) + '</strong>' + (r.candidate_id ? '<span>Candidate terverifikasi</span>' : '<span>Candidate ID belum tersedia</span>') + (distinctness.distinct ? '<span>Berbeda secara material</span>' : '') + '</div>' +
       '<p>Periksa video penuh, validasi, dan checklist campaign sebelum mengambil keputusan.</p>' +
       (r.rules_summary_id ? '<div class="rules-summary"><strong>Ringkasan rules campaign</strong><p>' + escapeHtml(r.rules_summary_id) + '</p></div>' : '') +
       '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +

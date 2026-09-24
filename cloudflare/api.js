@@ -120,14 +120,14 @@ async function ensureSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status)").run();
   const previewInfo = await db.prepare("PRAGMA table_info(previews)").all();
   const previewColumns = new Set((previewInfo.results || []).map((row) => row.name));
-  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT", artifact_hash: "TEXT", caption_revision_id: "TEXT", caption_hash: "TEXT", approval_artifact_hash: "TEXT", approval_caption_revision_id: "TEXT", approval_rules_hash: "TEXT", platform_profile_version: "TEXT", schedule_intent_hash: "TEXT", rules_summary_id: "TEXT" })) {
+  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT", tier: "TEXT", candidate_id: "TEXT", source_asset_id: "TEXT", artifact_hash: "TEXT", distinctness_json: "TEXT NOT NULL DEFAULT '{}'", caption_revision_id: "TEXT", caption_hash: "TEXT", approval_artifact_hash: "TEXT", approval_caption_revision_id: "TEXT", approval_rules_hash: "TEXT", platform_profile_version: "TEXT", schedule_intent_hash: "TEXT", rules_summary_id: "TEXT" })) {
     if (!previewColumns.has(name)) await db.prepare("ALTER TABLE previews ADD COLUMN " + name + " " + definition).run();
   }
   await db.prepare("CREATE TABLE IF NOT EXISTS preview_events (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, from_status TEXT, to_status TEXT NOT NULL, action TEXT NOT NULL, reason TEXT, actor TEXT, created_at TEXT NOT NULL)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at)").run();
   const jobInfo = await db.prepare("PRAGMA table_info(jobs)").all();
   const jobColumns = new Set((jobInfo.results || []).map((row) => row.name));
-  for (const [name, definition] of Object.entries({ dispatch_token: "TEXT", claimed_at: "TEXT", claimed_by: "TEXT", run_id: "TEXT", plan_snapshot_json: "TEXT", rules_hash: "TEXT", plan_schema_version: "INTEGER", source_fingerprint_json: "TEXT NOT NULL DEFAULT '{}'", execution_generation: "INTEGER NOT NULL DEFAULT 1", cancelled_at: "TEXT", active_run_token: "TEXT", manifest_key: "TEXT", manifest_schema_version: "INTEGER" })) {
+  for (const [name, definition] of Object.entries({ dispatch_token: "TEXT", claimed_at: "TEXT", claimed_by: "TEXT", run_id: "TEXT", plan_snapshot_json: "TEXT", rules_hash: "TEXT", plan_schema_version: "INTEGER", source_fingerprint_json: "TEXT NOT NULL DEFAULT '{}'", execution_generation: "INTEGER NOT NULL DEFAULT 1", output_contract_json: "TEXT NOT NULL DEFAULT '{}'", output_selection_json: "TEXT NOT NULL DEFAULT '{}'", output_contract_status: "TEXT NOT NULL DEFAULT 'pending'", cancelled_at: "TEXT", active_run_token: "TEXT", manifest_key: "TEXT", manifest_schema_version: "INTEGER" })) {
     if (!jobColumns.has(name)) await db.prepare("ALTER TABLE jobs ADD COLUMN " + name + " " + definition).run();
   }
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_jobs_claimed ON jobs(status, claimed_at)").run();
@@ -354,7 +354,7 @@ export default {
         const rulesHash = await sha256Hex({ plan, source: sourceFingerprint });
         const snapshot = { ...plan, provenance: { rules_hash: rulesHash, captured_at: timestamp, campaign_id: parts[2] } };
         try {
-          await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,plan_snapshot_json,rules_hash,plan_schema_version,source_fingerprint_json,execution_generation,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Menunggu worker cloud", JSON.stringify(snapshot), rulesHash, Number(plan.schema_version || 1), JSON.stringify(sourceFingerprint), 1, timestamp, timestamp).run();
+          await env.DB.prepare("INSERT INTO jobs (id,campaign_id,status,progress,message,plan_snapshot_json,rules_hash,plan_schema_version,source_fingerprint_json,execution_generation,output_contract_json,output_contract_status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, parts[2], "queued", 0, "Menunggu worker cloud", JSON.stringify(snapshot), rulesHash, Number(plan.schema_version || 1), JSON.stringify(sourceFingerprint), 1, JSON.stringify(plan.output_contract || {}), "pending", timestamp, timestamp).run();
         } catch (error) {
           const open = await env.DB.prepare("SELECT id,campaign_id,status,progress,message,created_at,updated_at FROM jobs WHERE campaign_id = ? AND status IN ('queued','processing') ORDER BY created_at LIMIT 1").bind(parts[2]).first();
           if (!open) throw error;
@@ -473,7 +473,7 @@ export default {
         return row ? json({ manifest: row }) : json({ error: "job_not_found" }, 404);
       }
       if (parts[1] === "jobs" && request.method === "GET" && !parts[2]) {
-        const result = await env.DB.prepare("SELECT j.id,j.campaign_id,j.status,j.progress,j.message,j.error,j.created_at,j.updated_at,c.title AS campaign_title,c.brand AS campaign_brand FROM jobs j JOIN campaigns c ON c.id=j.campaign_id ORDER BY j.updated_at DESC LIMIT 30").all();
+        const result = await env.DB.prepare("SELECT j.id,j.campaign_id,j.status,j.progress,j.message,j.error,j.output_contract_status,j.output_contract_json,j.output_selection_json,j.created_at,j.updated_at,c.title AS campaign_title,c.brand AS campaign_brand FROM jobs j JOIN campaigns c ON c.id=j.campaign_id ORDER BY j.updated_at DESC LIMIT 30").all();
         return json({ jobs: result.results || [] });
       }
       if (parts[1] === "jobs" && parts[2] && request.method === "GET" && !parts[3]) {
@@ -482,7 +482,7 @@ export default {
         return json({ job: row });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,approval_artifact_hash,approval_caption_revision_id,approval_rules_hash,rules_summary_id,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
+        const result = await env.DB.prepare("SELECT id,job_id,rank,status,tier,candidate_id,source_asset_id,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,approval_artifact_hash,approval_caption_revision_id,approval_rules_hash,rules_summary_id,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         const previews = await Promise.all((result.results || []).map(async (preview) => ({
           ...preview,
           video_url: preview.review_video_key ? await previewUrl(request, env, preview.review_video_key, 3600) : null,
@@ -541,9 +541,9 @@ export default {
         const auth = await executionAuthorized(request, env, parts[2], body);
         if (!auth.ok) return json({ error: auth.error }, auth.status);
         for (const preview of body.previews || []) {
-          await env.DB.prepare("INSERT INTO previews (id,job_id,rank,status,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,rules_summary_id,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,video_key=excluded.video_key,review_video_key=excluded.review_video_key,thumbnail_key=excluded.thumbnail_key,download_url=excluded.download_url,validation_json=excluded.validation_json,caption_draft=excluded.caption_draft,caption_revision_id=excluded.caption_revision_id,caption_hash=excluded.caption_hash,artifact_hash=excluded.artifact_hash,rules_summary_id=excluded.rules_summary_id,checklist_json=excluded.checklist_json").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.video_key || null, preview.review_video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, preview.caption_revision_id || "draft-v1", preview.caption_hash || null, preview.artifact_hash || preview.video_key || null, preview.rules_summary_id || null, JSON.stringify(preview.checklist || []), timestamp).run();
+          await env.DB.prepare("INSERT INTO previews (id,job_id,rank,status,tier,candidate_id,source_asset_id,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,rules_summary_id,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,tier=excluded.tier,candidate_id=excluded.candidate_id,source_asset_id=excluded.source_asset_id,video_key=excluded.video_key,review_video_key=excluded.review_video_key,thumbnail_key=excluded.thumbnail_key,download_url=excluded.download_url,validation_json=excluded.validation_json,caption_draft=excluded.caption_draft,caption_revision_id=excluded.caption_revision_id,caption_hash=excluded.caption_hash,artifact_hash=excluded.artifact_hash,distinctness_json=excluded.distinctness_json,rules_summary_id=excluded.rules_summary_id,checklist_json=excluded.checklist_json").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.tier || null, preview.candidate_id || null, preview.source_asset_id || null, preview.video_key || null, preview.review_video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, preview.caption_revision_id || "draft-v1", preview.caption_hash || null, preview.artifact_hash || preview.video_key || null, JSON.stringify(preview.distinctness || {}), preview.rules_summary_id || null, JSON.stringify(preview.checklist || []), timestamp).run();
         }
-        await env.DB.prepare("UPDATE jobs SET status='review',progress=100,message=?,updated_at=? WHERE id=? AND status='processing' AND execution_generation=? AND active_run_token=?").bind(`${(body.previews || []).length} preview siap review`, timestamp, parts[2], Number(body.execution_generation || 1), request.headers.get("x-claim-token") || request.headers.get("x-dispatch-token") || "").run();
+        await env.DB.prepare("UPDATE jobs SET status='review',progress=100,message=?,output_contract_status='review_ready',output_selection_json=?,updated_at=? WHERE id=? AND status='processing' AND execution_generation=? AND active_run_token=?").bind(`${(body.previews || []).length} preview siap review`, JSON.stringify(body.output_selection || {}), timestamp, parts[2], Number(body.execution_generation || 1), request.headers.get("x-claim-token") || request.headers.get("x-dispatch-token") || "").run();
         return json({ ok: true });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "upload" && request.method === "POST") {
@@ -588,7 +588,7 @@ export default {
         const auth = await executionAuthorized(request, env, parts[2], body);
         if (!auth.ok) return json({ error: auth.error }, auth.status);
         const terminal = ["review", "blocked", "error", "cancelled"];
-        const result = await env.DB.prepare("UPDATE jobs SET status = ?, progress = ?, message = ?, error = ?, updated_at = ? WHERE id = ? AND execution_generation=? AND active_run_token=? AND status NOT IN ('review','blocked','error','cancelled')").bind(body.status, body.progress || 0, body.message || null, body.error || null, timestamp, parts[2], Number(body.execution_generation || 1), request.headers.get("x-claim-token") || request.headers.get("x-dispatch-token") || "").run();
+        const result = await env.DB.prepare("UPDATE jobs SET status = ?, progress = ?, message = ?, error = ?, output_contract_status = COALESCE(?, output_contract_status), output_selection_json = COALESCE(?, output_selection_json), updated_at = ? WHERE id = ? AND execution_generation=? AND active_run_token=? AND status NOT IN ('review','blocked','error','cancelled')").bind(body.status, body.progress || 0, body.message || null, body.error || null, body.output_contract_status || null, body.output_selection ? JSON.stringify(body.output_selection) : null, timestamp, parts[2], Number(body.execution_generation || 1), request.headers.get("x-claim-token") || request.headers.get("x-dispatch-token") || "").run();
         if (!(result.meta?.changes > 0)) return json({ error: "stale_job_write" }, 409);
         return json({ ok: true });
       }

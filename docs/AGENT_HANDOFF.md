@@ -3,57 +3,63 @@
 **Updated:** 24 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Branch:** `main`
-**Base commit:** `0f1f069` — split the remaining roadmap into bounded phases
-
-## Documentation policy
-
-This file is the active handoff. Superseded handoffs are archived under `docs/archive/` with their original date. Update this file and `STATUS.md` whenever a roadmap slice is completed or a new slice begins.
+**Phase:** Phase 1 complete; Phase 2 not started
 
 ## Current product contract
 
-The system starts from a user-selected campaign, snapshots campaign rules, downloads official campaign materials, transcribes source media, finds complete moments, renders vertical previews, validates them against campaign rules, and places reviewable previews in the dashboard. Publishing remains manual. `plan.json` and its `source_of_truth` fields are authoritative.
+The user selects a campaign in Worker Pages. The worker snapshots the campaign rules, downloads official materials, transcribes the sources, classifies eligible candidates for the explicit audience targets, selects one materially distinct Tier 1 output and one materially distinct Tier 2 output, renders and validates the pair as an all-or-nothing unit, and publishes the resulting previews to the review dashboard. The user manually approves previews, sends approved media to Buffer, waits for the scheduled upload, and submits manually to Whop. Whop submission is outside the engine.
 
-## Current implementation state
+## Phase 1 completion
 
-Phase 0 provenance, approval, and execution fencing is complete in commit `0b6e019`.
+Phase 1 is complete through P1-E:
 
-P1-A — Output contract foundation is implemented in the current working tree and verified locally. Compiled plans now carry a versioned `output_contract` with exactly two outputs, one `tier_1`, one `tier_2`, duration bounds, and a distinctness profile. Pure validators return `blocked_invalid_output_contract` for malformed contracts. No candidate classification, selection gate, rendering change, provider mutation, or delivery change is included.
+- **P1-A:** Compiled plans carry a versioned two-output contract with `expected_count=2`, `tier_1=1`, `tier_2=1`, duration bounds, and a distinctness profile.
+- **P1-B:** Candidates carry stable identity, normalized source identity, source/transcript/rules hashes, classifier version, tier evidence, and selection rationale. Audience tiers are explicit campaign audience targets; missing or ambiguous rules produce `unknown`, never a guessed tier.
+- **P1-C:** A pure selection gate requires one eligible Tier 1 and one eligible Tier 2 candidate and records bounded near-miss diagnostics. Failure blocks before any render attempt.
+- **P1-D:** Rendering requires exactly two artifacts and validation requires exactly two non-failing records. Missing renders, malformed validation, or one failed validation blocks the pair before review.
+- **P1-E:** D1, manifest, API, and Worker Pages review UI expose the output contract, tier, candidate ID, source identity, artifact hash, and pairwise distinctness evidence.
 
-P1-B is the next bounded slice: candidate identity and tiers. It must add deterministic candidate identity and classification only, preserve candidate counts reaching review, and retain duplicate-source evidence before source-count truncation. **P1-B is currently blocked:** the repository audit documents that the business semantics and evidence requirements for clip-level Tier 1 and Tier 2 are undefined. The existing `EN/Tier-1` campaign metadata flag is not a candidate tier and must not be used as one. Do not implement a classifier until the business owner supplies the taxonomy, evidence, and handling for unclassifiable candidates.
+The implementation is committed in the current Phase 1 commits, with the latest Phase 1 slice pending final commit after documentation verification.
 
-## Active validation baseline
+## Operational and safety boundaries
+
+Buffer remains a post-approval queue action. The engine does not schedule Whop submissions and does not publish without human approval. No production Cloudflare deployment, D1 migration, Buffer mutation, or Whop mutation was performed by the Phase 1 implementation session. Cloudflare code includes self-healing schema definitions, but deployment must be handled as a separate explicit action.
+
+The current Buffer queue semantics remain “add to the channel queue”; exact timestamp scheduling is not part of Phase 1. Platform captions, subtitle profiles, sound/native tags, delivery operations, reconciliation, retention, and recovery remain Phase 2–4 work.
+
+## Verification baseline
+
+The completed Phase 1 tree passed:
 
 ```bash
-python3 -m unittest discover -s tests -q
-python3 -m py_compile core/*.py modules/*/*.py worker/*.py
+python3 -m unittest discover -s tests -q   # 110 tests, OK
+python3 -m py_compile core/*.py modules/*/*.py worker/*.py tests/*.py
 python3 -m compileall -q core modules worker
 python3 -m pip check
+node --check cloudflare/api.js
+node --check web/app.js
 git diff --check
 ```
 
-The P1-A working tree verification completed with **95 tests passing**. The focused P1-A suite contains 11 tests.
+The existing subtitle tests still emit two unrelated `ResourceWarning` messages for unclosed fixture reads; they do not fail the suite.
 
-## Slice boundaries
+## Next milestone
 
-- Execute one roadmap slice per session.
-- Do not start P1-C or later work while implementing P1-B.
-- Do not infer Tier 1/Tier 2 from campaign metadata, audience flags, rank, score, source order, or any other proxy.
-- If the P1-B business taxonomy is still missing, document the dependency and stop rather than implementing a guessed classifier.
-- Do not modify Buffer, Instagram, TikTok, YouTube delivery, scheduling, captions, subtitles, audio tags, or production provider state for P1-B.
-- Update this handoff and `STATUS.md` before stopping after each slice.
-- Archive superseded documentation rather than silently leaving contradictory active instructions.
+The next planned slice is **P2-A — platform rule profiles**. It must remain separate from Phase 1 and must not be started implicitly. P2-A covers versioned Instagram/TikTok/YouTube rule profiles and capability types; it must not change provider mutation behavior.
 
 ## Relevant entry points
 
-- `docs/IMPLEMENTATION_ROADMAP.md` — authoritative slice definitions and acceptance gates.
-- `docs/SCRAPPER_ENGINE_DEEP_AUDIT_2026-09-24.md` — detailed architecture/context pack for the audited HEAD.
+- `docs/IMPLEMENTATION_ROADMAP.md` — authoritative roadmap and slice acceptance contracts.
+- `docs/PHASE_1_COMPLETION_2026-09-24.md` — Phase 1 implementation and acceptance report.
 - `STATUS.md` — current milestone and verification state.
-- `core/campaign_rules.py` — compiled campaign plan.
 - `core/output_contract.py` — P1-A contract construction and validation.
-- `core/clip_candidates.py` — candidate generation and deterministic ranking.
-- `modules/clipping/select.py` — candidate artifact writer.
-- `worker/run_job.py` — worker stage orchestration; do not broaden scope without a slice requirement.
+- `core/candidate_identity.py` — P1-B identity, audience classification, and source evidence.
+- `core/output_selection.py` — P1-C exact pair selection and distinctness evidence.
+- `core/output_gate.py` — P1-D aggregate render/validation gate.
+- `worker/run_job.py` — worker orchestration and review manifest construction.
+- `cloudflare/api.js` and `cloudflare/schema.sql` — P1-E persistence/API contract.
+- `web/app.js` — dashboard contract visibility.
 
 ## Archived handoff
 
-The superseded 23 September handoff is preserved at [`docs/archive/2026-09-24/AGENT_HANDOFF-2026-09-23.md`](archive/2026-09-24/AGENT_HANDOFF-2026-09-23.md).
+The superseded P1-B handoff is preserved at [`docs/archive/2026-09-24/AGENT_HANDOFF-P1B-2026-09-24.md`](archive/2026-09-24/AGENT_HANDOFF-P1B-2026-09-24.md).

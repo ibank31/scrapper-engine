@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -24,9 +25,10 @@ import requests
 
 from core.relevance import check_candidate
 from core.candidate_identity import deduplicate_source_records
+from core.output_selection import select_required_output_pair
+from core.output_gate import evaluate_output_pair
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
-from core.clip_candidates import select_distinct_candidates
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 MAX_REVIEW_CANDIDATES = 2
@@ -43,8 +45,8 @@ def api_call(base: str, path: str, token: str, method: str = "GET", payload: dic
     return response.json()
 
 
-def update(base: str, job_id: str, token: str, status: str, progress: int, message: str, error: str | None = None) -> None:
-    api_call(base, f"/api/jobs/{job_id}", token, "PATCH", {"job_id": job_id, "run_id": os.environ.get("CLIPPER_RUN_ID"), "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "status": status, "progress": progress, "message": message, "error": error})
+def update(base: str, job_id: str, token: str, status: str, progress: int, message: str, error: str | None = None, output_contract_status: str | None = None, output_selection: dict | None = None) -> None:
+    api_call(base, f"/api/jobs/{job_id}", token, "PATCH", {"job_id": job_id, "run_id": os.environ.get("CLIPPER_RUN_ID"), "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "status": status, "progress": progress, "message": message, "error": error, "output_contract_status": output_contract_status, "output_selection": output_selection})
 
 
 def stage_event(base: str, job_id: str, token: str, run_id: str, stage: str, status: str, metrics: dict | None = None, error_code: str | None = None, error_detail: str | None = None) -> None:
@@ -119,6 +121,14 @@ def _candidate_audit_reason(stats: dict[str, int], source_count: int, usable_cou
         f"hard_policy_rejects={stats['hard_policy_rejects']}; "
         f"relevance_blocks={stats['relevance_blocks']}"
     )
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def main() -> None:
@@ -376,12 +386,20 @@ def main() -> None:
                 _candidate_audit_reason(candidate_stats, len(preflight_records), len(sources)),
             )
             return
-        distinct_pool = [dict(item["candidate"], source=item["source"], _item_index=index) for index, item in enumerate(all_candidates)]
-        distinct = select_distinct_candidates(distinct_pool, MAX_REVIEW_CANDIDATES)
-        selected = [all_candidates[int(item["_item_index"])] for item in distinct]
+        selection_pool = [dict(item["candidate"], source=item["source"], _item_index=index) for index, item in enumerate(all_candidates)]
+        selection_result = select_required_output_pair(selection_pool, plan.get("output_contract"))
+        selection_diagnostics = selection_result["diagnostics"]
+        (workspace / "output-selection.json").write_text(json.dumps(selection_diagnostics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if not selection_result["ok"]:
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "blocked", selection_diagnostics)
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Belum ditemukan pasangan video Tier 1 dan Tier 2 yang berbeda", json.dumps({"reason": selection_result["reason"], **selection_diagnostics}, ensure_ascii=False), "blocked", selection_diagnostics)
+            return
+        selected = [all_candidates[int(item["_item_index"])] for item in selection_result["selected"]]
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "selected", {
             "selected_count": len(selected),
-            "duplicate_candidates_removed": max(0, len(all_candidates) - len(distinct)),
+            "candidate_pool_count": len(all_candidates),
+            "output_contract": plan.get("output_contract") or {},
+            "pairwise_distinctness": selection_diagnostics.get("pairwise_distinctness"),
         })
         final_candidates = []
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "started", {"selected_count": len(selected)})
@@ -391,7 +409,11 @@ def main() -> None:
             candidate_path = Path(item["transcript"]).parent / f"final-candidate-{global_rank:03d}.json"
             candidate_path.write_text(json.dumps(local_payload, ensure_ascii=False, indent=2), encoding="utf-8")
             local_render = Path(item["transcript"]).parent / f"final-render-{global_rank:03d}"
-            run([sys.executable, "run.py", "render_clips", item["source"], str(candidate_path), "--transcript", item["transcript"], "--plan", plan_path, "--force-subtitles", "--out-dir", str(local_render)])
+            try:
+                run([sys.executable, "run.py", "render_clips", item["source"], str(candidate_path), "--transcript", item["transcript"], "--plan", plan_path, "--force-subtitles", "--out-dir", str(local_render)])
+            except subprocess.CalledProcessError as exc:
+                stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "item_failed", {"rank": global_rank, "candidate_id": local_item.get("candidate_id"), "error": str(exc)[:300]})
+                continue
             rendered = local_render / "clip-001.mp4"
             if rendered.exists():
                 target = render_dir / f"clip-{global_rank:03d}.mp4"
@@ -399,8 +421,11 @@ def main() -> None:
                 final_candidates.append(dict(local_item, rank=global_rank, source=item["source"], relevance=item["relevance"]))
         all_candidates = final_candidates
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "completed", {"rendered_count": len(all_candidates)})
-        if not all_candidates:
-            raise RuntimeError("dua kandidat terbaik tidak berhasil dirender")
+        render_gate = evaluate_output_pair(all_candidates, [])
+        if not render_gate["ok"]:
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "blocked", render_gate["evidence"])
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Pasangan output tidak lengkap setelah render", json.dumps(render_gate, ensure_ascii=False))
+            return
         transcript_dir = transcript_root
         (transcript_dir / "candidates.json").write_text(json.dumps({"schema_version": 1, "candidates": all_candidates}, ensure_ascii=False, indent=2), encoding="utf-8")
         update(args.api_base, args.job_id, args.worker_token, "processing", 78, "Video vertical selesai, menjalankan validasi")
@@ -409,7 +434,10 @@ def main() -> None:
         # Validation is per-preview: keep usable outputs in the review queue even
         # when another candidate fails a technical gate.
         run([sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)], check=False)
-        validation = json.loads(validation_path.read_text(encoding="utf-8"))
+        try:
+            validation = json.loads(validation_path.read_text(encoding="utf-8")) if validation_path.exists() else {}
+        except (OSError, json.JSONDecodeError):
+            validation = {}
         results = validation.get("results") or []
         validation_summary = [{
             "rank": index + 1,
@@ -418,8 +446,9 @@ def main() -> None:
             "review": item.get("review") or [],
         } for index, item in enumerate(results)]
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "validation", "completed", {"result_count": len(results), "pass_count": sum(1 for item in results if item.get("status") != "fail"), "results": validation_summary})
-        if results and all(item.get("status") == "fail" for item in results):
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Semua kandidat gagal quality/compliance gate; lihat detail validasi per kandidat", json.dumps(validation_summary, ensure_ascii=False))
+        pair_gate = evaluate_output_pair(all_candidates, results)
+        if not pair_gate["ok"]:
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Pasangan output gagal all-or-nothing validation gate", json.dumps({**pair_gate, "results": validation_summary}, ensure_ascii=False), "blocked", {"validation": validation_summary, "selection": selection_diagnostics, "pair_gate": pair_gate})
             return
         review_dir = workspace / "review"
         run([sys.executable, "run.py", "review_queue", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--validation", str(validation_path), "--rendered-dir", str(render_dir), "--out-dir", str(review_dir)])
@@ -439,7 +468,10 @@ def main() -> None:
             validation_payload = dict(item.get("validation", {}))
             validation_payload.pop("path", None)
             validation_payload["artifact_key"] = prefix + ".mp4"
-            validation_payload["source_asset_id"] = Path(item.get("candidate", {}).get("source", "")).name if item.get("candidate") else None
+            candidate_payload = item.get("candidate") or {}
+            validation_payload["source_asset_id"] = candidate_payload.get("source_asset_id") or Path(candidate_payload.get("source", "")).name
+            validation_payload["candidate_id"] = candidate_payload.get("candidate_id")
+            validation_payload["tier"] = candidate_payload.get("tier")
             metadata = validation_payload.get("metadata") or {}
             validation_payload["rendered_duration"] = metadata.get("duration")
             validation_payload["width"] = metadata.get("width")
@@ -447,16 +479,18 @@ def main() -> None:
             validation_payload["video_codec"] = metadata.get("video_codec_name")
             validation_payload["audio_codec"] = metadata.get("audio_codec_name")
             validation_payload["semantic"] = item.get("semantic") or {}
-            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "caption_revision_id": f"{args.job_id}-{item['rank']}-caption-v1", "artifact_hash": prefix + ".mp4", "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])})
-            manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "artifact_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
-        manifest = {"schema_version": 1, "job_id": args.job_id, "run_id": run_id, "provenance": {"rules_hash": job.get("rules_hash"), "plan_schema_version": job.get("plan_schema_version"), "source_fingerprint": json.loads(job.get("source_fingerprint_json") or "{}") if isinstance(job.get("source_fingerprint_json"), str) else job.get("source_fingerprint_json") or {}, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1"))}, "source_preflight": {"source_count": len(preflight_records), "usable_sources": len(sources), "records": [{"source_asset_id": Path(item.get("source", "")).name, "quality": item.get("quality", {}), "duplicate_of": Path(item["duplicate_of"]).name if item.get("duplicate_of") else None, "excluded_before_transcription": item.get("excluded_before_transcription", False)} for item in preflight_records]}, "transcript_summary": {"source_count": candidate_stats["transcribed"]}, "selector": candidate_stats, "validation": {"result_count": len(results), "statuses": [item.get("status") for item in results]}, "review": {"item_count": len(manifest_previews), "items": manifest_previews}}
+            artifact_hash = _sha256_file(video_path)
+            distinctness = selection_diagnostics.get("pairwise_distinctness") or {}
+            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "caption_revision_id": f"{args.job_id}-{item['rank']}-caption-v1", "artifact_hash": artifact_hash, "distinctness": distinctness, "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])})
+            manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "artifact_key": prefix + ".mp4", "artifact_hash": artifact_hash, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
+        manifest = {"schema_version": 2, "job_id": args.job_id, "run_id": run_id, "output_contract": plan.get("output_contract") or {}, "output_selection": selection_diagnostics, "provenance": {"rules_hash": job.get("rules_hash"), "plan_schema_version": job.get("plan_schema_version"), "source_fingerprint": json.loads(job.get("source_fingerprint_json") or "{}") if isinstance(job.get("source_fingerprint_json"), str) else job.get("source_fingerprint_json") or {}, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1"))}, "source_preflight": {"source_count": len(preflight_records), "usable_sources": len(sources), "records": [{"source_asset_id": Path(item.get("source", "")).name, "quality": item.get("quality", {}), "duplicate_of": Path(item["duplicate_of"]).name if item.get("duplicate_of") else None, "excluded_before_transcription": item.get("excluded_before_transcription", False)} for item in preflight_records]}, "transcript_summary": {"source_count": candidate_stats["transcribed"]}, "selector": candidate_stats, "validation": {"result_count": len(results), "statuses": [item.get("status") for item in results]}, "review": {"item_count": len(manifest_previews), "items": manifest_previews}}
         manifest_path = workspace / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         manifest_key = f"jobs/{args.job_id}/manifest.json"
         upload_r2(args.api_base, args.job_id, args.worker_token, str(manifest_path), manifest_key, "application/json")
         api_call(args.api_base, f"/api/jobs/{args.job_id}/manifest", args.worker_token, "POST", {"job_id": args.job_id, "run_id": run_id, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "manifest_key": manifest_key, "schema_version": 1})
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "r2_upload", "completed", {"preview_count": len(previews), "manifest_key": manifest_key})
-        api_call(args.api_base, f"/api/jobs/{args.job_id}/previews", args.worker_token, "POST", {"job_id": args.job_id, "run_id": run_id, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "previews": previews})
+        api_call(args.api_base, f"/api/jobs/{args.job_id}/previews", args.worker_token, "POST", {"job_id": args.job_id, "run_id": run_id, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "output_selection": selection_diagnostics, "previews": previews})
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "manual_review", "completed", {"preview_count": len(previews), "manifest_key": manifest_key})
     except Exception as exc:
         try: update(args.api_base, args.job_id, args.worker_token, "error", 0, "Pipeline gagal", str(exc))
