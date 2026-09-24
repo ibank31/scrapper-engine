@@ -269,7 +269,9 @@ async function openBufferUpload(preview) {
       if (!window.confirm("Masukkan video ini ke queue Buffer pada " + channel_ids.length + " channel?")) return;
       const button = $("#confirmBufferUpload"); button.disabled = true; button.textContent = "Mengirim…";
       try {
-        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel_ids, channels: selected.map((input) => ({ id: input.value, service: input.dataset.service })), text: $("#bufferCaption").value }) });
+        const headers = { "content-type": "application/json" };
+        if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers, body: JSON.stringify({ channel_ids, channels: selected.map((input) => ({ id: input.value, service: input.dataset.service })), text: $("#bufferCaption").value, artifact_hash: preview.approval_artifact_hash || preview.artifact_hash, caption_revision_id: preview.approval_caption_revision_id || preview.caption_revision_id }) });
         const ok = (response.uploads || []).filter((item) => item.status === "queued").length;
         $("#detailModal").classList.add("hidden"); showToast(ok + " channel berhasil masuk ke queue Buffer");
       } catch (error) { button.disabled = false; button.textContent = "Upload ke Buffer →"; showToast("Upload Buffer gagal: " + error.message); }
@@ -308,7 +310,7 @@ function renderReviews() {
       '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
       '<div class="review-actions">' +
-      (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a><button class="primary-button buffer-upload-button" type="button">Upload ke Buffer <span>↗</span></button>' : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
+      (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a>' + (status === "approved_for_manual_post" ? '<button class="primary-button buffer-upload-button" type="button">Upload ke Buffer <span>↗</span></button>' : '') : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
   }).join("") || '<div class="empty-state">Belum ada preview siap review.</div>';
   document.querySelectorAll("video.review-video").forEach((video) => {

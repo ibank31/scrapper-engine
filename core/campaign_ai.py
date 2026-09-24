@@ -120,9 +120,12 @@ def _load_profile() -> dict[str, Any]:
 def rules_fingerprint(campaign: dict[str, Any]) -> str:
     payload = {
         "title": campaign.get("title"), "brand": campaign.get("brand"),
-        "description": campaign.get("description"), "platforms": campaign.get("platforms"),
+        "description": campaign.get("description"), "docs_text": campaign.get("docs_text") or campaign.get("documents") or "",
+        "source_urls": campaign.get("source_urls") or campaign.get("asset_urls") or [],
+        "platforms": campaign.get("platforms"),
         "type": campaign.get("type"), "requirements": campaign.get("requirements") or [],
         "resources": campaign.get("resources") or [], "payouts": campaign.get("payouts") or [],
+        "normalized_plan": campaign.get("plan") or campaign.get("source_of_truth") or {},
     }
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -327,6 +330,8 @@ def _campaign_prompt_payload(campaign: dict[str, Any]) -> dict[str, Any]:
         "campaign_id": campaign.get("id"), "title": campaign.get("title"), "brand": campaign.get("brand"), "category": campaign.get("category"),
         "type": campaign.get("type"), "platforms": campaign.get("platforms") or [], "description": campaign.get("description") or "",
         "requirements": campaign.get("requirements") or [], "resources": campaign.get("resources") or [], "payouts": campaign.get("payouts") or [],
+        "docs_text": campaign.get("docs_text") or "", "source_urls": campaign.get("source_urls") or campaign.get("asset_urls") or [],
+        "source_of_truth": campaign.get("source_of_truth") or {},
     }
 
 

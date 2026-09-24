@@ -1,6 +1,6 @@
 # Scrapper Engine Status
 
-**Updated:** 23 September 2026 — latest implementation/deployment verification
+**Updated:** 24 September 2026 — Phase 0 provenance and execution fencing implementation
 **Branch:** `main`
 
 ## Current milestone
@@ -47,6 +47,10 @@ The repository regression suite passes **84 tests**. GitHub Actions run `3588263
 The actual Qwen GGUF path was verified by the isolated manual `semantic-fixture.yml` workflow on run `35718164052`. The model loaded and produced valid structured output for all four cases, with **3/4 decision accuracy (75%)** and **4/4 risk coverage**. The deterministic baseline remains **4/4 (100%)**. Therefore Qwen remains advisory for ranking/review; deterministic gates and fallback remain authoritative. The workflow does not touch production.
 
 `scripts/benchmark_media_signals.py` runs a synthetic 24-second source with video and audio. The current local baseline is **116.8 ms preflight** and **494.7 ms for candidate signals**, with the 8-second budget not exceeded and the candidate interval unchanged at `2.0–18.0`. The sandbox lacks OpenCV, so the visual result is correctly recorded as `wide-unknown`; this benchmark measures runtime and safety invariants, not speaker-detection accuracy.
+
+## Phase 0 safety boundary — implemented locally
+
+Jobs now capture an immutable plan snapshot, canonical rules hash, source fingerprint, schema version, and execution generation at creation. Workers use only that snapshot and block legacy jobs without provenance as `blocked_needs_requeue`. Document text and source URLs participate in AI fingerprints and prompt input. Review approval requires review authorization and binds the exact artifact and caption revision to the job rules hash; Buffer rejects pending or mismatched revisions. Worker stage, manifest, preview, upload, and status writes are fenced by claim token, run ID, and execution generation; cancellation increments the generation and clears the active token. The checked-in D1 schema and self-healing migration include the new fields. Local verification passes 88 tests, Python compilation/compileall, pip check, both Node syntax checks, diff check, and secret scan. Production deployment/migration is intentionally not claimed until the Pages/D1 deployment is run.
 
 ## Next milestone
 

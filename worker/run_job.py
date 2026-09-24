@@ -35,19 +35,21 @@ def api_call(base: str, path: str, token: str, method: str = "GET", payload: dic
     headers = {"content-type": "application/json", "x-worker-token": token}
     dispatch_token = os.environ.get("CLIPPER_DISPATCH_TOKEN")
     if dispatch_token: headers["x-dispatch-token"] = dispatch_token
+    claim_token = os.environ.get("CLIPPER_CLAIM_TOKEN")
+    if claim_token: headers["x-claim-token"] = claim_token
     response = requests.request(method, base.rstrip("/") + path, headers=headers, json=payload, timeout=60)
     response.raise_for_status()
     return response.json()
 
 
 def update(base: str, job_id: str, token: str, status: str, progress: int, message: str, error: str | None = None) -> None:
-    api_call(base, f"/api/jobs/{job_id}", token, "PATCH", {"status": status, "progress": progress, "message": message, "error": error})
+    api_call(base, f"/api/jobs/{job_id}", token, "PATCH", {"job_id": job_id, "run_id": os.environ.get("CLIPPER_RUN_ID"), "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "status": status, "progress": progress, "message": message, "error": error})
 
 
 def stage_event(base: str, job_id: str, token: str, run_id: str, stage: str, status: str, metrics: dict | None = None, error_code: str | None = None, error_detail: str | None = None) -> None:
     """Persist auditable stage facts without making telemetry failure fatal."""
     timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    payload = {"run_id": run_id, "stage": stage, "status": status, "metrics": metrics or {}}
+    payload = {"job_id": job_id, "run_id": run_id, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "stage": stage, "status": status, "metrics": metrics or {}}
     if status == "started": payload["started_at"] = timestamp
     else: payload["ended_at"] = timestamp
     if error_code: payload["error_code"] = error_code
@@ -58,11 +60,14 @@ def stage_event(base: str, job_id: str, token: str, run_id: str, stage: str, sta
         print(f"Stage telemetry dilewati ({stage}/{status}): {exc}")
 
 
-def claim_job(base: str, job_id: str, token: str, dispatch_token: str = "", runner_id: str = "") -> bool:
+def claim_job(base: str, job_id: str, token: str, dispatch_token: str = "", runner_id: str = "", run_id: str = "") -> bool:
     """Atomically claim a queued job; a lost race is a clean no-op."""
     claim_token = dispatch_token or uuid.uuid4().hex
+    os.environ["CLIPPER_CLAIM_TOKEN"] = claim_token
     try:
-        api_call(base, f"/api/jobs/{job_id}/claim", token, "POST", {"claim_token": claim_token, "runner_id": runner_id or f"local:{claim_token}"})
+        payload = {"claim_token": claim_token, "runner_id": runner_id or f"local:{claim_token}"}
+        if run_id: payload["run_id"] = run_id
+        api_call(base, f"/api/jobs/{job_id}/claim", token, "POST", payload)
     except requests.HTTPError as exc:
         if exc.response is not None and exc.response.status_code == 409:
             return False
@@ -96,8 +101,10 @@ def upload_r2(api_base: str, job_id: str, token: str, path: str, key: str, conte
     headers = {"x-worker-token": token}
     dispatch_token = os.environ.get("CLIPPER_DISPATCH_TOKEN")
     if dispatch_token: headers["x-dispatch-token"] = dispatch_token
+    claim_token = os.environ.get("CLIPPER_CLAIM_TOKEN")
+    if claim_token: headers["x-claim-token"] = claim_token
     with open(path, "rb") as stream:
-        response = requests.post(api_base.rstrip("/") + f"/api/jobs/{job_id}/upload", headers=headers, files={"file": (Path(path).name, stream, content_type)}, data={"key": key}, timeout=180)
+        response = requests.post(api_base.rstrip("/") + f"/api/jobs/{job_id}/upload", headers=headers, files={"file": (Path(path).name, stream, content_type)}, data={"key": key, "run_id": os.environ.get("CLIPPER_RUN_ID", ""), "execution_generation": os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")}, timeout=180)
     response.raise_for_status()
     return response.json()["download_url"]
 
@@ -141,10 +148,11 @@ def main() -> None:
             return
         args.job_id = candidate["id"]
     runner_id = f"github-run:{os.environ['GITHUB_RUN_ID']}" if os.environ.get("GITHUB_RUN_ID", "").isdigit() else ""
-    if not claim_job(args.api_base, args.job_id, args.worker_token, args.dispatch_token, runner_id):
+    run_id = os.environ.get("GITHUB_RUN_ID") or uuid.uuid4().hex
+    os.environ["CLIPPER_RUN_ID"] = run_id
+    if not claim_job(args.api_base, args.job_id, args.worker_token, args.dispatch_token, runner_id, run_id):
         print(f"Job {args.job_id} sudah diklaim runner lain; runner selesai tanpa proses.")
         return
-    run_id = os.environ.get("GITHUB_RUN_ID") or uuid.uuid4().hex
     stage_event(args.api_base, args.job_id, args.worker_token, run_id, "claim", "completed", {"runner_id": runner_id or "local"})
     root = tempfile.mkdtemp(prefix="clipper-job-")
     try:
@@ -163,7 +171,14 @@ def main() -> None:
                 f"campaign_status={live_campaign_status}",
             )
             return
-        plan = job.get("campaign_plan")
+        plan = job.get("plan_snapshot_json")
+        if isinstance(plan, str):
+            try: plan = json.loads(plan)
+            except json.JSONDecodeError: plan = None
+        os.environ["CLIPPER_EXECUTION_GENERATION"] = str(int(job.get("execution_generation") or 1))
+        if not isinstance(plan, dict) or not plan.get("provenance", {}).get("rules_hash"):
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Job lama tidak memiliki immutable plan snapshot", "blocked_needs_requeue")
+            return
         if not plan:
             detail_root = os.path.join(root, "campaign-detail")
             os.environ["CAMPAIGN_HOME"] = detail_root
@@ -434,18 +449,17 @@ def main() -> None:
             validation_payload["video_codec"] = metadata.get("video_codec_name")
             validation_payload["audio_codec"] = metadata.get("audio_codec_name")
             validation_payload["semantic"] = item.get("semantic") or {}
-            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])})
+            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "caption_revision_id": f"{args.job_id}-{item['rank']}-caption-v1", "artifact_hash": prefix + ".mp4", "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])})
             manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "artifact_key": prefix + ".mp4", "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
-        manifest = {"schema_version": 1, "job_id": args.job_id, "run_id": run_id, "source_preflight": {"source_count": len(preflight_records), "usable_sources": len(sources), "records": [{"source_asset_id": Path(item.get("source", "")).name, "quality": item.get("quality", {}), "duplicate_of": Path(item["duplicate_of"]).name if item.get("duplicate_of") else None, "excluded_before_transcription": item.get("excluded_before_transcription", False)} for item in preflight_records]}, "transcript_summary": {"source_count": candidate_stats["transcribed"]}, "selector": candidate_stats, "validation": {"result_count": len(results), "statuses": [item.get("status") for item in results]}, "review": {"item_count": len(manifest_previews), "items": manifest_previews}}
+        manifest = {"schema_version": 1, "job_id": args.job_id, "run_id": run_id, "provenance": {"rules_hash": job.get("rules_hash"), "plan_schema_version": job.get("plan_schema_version"), "source_fingerprint": json.loads(job.get("source_fingerprint_json") or "{}") if isinstance(job.get("source_fingerprint_json"), str) else job.get("source_fingerprint_json") or {}, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1"))}, "source_preflight": {"source_count": len(preflight_records), "usable_sources": len(sources), "records": [{"source_asset_id": Path(item.get("source", "")).name, "quality": item.get("quality", {}), "duplicate_of": Path(item["duplicate_of"]).name if item.get("duplicate_of") else None, "excluded_before_transcription": item.get("excluded_before_transcription", False)} for item in preflight_records]}, "transcript_summary": {"source_count": candidate_stats["transcribed"]}, "selector": candidate_stats, "validation": {"result_count": len(results), "statuses": [item.get("status") for item in results]}, "review": {"item_count": len(manifest_previews), "items": manifest_previews}}
         manifest_path = workspace / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         manifest_key = f"jobs/{args.job_id}/manifest.json"
         upload_r2(args.api_base, args.job_id, args.worker_token, str(manifest_path), manifest_key, "application/json")
-        api_call(args.api_base, f"/api/jobs/{args.job_id}/manifest", args.worker_token, "POST", {"manifest_key": manifest_key, "schema_version": 1})
+        api_call(args.api_base, f"/api/jobs/{args.job_id}/manifest", args.worker_token, "POST", {"job_id": args.job_id, "run_id": run_id, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "manifest_key": manifest_key, "schema_version": 1})
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "r2_upload", "completed", {"preview_count": len(previews), "manifest_key": manifest_key})
-        api_call(args.api_base, f"/api/jobs/{args.job_id}/previews", args.worker_token, "POST", {"previews": previews})
+        api_call(args.api_base, f"/api/jobs/{args.job_id}/previews", args.worker_token, "POST", {"job_id": args.job_id, "run_id": run_id, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "previews": previews})
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "manual_review", "completed", {"preview_count": len(previews), "manifest_key": manifest_key})
-        update(args.api_base, args.job_id, args.worker_token, "review", 100, f"{len(previews)} preview siap direview")
     except Exception as exc:
         try: update(args.api_base, args.job_id, args.worker_token, "error", 0, "Pipeline gagal", str(exc))
         except Exception: pass

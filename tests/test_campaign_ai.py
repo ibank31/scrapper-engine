@@ -174,6 +174,13 @@ class CampaignAITests(unittest.TestCase):
         changed["requirements"] = [{"text": "16:9"}]
         self.assertNotEqual(rules_fingerprint(base), rules_fingerprint(changed))
 
+    def test_document_only_rule_changes_fingerprint_and_prompt_payload(self):
+        base = {"id": "abc", "title": "Example", "description": "Use official clips", "docs_text": "Clip Length: 15-30 seconds", "requirements": []}
+        changed = dict(base, docs_text="Clip Length: 30-60 seconds")
+        self.assertNotEqual(rules_fingerprint(base), rules_fingerprint(changed))
+        prompt = campaign_ai._prompt([changed])
+        self.assertIn("Clip Length: 30-60 seconds", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

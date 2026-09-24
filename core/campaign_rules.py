@@ -194,7 +194,14 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             "platforms": campaign.get("socialPlatforms") or campaign.get("platforms") or [],
             "campaign_type": campaign.get("campaignType") or campaign.get("type"),
         },
-        "source_of_truth": {"description": description, "requirements": requirements, "normalized_requirements": normalized_requirements},
+        "source_of_truth": {
+            "description": description,
+            "requirements": requirements,
+            "docs_text": docs_text,
+            "source_urls": urls,
+            "normalized_requirements": normalized_requirements,
+            "rule_evidence": [{"source": "description", "quote": description[:500]}] + ([{"source": "docs_text", "quote": docs_text[:500]}] if docs_text else []),
+        },
         "ai_rules": ai_rules,
         "ai_rules_status": ai_status if ai_rules else "unavailable",
         "production": {
