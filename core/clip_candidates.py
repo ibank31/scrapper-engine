@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from core.candidate_identity import annotate_candidate
 from core.media_signals import candidate_signals, media_score_adjustment, source_quality_preflight
 from core.production_policy import enrich_candidate
 
@@ -208,6 +209,13 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
                         item["score"] = round(max(0.0, min(1.0, item["score"] + adjustment)), 4)
                         item["reasons"].extend(signal_reasons)
                     item = enrich_candidate(item, plan)
+                    item = annotate_candidate(
+                        item,
+                        source_path,
+                        (source_quality or {}).get("duplicate_hash") if source_quality else None,
+                        transcript,
+                        plan,
+                    )
                     item["reasons"].extend(item.get("production_quality_reasons") or [])
                     candidates.append(item)
                 else:

@@ -16,6 +16,7 @@ from core.fetch import DEFAULT_HEADERS, FetchError, fetch_bytes
 from core.google_drive import configured as google_drive_configured, download_file_oauth, download_folder_oauth
 from core.google_sheets import GoogleSheetError, discover_sheet_assets, fetch_sheet_rows, is_google_sheet_url
 from core.job_workspace import create_workspace, now_iso, read_json, sha256_file, write_json
+from core.candidate_identity import normalize_source_asset_id
 
 DIRECT_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a", ".png", ".jpg", ".jpeg", ".webp", ".srt", ".ass"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
@@ -220,7 +221,16 @@ def main() -> None:
         reverse=True,
     )
     max_sources = max(1, args.max_video_sources)
-    selected_candidates = ordered_candidates[:max_sources]
+    unique_candidates = []
+    seen_source_ids = set()
+    for candidate in ordered_candidates:
+        source_id = normalize_source_asset_id(candidate.get("url"))
+        if source_id in seen_source_ids:
+            continue
+        seen_source_ids.add(source_id)
+        candidate["source_asset_id"] = source_id
+        unique_candidates.append(candidate)
+    selected_candidates = unique_candidates[:max_sources]
 
     video_count = 0
     manual_lines = [
@@ -291,6 +301,7 @@ def main() -> None:
             "tracker_rows": tracker_records,
             "discovered_media_sources": len(media_candidates),
             "selected_media_sources": len(selected_candidates),
+            "deduplicated_media_sources": len(unique_candidates),
             "unresolved_references": unresolved_references,
         },
         "updated_at": now_iso(),

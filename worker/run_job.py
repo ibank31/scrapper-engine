@@ -23,6 +23,7 @@ if str(_REPO_ROOT) not in sys.path:
 import requests
 
 from core.relevance import check_candidate
+from core.candidate_identity import deduplicate_source_records
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
 from core.clip_candidates import select_distinct_candidates
@@ -246,24 +247,21 @@ def main() -> None:
         sources = [p for p in (workspace / "assets").rglob("*") if p.suffix.lower() in VIDEO_EXTENSIONS]
         # Prefer the highest-quality usable sources, not the smallest files.
         sources.sort(key=source_priority, reverse=True)
-        sources = sources[:max_sources]
         if not sources: raise RuntimeError("tidak ada video asset langsung; periksa MANUAL_ASSETS.md")
         preflight_records = []
-        usable_sources = []
-        seen_hashes: dict[str, str] = {}
         for source in sources:
             quality = source_quality_preflight(str(source))
             record = {"source": str(source), "quality": quality}
-            source_hash = quality.get("duplicate_hash")
-            if source_hash and source_hash in seen_hashes:
-                record["duplicate_of"] = seen_hashes[source_hash]
-                record["excluded_before_transcription"] = True
-            elif source_hash:
-                seen_hashes[source_hash] = str(source)
             preflight_records.append(record)
-            if not record.get("duplicate_of") and quality.get("available") and quality.get("has_video") and quality.get("has_audio") and float(quality.get("duration_seconds") or 0) >= 1.5:
-                usable_sources.append(source)
-            elif not record.get("excluded_before_transcription"):
+        selected_records, preflight_records = deduplicate_source_records(preflight_records, max_sources)
+        selected_paths = {str(record.get("source")) for record in selected_records}
+        usable_sources = []
+        for record in preflight_records:
+            quality = record.get("quality") or {}
+            source = str(record.get("source") or "")
+            if source in selected_paths and quality.get("available") and quality.get("has_video") and quality.get("has_audio") and float(quality.get("duration_seconds") or 0) >= 1.5:
+                usable_sources.append(Path(source))
+            elif not record.get("duplicate_of") and not record.get("excluded_before_transcription"):
                 record["excluded_before_transcription"] = True
         (workspace / "source-preflight.json").write_text(json.dumps({"schema_version": 1, "sources": preflight_records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"source_count": len(preflight_records), "usable_sources": len(usable_sources)})

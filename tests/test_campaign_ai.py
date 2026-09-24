@@ -156,7 +156,7 @@ class CampaignAITests(unittest.TestCase):
         result = normalize_ai_result(
             {
                 "campaign_fit": {"score": 0.82, "label": "high", "reason": "good fit"},
-                "rules": {"aspect_ratio": "9:16", "min_duration_seconds": "8", "max_duration_seconds": 45, "topic_terms": ["AI", "developer"], "hashtags": ["#shorts"]},
+                "rules": {"aspect_ratio": "9:16", "min_duration_seconds": "8", "max_duration_seconds": 45, "topic_terms": ["AI", "developer"], "hashtags": ["#shorts"], "audience_tiers": {"tier_1": {"terms": ["founders"]}, "tier_2": {"terms": ["students"]}}},
                 "ambiguities": [], "confidence": 0.91,
             },
             "abc",
@@ -165,6 +165,7 @@ class CampaignAITests(unittest.TestCase):
         self.assertEqual(result["rules"]["aspect_ratio"], "9:16")
         self.assertEqual(result["rules"]["min_duration_seconds"], 8)
         self.assertEqual(result["rules"]["max_duration_seconds"], 45)
+        self.assertEqual(result["rules"]["audience_tiers"]["tier_1"]["terms"], ["founders"])
         self.assertAlmostEqual(result["campaign_fit"]["score"], 0.82)
         self.assertAlmostEqual(result["confidence"], 0.91)
 

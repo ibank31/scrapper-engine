@@ -208,6 +208,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
         "posting_rules": [str(x) for x in (ai_rule_set.get("posting_rules") or []) if x],
         "account_rules": [str(x) for x in (ai_rule_set.get("account_rules") or []) if x],
         "cta_text": ai_rule_set.get("cta_text"),
+        "audience_tiers": ai_rule_set.get("audience_tiers") if isinstance(ai_rule_set.get("audience_tiers"), dict) else {},
     }
 
     return {

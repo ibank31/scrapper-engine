@@ -81,6 +81,7 @@ GEMINI_RESPONSE_SCHEMA: dict[str, Any] = {
                             "asset_sources": {"type": "array", "items": {"type": "string"}},
                             "posting_rules": {"type": "array", "items": {"type": "string"}},
                             "account_rules": {"type": "array", "items": {"type": "string"}},
+                            "audience_tiers": {"type": "object"},
                         },
                         "required": [
                             "source_policy", "platforms",
@@ -318,6 +319,7 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str) -> dict[str, Any
             "hashtags": list(rules.get("hashtags") or []), "disclosures": list(rules.get("disclosures") or []), "topic_terms": list(rules.get("topic_terms") or []),
             "allowed_content": list(rules.get("allowed_content") or []), "prohibited_content": list(rules.get("prohibited_content") or []),
             "asset_sources": list(rules.get("asset_sources") or []), "posting_rules": list(rules.get("posting_rules") or []), "account_rules": list(rules.get("account_rules") or []),
+            "audience_tiers": rules.get("audience_tiers") if isinstance(rules.get("audience_tiers"), dict) else {},
         },
         "ambiguities": [str(x) for x in (item.get("ambiguities") or [])],
         "evidence": item.get("evidence") if isinstance(item.get("evidence"), list) else [],
@@ -359,7 +361,7 @@ def _fallback_result(campaign: dict[str, Any], reason: str = "AI omitted this ca
             "min_duration_seconds": None, "max_duration_seconds": None, "subtitle_required": False, "subtitle_style": "campaign_defined",
             "watermark_required": False, "third_party_watermark_allowed": False, "official_audio_required": False, "cta_required": False,
             "cta_text": None, "handles": [], "hashtags": [], "disclosures": [], "topic_terms": [], "allowed_content": [],
-            "prohibited_content": [], "asset_sources": [], "posting_rules": [], "account_rules": [],
+            "prohibited_content": [], "asset_sources": [], "posting_rules": [], "account_rules": [], "audience_tiers": {},
         },
         "ambiguities": [f"CRITICAL: {safe_reason}"], "evidence": [], "confidence": 0.0,
     }
