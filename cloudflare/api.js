@@ -122,7 +122,7 @@ async function ensureSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status)").run();
   const previewInfo = await db.prepare("PRAGMA table_info(previews)").all();
   const previewColumns = new Set((previewInfo.results || []).map((row) => row.name));
-  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT", tier: "TEXT", candidate_id: "TEXT", source_asset_id: "TEXT", artifact_hash: "TEXT", distinctness_json: "TEXT NOT NULL DEFAULT '{}'", platform: "TEXT", platform_profile_json: "TEXT NOT NULL DEFAULT '{}'", subtitle_delivery_json: "TEXT NOT NULL DEFAULT '{}'", sound_tags_json: "TEXT NOT NULL DEFAULT '{}'", caption_revision_id: "TEXT", caption_hash: "TEXT", approval_artifact_hash: "TEXT", approval_caption_revision_id: "TEXT", approval_rules_hash: "TEXT", platform_profile_version: "TEXT", schedule_intent_hash: "TEXT", rules_summary_id: "TEXT" })) {
+  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT", tier: "TEXT", candidate_id: "TEXT", source_asset_id: "TEXT", artifact_hash: "TEXT", distinctness_json: "TEXT NOT NULL DEFAULT '{}'", platform: "TEXT", platform_profile_json: "TEXT NOT NULL DEFAULT '{}'", subtitle_delivery_json: "TEXT NOT NULL DEFAULT '{}'", sound_tags_json: "TEXT NOT NULL DEFAULT '{}'", caption_revision_id: "TEXT", caption_hash: "TEXT", approval_artifact_hash: "TEXT", approval_caption_revision_id: "TEXT", approval_rules_hash: "TEXT", platform_profile_version: "TEXT", schedule_intent_hash: "TEXT", rules_summary_id: "TEXT", parent_preview_id: "TEXT", revision_number: "INTEGER NOT NULL DEFAULT 1", render_revision: "TEXT NOT NULL DEFAULT 'render-v1'", superseded_at: "TEXT" })) {
     if (!previewColumns.has(name)) await db.prepare("ALTER TABLE previews ADD COLUMN " + name + " " + definition).run();
   }
   await db.prepare("CREATE TABLE IF NOT EXISTS preview_events (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, from_status TEXT, to_status TEXT NOT NULL, action TEXT NOT NULL, reason TEXT, actor TEXT, created_at TEXT NOT NULL)").run();
@@ -142,6 +142,10 @@ async function ensureSchema(db) {
   await db.prepare("CREATE TABLE IF NOT EXISTS delivery_operations (operation_key TEXT PRIMARY KEY, preview_id TEXT NOT NULL, channel_id TEXT NOT NULL, schedule_revision TEXT NOT NULL, caption_revision_id TEXT NOT NULL, payload_hash TEXT NOT NULL, schedule_intent_json TEXT NOT NULL DEFAULT '{}', provider_state TEXT NOT NULL DEFAULT 'pending', retry_class TEXT NOT NULL DEFAULT 'not_attempted', attempt_count INTEGER NOT NULL DEFAULT 0, provider_post_id TEXT, provider_due_at TEXT, provider_status TEXT, provider_response_json TEXT NOT NULL DEFAULT '{}', last_error TEXT, last_observed_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE (preview_id, channel_id, schedule_revision, caption_revision_id))").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_delivery_operations_preview ON delivery_operations(preview_id, created_at)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_delivery_operations_state ON delivery_operations(provider_state, updated_at)").run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS retention_events (id TEXT PRIMARY KEY, preview_id TEXT, object_key TEXT, decision TEXT NOT NULL, reason TEXT NOT NULL, dependency_json TEXT NOT NULL DEFAULT '{}', evaluated_at TEXT NOT NULL)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_retention_events_preview ON retention_events(preview_id, evaluated_at)").run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS provider_request_ledger (id TEXT PRIMARY KEY, provider TEXT NOT NULL, request_class TEXT NOT NULL, period_key TEXT NOT NULL, created_at TEXT NOT NULL)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_provider_request_ledger_period ON provider_request_ledger(provider, period_key, created_at)").run();
 }
 
 function claimLeaseSeconds(env) {
@@ -182,6 +186,10 @@ async function bufferRequest(env, query, variables = {}) {
     headers: { "content-type": "application/json", authorization: `Bearer ${env.BUFFER_API_KEY}` },
     body: JSON.stringify({ query, variables }),
   });
+  try {
+    const periodKey = new Date().toISOString().slice(0, 7);
+    await env.DB.prepare("INSERT INTO provider_request_ledger (id,provider,request_class,period_key,created_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(), "buffer", query.includes("mutation") ? "mutation" : "read", periodKey, now()).run();
+  } catch (_) { /* request accounting must not hide the provider response */ }
   const payload = await response.json();
   if (!response.ok || payload.errors?.length) throw new Error(payload.errors?.map((x) => x.message).join("; ") || `Buffer HTTP ${response.status}`);
   return payload.data;
@@ -195,6 +203,19 @@ async function resolveBufferChannels(env) {
     for (const channel of data.channels || []) channels.push({ ...channel, organizationId: organization.id, organizationName: organization.name });
   }
   return channels;
+}
+
+async function bufferCapacityPreflight(env, channelIds) {
+  const periodKey = new Date().toISOString().slice(0, 7);
+  const budget = await env.DB.prepare("SELECT COUNT(*) AS count FROM provider_request_ledger WHERE provider='buffer' AND period_key=?").bind(periodKey).first();
+  const failures = [];
+  if (Number(budget?.count || 0) >= 3000) failures.push({ code: "request_budget_exhausted", limit: 3000, actual: Number(budget?.count || 0) });
+  if (channelIds.length > 3) failures.push({ code: "free_plan_channel_limit", limit: 3, actual: channelIds.length });
+  for (const channelId of channelIds) {
+    const usage = await env.DB.prepare("SELECT COUNT(*) AS count FROM delivery_operations WHERE channel_id=? AND provider_state IN ('pending','attempting','unknown','scheduled','unresolved')").bind(channelId).first();
+    if (Number(usage?.count || 0) >= 10) failures.push({ code: "scheduled_capacity_exhausted", channel_id: channelId, limit: 10, actual: Number(usage?.count || 0) });
+  }
+  return { ok: failures.length === 0, failures, request_count: Number(budget?.count || 0), request_budget: 3000 };
 }
 
 function bufferTextLimit(service) {
@@ -268,6 +289,8 @@ export default {
         const channelMap = new Map(channels.map((channel) => [String(channel.id), channel]));
         const missing = channelIds.filter((id) => !channelMap.has(id));
         if (missing.length) return json({ error: "channel_not_found", channel_ids: missing }, 400);
+        const capacity = await bufferCapacityPreflight(env, channelIds);
+        if (!capacity.ok) return json({ error: "capacity_preflight_failed", capacity }, 409);
         const text = String(body.text || preview.caption_draft || "").trim();
         const revision = await env.DB.prepare("SELECT * FROM caption_revisions WHERE id=? AND preview_id=?").bind(preview.caption_revision_id, preview.id).first();
         if (!revision || text !== String(revision.text)) return json({ error: "caption_revision_mismatch" }, 409);
@@ -297,6 +320,8 @@ export default {
         const channelMap = new Map(channels.map((channel) => [String(channel.id), channel]));
         const missing = channelIds.filter((id) => !channelMap.has(id));
         if (missing.length) return json({ error: "channel_not_found", channel_ids: missing }, 400);
+        const capacity = await bufferCapacityPreflight(env, channelIds);
+        if (!capacity.ok) return json({ error: "capacity_preflight_failed", capacity }, 409);
         const scheduleRevision = "schedule-capability-v1";
         const scheduleIntent = { schema_version: 1, contract: "next_queue_slot", provider: "buffer", capability_version: scheduleRevision, timezone: String(body.timezone || "UTC"), requested_local: body.requested_local || null, requested_utc: null, provider_mode: "automatic/addToQueue", provider_due_at: null };
         const outcomes = [];
@@ -325,8 +350,12 @@ export default {
             await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, post.id, "scheduled", null, now()).run();
             outcomes.push({ channel_id: channelId, operation_key: key, status: "scheduled", provider_post_id: post.id, due_at: post.dueAt || null });
           } catch (error) {
-            await env.DB.prepare("UPDATE delivery_operations SET provider_state='unknown',retry_class='unknown_outcome',last_error=?,updated_at=? WHERE operation_key=?").bind(String(error.message || error).slice(0, 1000), now(), key).run();
-            outcomes.push({ channel_id: channelId, operation_key: key, status: "unknown", retryable: false, error: String(error.message || error) });
+            const message = String(error.message || error).slice(0, 1000);
+            const retryable = /HTTP (429|5\d\d)|rate limit|temporar|connection reset/i.test(message);
+            const state = retryable ? "failed" : "unknown";
+            const retryClass = retryable ? (/429|rate limit/i.test(message) ? "throttled" : "transient") : "unknown_outcome";
+            await env.DB.prepare("UPDATE delivery_operations SET provider_state=?,retry_class=?,last_error=?,updated_at=? WHERE operation_key=?").bind(state, retryClass, message, now(), key).run();
+            outcomes.push({ channel_id: channelId, operation_key: key, status: state, retryable, error: message });
           }
         }
         const counts = { scheduled: outcomes.filter((item) => item.status === "scheduled").length, failed: outcomes.filter((item) => item.status === "failed").length, unknown: outcomes.filter((item) => item.status === "unknown").length };
@@ -344,6 +373,7 @@ export default {
         if (!operation) return json({ error: "operation_not_found" }, 404);
         if (operation.provider_state === "unknown") return json({ error: "unknown_requires_reconciliation" }, 409);
         if (!["failed"].includes(operation.provider_state)) return json({ error: "operation_not_retryable", status: operation.provider_state }, 409);
+        if (!["transient", "throttled"].includes(operation.retry_class) || Number(operation.attempt_count || 0) >= 3) return json({ error: "retry_budget_exhausted", retry_class: operation.retry_class, attempt_count: operation.attempt_count }, 409);
         await env.DB.prepare("UPDATE delivery_operations SET provider_state='pending',retry_class='operator_retry',last_error=NULL,updated_at=? WHERE operation_key=? AND provider_state='failed'").bind(now(), parts[2]).run();
         return json({ ok: true, operation_key: parts[2], status: "pending" });
       }
@@ -354,28 +384,55 @@ export default {
         if (!operation.provider_post_id) return json({ error: "provider_post_id_missing" }, 409);
         const data = await bufferRequest(env, "query($id: ID!) { post(id: $id) { id status dueAt channelId } }", { id: operation.provider_post_id });
         const post = data.post;
-        if (!post) return json({ error: "provider_post_not_found", operation_key: parts[2] }, 404);
+        if (!post) {
+          await env.DB.prepare("UPDATE delivery_operations SET provider_state='failed',retry_class='permanent',last_error='provider_post_not_found',last_observed_at=?,updated_at=? WHERE operation_key=?").bind(now(), now(), parts[2]).run();
+          return json({ error: "provider_post_not_found", operation_key: parts[2], provider_state: "failed" }, 404);
+        }
         const status = String(post.status || "").toLowerCase();
         const localState = status === "sent" || status === "published" ? "published" : status === "error" ? "failed" : "scheduled";
         await env.DB.prepare("UPDATE delivery_operations SET provider_state=?,provider_status=?,provider_due_at=?,provider_response_json=?,last_observed_at=?,updated_at=? WHERE operation_key=?").bind(localState, post.status || null, post.dueAt || null, JSON.stringify(post).slice(0, 4000), now(), now(), parts[2]).run();
         return json({ ok: true, operation_key: parts[2], provider: post, provider_state: localState });
       }
+      if (parts[1] === "delivery-operations" && parts[2] === "alerts" && request.method === "GET") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const threshold = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+        const result = await env.DB.prepare("SELECT operation_key,preview_id,channel_id,provider_state,retry_class,updated_at,last_error FROM delivery_operations WHERE provider_state IN ('attempting','unknown') AND updated_at < ? ORDER BY updated_at LIMIT 100").bind(threshold).all();
+        return json({ alerts: (result.results || []).map((operation) => ({ ...operation, severity: "high", code: "stuck_delivery_operation" })), threshold });
+      }
       if (parts[1] === "maintenance" && parts[2] === "cleanup-previews" && request.method === "POST") {
         if (!(await cleanupAuthorized(request, env))) return json({ error: "cleanup_unauthorized" }, 401);
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const oldPreviews = await env.DB.prepare("SELECT id,job_id,video_key,review_video_key,thumbnail_key FROM previews WHERE created_at < ?").bind(cutoff).all();
+        const scanCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+        const oldPreviews = await env.DB.prepare("SELECT id,job_id,status,created_at,video_key,review_video_key,thumbnail_key FROM previews WHERE created_at < ?").bind(scanCutoff).all();
         const oldJobs = await env.DB.prepare("SELECT id,manifest_key FROM jobs WHERE created_at < ? AND status IN ('review','blocked','error','cancelled')").bind(cutoff).all();
+        const activeStates = new Set(["planned", "pending", "attempting", "unknown", "scheduled", "unresolved"]);
+        const deletablePreviews = []; const retainedPreviews = []; const retentionStatements = []; const evaluatedAt = now();
+        for (const row of oldPreviews.results || []) {
+          const operations = await env.DB.prepare("SELECT operation_key,provider_state FROM delivery_operations WHERE preview_id=?").bind(row.id).all();
+          const active = (operations.results || []).filter((operation) => activeStates.has(String(operation.provider_state || "").toLowerCase()));
+          const ageDays = (Date.now() - Date.parse(row.created_at)) / 86400000;
+          const reviewWindow = ["pending_review", "changes_requested", "pending_render"].includes(row.status) ? 14 : ["approved_for_manual_post"].includes(row.status) ? 3 : 1;
+          const retain = active.length > 0 || ageDays < reviewWindow;
+          const reason = active.length ? "active_delivery_dependency" : retain ? "review_or_approved_window" : "no_active_dependency";
+          retentionStatements.push(env.DB.prepare("INSERT INTO retention_events (id,preview_id,object_key,decision,reason,dependency_json,evaluated_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), row.id, row.video_key || row.review_video_key || row.thumbnail_key || null, retain ? "retain" : "delete", reason, JSON.stringify((operations.results || []).map((operation) => ({ operation_key: operation.operation_key, provider_state: operation.provider_state }))).slice(0, 4000), evaluatedAt));
+          (retain ? retainedPreviews : deletablePreviews).push(row);
+        }
+        const retainedJobIds = new Set(retainedPreviews.map((row) => String(row.job_id)));
+        const deletableJobs = (oldJobs.results || []).filter((row) => !retainedJobIds.has(String(row.id)));
         const keys = new Set();
-        for (const row of oldPreviews.results || []) { if (row.video_key) keys.add(row.video_key); if (row.review_video_key) keys.add(row.review_video_key); if (row.thumbnail_key) keys.add(row.thumbnail_key); }
-        for (const row of oldJobs.results || []) if (row.manifest_key) keys.add(row.manifest_key);
+        for (const row of deletablePreviews) { if (row.video_key) keys.add(row.video_key); if (row.review_video_key) keys.add(row.review_video_key); if (row.thumbnail_key) keys.add(row.thumbnail_key); }
+        for (const row of deletableJobs) if (row.manifest_key) keys.add(row.manifest_key);
         if (env.CLIPS && keys.size) await env.CLIPS.delete([...keys]);
         const statements = [];
-        for (const row of oldPreviews.results || []) statements.push(env.DB.prepare("DELETE FROM preview_events WHERE preview_id=?").bind(row.id));
-        statements.push(env.DB.prepare("DELETE FROM previews WHERE created_at < ?").bind(cutoff));
-        statements.push(env.DB.prepare("DELETE FROM job_stage_events WHERE job_id IN (SELECT id FROM jobs WHERE created_at < ?)").bind(cutoff));
-        statements.push(env.DB.prepare("DELETE FROM jobs WHERE created_at < ? AND status IN ('review','blocked','error','cancelled')").bind(cutoff));
+        statements.push(...retentionStatements);
+        for (const row of deletablePreviews) statements.push(env.DB.prepare("DELETE FROM preview_events WHERE preview_id=?").bind(row.id));
+        for (const row of deletablePreviews) statements.push(env.DB.prepare("DELETE FROM caption_revisions WHERE preview_id=?").bind(row.id));
+        for (const row of deletablePreviews) statements.push(env.DB.prepare("DELETE FROM delivery_operations WHERE preview_id=?").bind(row.id));
+        for (const row of deletablePreviews) statements.push(env.DB.prepare("DELETE FROM previews WHERE id=?").bind(row.id));
+        for (const row of deletableJobs) statements.push(env.DB.prepare("DELETE FROM job_stage_events WHERE job_id=?").bind(row.id));
+        for (const row of deletableJobs) statements.push(env.DB.prepare("DELETE FROM jobs WHERE id=?").bind(row.id));
         if (statements.length) await env.DB.batch(statements);
-        return json({ ok: true, cutoff, deleted_previews: (oldPreviews.results || []).length, deleted_jobs: (oldJobs.results || []).length, deleted_objects: keys.size });
+        return json({ ok: true, cutoff, scan_cutoff: scanCutoff, deleted_previews: deletablePreviews.length, retained_previews: retainedPreviews.length, deleted_jobs: deletableJobs.length, retained_jobs: (oldJobs.results || []).length - deletableJobs.length, deleted_objects: keys.size });
       }
       if (parts[1] === "campaigns" && parts[2] === "sync" && request.method === "POST") {
         if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
@@ -580,6 +637,25 @@ export default {
         if (!["pending_review", "changes_requested", "approved_for_manual_post"].includes(preview.status)) return json({ error: "preview_not_available", status: preview.status }, 409);
         return json({ preview_id: parts[2], url: await previewUrl(request, env, preview.video_key) });
       }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "media-probe" && request.method === "GET") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const preview = await env.DB.prepare("SELECT id,video_key,artifact_hash FROM previews WHERE id=?").bind(parts[2]).first();
+        if (!preview || !preview.video_key) return json({ error: "preview_not_found" }, 404);
+        const url = publicMediaUrl(request, env, preview.video_key);
+        let response = null; let probeError = null;
+        try { response = await fetch(url, { headers: { range: "bytes=0-0" } }); } catch (error) { probeError = String(error.message || error); }
+        const contentType = response?.headers.get("content-type") || null;
+        const contentRange = response?.headers.get("content-range") || "";
+        const contentLength = Number(response?.headers.get("content-length") || (contentRange.match(/\/(\d+)$/) || [])[1] || 0) || null;
+        const acceptsRanges = response?.status === 206 || String(response?.headers.get("accept-ranges") || "").toLowerCase() === "bytes";
+        const failures = [];
+        if (!url.startsWith("https://")) failures.push({ field: "url", code: "https_required" });
+        if (!response || ![200, 206].includes(response.status)) failures.push({ field: "http", code: "media_unreachable", actual: response?.status || probeError || "no_response" });
+        if (!contentType || !contentType.toLowerCase().startsWith("video/")) failures.push({ field: "content_type", code: "video_content_type_required", actual: contentType });
+        if (!contentLength || contentLength <= 0) failures.push({ field: "content_length", code: "positive_length_required", actual: contentLength });
+        if (!acceptsRanges) failures.push({ field: "accept_ranges", code: "byte_ranges_required" });
+        return json({ preview_id: preview.id, artifact_hash: preview.artifact_hash, url, status: failures.length ? "fail" : "pass", ok: !failures.length, http_status: response?.status || null, content_type: contentType, content_length: contentLength, accepts_ranges: acceptsRanges, failures, probed_at: now() });
+      }
       if (parts[1] === "previews" && parts[2] && parts[3] === "review" && request.method === "POST") {
         if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
         const body = await request.json();
@@ -588,7 +664,7 @@ export default {
         if (!Object.prototype.hasOwnProperty.call(transitions, action)) return json({ error: "invalid_review_action" }, 400);
         const reason = String(body.reason || "").trim().slice(0, 1000);
         if ((action === "reject" || action === "request_rerender") && !reason) return json({ error: "review_reason_required" }, 400);
-        const current = await env.DB.prepare("SELECT p.id,p.status,p.job_id,p.artifact_hash,p.caption_revision_id,p.caption_hash,p.platform,p.platform_profile_json,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id = ?").bind(parts[2]).first();
+        const current = await env.DB.prepare("SELECT p.*,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id = ?").bind(parts[2]).first();
         if (!current) return json({ error: "preview_not_found" }, 404);
         if (!["pending_review", "changes_requested"].includes(current.status)) return json({ error: "preview_not_reviewable", status: current.status }, 409);
         const next = transitions[action];
@@ -604,6 +680,15 @@ export default {
           if (!revision) return json({ error: "caption_revision_missing" }, 409);
           const compliance = validateCaptionRevision({ ...revision, fields: parseJson(revision.fields_json, {}) }, parseJson(current.platform_profile_json, { platform: current.platform }), current.rules_hash);
           if (!compliance.ok) return json({ error: "caption_compliance_failed", compliance }, 422);
+        }
+        if (action === "request_rerender") {
+          const latest = await env.DB.prepare("SELECT COALESCE(MAX(revision_number),1) AS revision FROM previews WHERE id=? OR parent_preview_id=?").bind(parts[2], parts[2]).first();
+          const revisionNumber = Number(latest?.revision || 1) + 1;
+          const newId = `${parts[2]}-r${revisionNumber}`;
+          await env.DB.prepare("INSERT INTO previews (id,job_id,rank,status,tier,candidate_id,source_asset_id,validation_json,caption_draft,checklist_json,platform,platform_profile_json,subtitle_delivery_json,sound_tags_json,rules_summary_id,parent_preview_id,revision_number,render_revision,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(newId, current.job_id, current.rank, "pending_render", current.tier, current.candidate_id, current.source_asset_id, current.validation_json || "{}", current.caption_draft || null, current.checklist_json || "[]", current.platform || null, current.platform_profile_json || "{}", current.subtitle_delivery_json || "{}", current.sound_tags_json || "{}", current.rules_summary_id || null, current.id, revisionNumber, `render-${revisionNumber}`, timestamp).run();
+          await env.DB.prepare("UPDATE previews SET status='changes_requested',review_reason=?,reviewed_by=?,reviewed_at=?,approval_artifact_hash=NULL,approval_caption_revision_id=NULL,approval_rules_hash=NULL,superseded_at=? WHERE id=? AND status IN ('pending_review','changes_requested')").bind(reason, actor, timestamp, timestamp, parts[2]).run();
+          await env.DB.prepare("INSERT INTO preview_events (id,preview_id,from_status,to_status,action,reason,actor,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(eventId, parts[2], current.status, "changes_requested", action, reason, actor, timestamp).run();
+          return json({ ok: true, rerender_requested: true, preview: { id: newId, parent_preview_id: current.id, revision_number: revisionNumber, render_revision: `render-${revisionNumber}`, job_id: current.job_id, status: "pending_render", review_reason: reason, reviewed_by: actor, reviewed_at: timestamp } });
         }
         const updated = await env.DB.prepare("UPDATE previews SET status=?,review_reason=?,reviewed_by=?,reviewed_at=?,approval_artifact_hash=?,approval_caption_revision_id=?,approval_rules_hash=? WHERE id=? AND status IN ('pending_review','changes_requested')").bind(next, reason || null, actor, timestamp, action === "approve" ? artifactHash : null, action === "approve" ? captionRevisionId : null, action === "approve" ? current.rules_hash : null, parts[2]).run();
         if (!(updated.meta?.changes > 0)) return json({ error: "review_transition_lost" }, 409);

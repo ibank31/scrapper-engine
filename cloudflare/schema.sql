@@ -95,6 +95,10 @@ CREATE TABLE IF NOT EXISTS previews (
   platform_profile_version TEXT,
   schedule_intent_hash TEXT,
   rules_summary_id TEXT,
+  parent_preview_id TEXT,
+  revision_number INTEGER NOT NULL DEFAULT 1,
+  render_revision TEXT NOT NULL DEFAULT 'render-v1',
+  superseded_at TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (job_id) REFERENCES jobs(id)
 );
@@ -177,4 +181,24 @@ CREATE TABLE IF NOT EXISTS delivery_operations (
 );
 CREATE INDEX IF NOT EXISTS idx_delivery_operations_preview ON delivery_operations(preview_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_delivery_operations_state ON delivery_operations(provider_state, updated_at);
+
+CREATE TABLE IF NOT EXISTS retention_events (
+  id TEXT PRIMARY KEY,
+  preview_id TEXT,
+  object_key TEXT,
+  decision TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  dependency_json TEXT NOT NULL DEFAULT '{}',
+  evaluated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_retention_events_preview ON retention_events(preview_id, evaluated_at);
+
+CREATE TABLE IF NOT EXISTS provider_request_ledger (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  request_class TEXT NOT NULL,
+  period_key TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_provider_request_ledger_period ON provider_request_ledger(provider, period_key, created_at);
 CREATE INDEX IF NOT EXISTS idx_buffer_uploads_preview ON buffer_uploads(preview_id, created_at);
