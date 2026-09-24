@@ -219,7 +219,7 @@ export default {
         const orgData = await bufferRequest(env, "query { account { organizations { id name } } }");
         const channels = [];
         for (const organization of orgData.account?.organizations || []) {
-          const data = await bufferRequest(env, "query($organizationId: ID!) { channels(input: { organizationId: $organizationId }) { id name service } }", { organizationId: organization.id });
+          const data = await bufferRequest(env, "query($organizationId: OrganizationId!) { channels(input: { organizationId: $organizationId }) { id name service } }", { organizationId: organization.id });
           for (const channel of data.channels || []) channels.push({ ...channel, organizationId: organization.id, organizationName: organization.name });
         }
         return json({ channels });
