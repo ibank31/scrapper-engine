@@ -363,7 +363,7 @@ function renderReviews() {
     const actionButtons = status === "pending_review" || status === "changes_requested" ?
       '<button class="secondary-button review-action" data-review-action="request_rerender">Minta render ulang</button>' +
       '<button class="secondary-button review-action danger" data-review-action="reject">Tolak</button>' +
-      '<button class="primary-button review-action" data-review-action="approve">ACC upload manual <span>✓</span></button>' :
+      '<button class="primary-button review-action" data-review-action="approve">ACC untuk Buffer <span>✓</span></button>' :
       '<span class="review-decision">' + escapeHtml(status.replaceAll("_", " ")) + (r.review_reason ? " · " + escapeHtml(r.review_reason) : "") + "</span>";
     return '<article class="review-card">' +
       (src ? '<video class="review-video" controls preload="none" poster="' + escapeHtml(r.thumbnail_url || "") + '" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
