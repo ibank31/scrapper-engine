@@ -114,6 +114,8 @@ async function ensureSchema(db) {
   await db.prepare("CREATE TABLE IF NOT EXISTS job_stage_events (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, run_id TEXT NOT NULL, stage TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT, ended_at TEXT, metrics_json TEXT NOT NULL DEFAULT '{}', error_code TEXT, error_detail TEXT, created_at TEXT NOT NULL)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_job_stage_events_job ON job_stage_events(job_id, created_at)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_job_stage_events_run ON job_stage_events(run_id, stage, created_at)").run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS buffer_uploads (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, channel_id TEXT NOT NULL, buffer_post_id TEXT, status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL, FOREIGN KEY (preview_id) REFERENCES previews(id))").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_buffer_uploads_preview ON buffer_uploads(preview_id, created_at)").run();
 }
 
 function claimLeaseSeconds(env) {
@@ -147,6 +149,25 @@ function reviewAuthorized(request, env) {
   return request.headers.get("x-review-token") === env.REVIEW_TOKEN || bearer === `Bearer ${env.REVIEW_TOKEN}`;
 }
 
+async function bufferRequest(env, query, variables = {}) {
+  if (!env.BUFFER_API_KEY) throw new Error("BUFFER_API_KEY belum dikonfigurasi di Cloudflare Pages");
+  const response = await fetch("https://api.buffer.com", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${env.BUFFER_API_KEY}` },
+    body: JSON.stringify({ query, variables }),
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.errors?.length) throw new Error(payload.errors?.map((x) => x.message).join("; ") || `Buffer HTTP ${response.status}`);
+  return payload.data;
+}
+
+function publicMediaUrl(request, env, key) {
+  const configured = String(env.BUFFER_PUBLIC_MEDIA_BASE_URL || "").replace(/\/$/, "");
+  if (configured) return `${configured}/${String(key).split("/").map(encodeURIComponent).join("/")}`;
+  const url = new URL(request.url);
+  return `${url.origin}/media/${String(key).split("/").map(encodeURIComponent).join("/")}`;
+}
+
 function hex(bytes) {
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -169,9 +190,52 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean);
-      if (parts[0] !== "api") return json({ error: "not_found" }, 404);
+    if (parts[0] === "media" && request.method === "GET") {
+      if (!env.CLIPS) return json({ error: "media_not_configured" }, 503);
+      const key = parts.slice(1).map(decodeURIComponent).join("/");
+      if (!key || key.includes("..")) return json({ error: "media_not_found" }, 404);
+      const object = await env.CLIPS.get(key);
+      if (!object) return json({ error: "media_not_found" }, 404);
+      const headers = new Headers({ "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*" });
+      object.writeHttpMetadata(headers); headers.set("etag", object.httpEtag);
+      return new Response(object.body, { headers });
+    }
+    if (parts[0] !== "api") return json({ error: "not_found" }, 404);
       try {
         await ensureSchema(env.DB);
+      if (parts[1] === "buffer" && parts[2] === "channels" && request.method === "GET") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const orgData = await bufferRequest(env, "query { account { organizations { id name } } }");
+        const channels = [];
+        for (const organization of orgData.account?.organizations || []) {
+          const data = await bufferRequest(env, "query($organizationId: ID!) { channels(input: { organizationId: $organizationId }) { id name service } }", { organizationId: organization.id });
+          for (const channel of data.channels || []) channels.push({ ...channel, organizationId: organization.id, organizationName: organization.name });
+        }
+        return json({ channels });
+      }
+      if (parts[1] === "previews" && parts[2] && parts[3] === "buffer" && request.method === "POST") {
+        if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
+        const body = await request.json();
+        const preview = await env.DB.prepare("SELECT id,status,video_key,caption_draft FROM previews WHERE id=?").bind(parts[2]).first();
+        if (!preview || !preview.video_key) return json({ error: "preview_not_found" }, 404);
+        if (!["pending_review", "approved_for_manual_post"].includes(preview.status)) return json({ error: "preview_not_available", status: preview.status }, 409);
+        const channelIds = [...new Set((body.channel_ids || []).map(String).filter(Boolean))].slice(0, 10);
+        if (!channelIds.length) return json({ error: "channel_ids_required" }, 400);
+        const uploaded = [];
+        for (const channelId of channelIds) {
+          try {
+            const data = await bufferRequest(env, "mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id dueAt channelId } } ... on MutationError { message } } }", { input: { text: String(body.text || preview.caption_draft || "").slice(0, 4000), channelId, schedulingType: "automatic", mode: "addToQueue", assets: [{ video: { url: publicMediaUrl(request, env, preview.video_key) } }] } });
+            const result = data.createPost || {};
+            if (result.message && !result.post) throw new Error(result.message);
+            await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, result.post?.id || null, "queued", null, now()).run();
+            uploaded.push({ channel_id: channelId, post: result.post || null, status: "queued" });
+          } catch (error) {
+            await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, null, "error", String(error.message || error).slice(0, 1000), now()).run();
+            uploaded.push({ channel_id: channelId, status: "error", error: String(error.message || error) });
+          }
+        }
+        return json({ ok: uploaded.some((item) => item.status === "queued"), preview_id: preview.id, uploads: uploaded });
+      }
       if (parts[1] === "maintenance" && parts[2] === "cleanup-previews" && request.method === "POST") {
         if (!(await cleanupAuthorized(request, env))) return json({ error: "cleanup_unauthorized" }, 401);
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();

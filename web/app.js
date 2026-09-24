@@ -1,6 +1,6 @@
 const cfg = window.CLIPPER_CONFIG || { API_BASE_URL: "", DEMO_MODE: true };
 const $ = (sel) => document.querySelector(sel);
-const state = { campaigns: [], jobs: [], reviews: [], pollTimer: null };
+const state = { campaigns: [], jobs: [], reviews: [], bufferChannels: [], pollTimer: null };
 const statusNames = { queued: "ANTRI", processing: "BERJALAN", review: "SIAP REVIEW", error: "GAGAL", blocked: "DIBLOKIR", cancelled: "DIBATALKAN" };
 const readinessOrder = { siap: 0, ketat: 1, belum_siap: 2, lewati: 3 };
 const demoCampaigns = [
@@ -21,7 +21,7 @@ function escapeHtml(value) {
   return String(value == null ? "" : value).replace(/[&<>"]/g, function (c) { return map[c] || c; });
 }
 function showToast(message) { const el = $("#toast"); el.textContent = message; el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2800); }
-function api(path, options) { return fetch((cfg.API_BASE_URL || "") + path, options).then((r) => { if (!r.ok) throw new Error("API " + r.status); return r.json(); }); }
+function api(path, options) { return fetch((cfg.API_BASE_URL || "") + path, options).then(async (r) => { const payload = await r.json().catch(() => ({})); if (!r.ok) throw new Error(payload.message || payload.error || "API " + r.status); return payload; }); }
 function readinessClass(status) {
   if (status === "siap") return "ready-siap";
   if (status === "ketat") return "ready-ketat";
@@ -91,7 +91,7 @@ function openCampaign(id) {
       '<span>Membaca rules dan bahan resmi campaign</span>' +
       '<span>Memotong dan merender preview vertical</span>' +
       '<span>Menyiapkan paket caption (bahasa Inggris) untuk review</span></div>' +
-    '<p class="modal-note">Posting tetap manual. Anda hanya ACC preview lalu upload sendiri.</p>' +
+    '<p class="modal-note">Setelah preview siap, Anda dapat memilih channel dan memasukkannya ke queue Buffer dari kartu review.</p>' +
     '<button class="primary-button" id="startJob">Mulai clipping otomatis <span>→</span></button>';
   $("#detailModal").classList.remove("hidden");
   $("#startJob").addEventListener("click", () => startJob(c));
@@ -253,6 +253,28 @@ async function reviewPreview(preview, action) {
     showToast("Review gagal disimpan: " + error.message);
   }
 }
+async function openBufferUpload(preview) {
+  try {
+    if (!state.bufferChannels.length) state.bufferChannels = (await api("/api/buffer/channels")).channels || [];
+    if (!state.bufferChannels.length) throw new Error("Tidak ada channel Buffer yang tersedia");
+    const groups = state.bufferChannels.reduce((acc, channel) => { (acc[channel.organizationName || "Buffer"] ||= []).push(channel); return acc; }, {});
+    const checks = Object.entries(groups).map(([organization, channels]) => '<fieldset class="buffer-channel-group"><legend>' + escapeHtml(organization) + '</legend>' + channels.map((channel) => '<label class="buffer-channel"><input type="checkbox" value="' + escapeHtml(channel.id) + '"><span>' + escapeHtml(channel.name || channel.service) + '</span><small>' + escapeHtml(channel.service || "") + '</small></label>').join("") + '</fieldset>').join("");
+    $("#modalContent").innerHTML = '<p class="eyebrow">BUFFER</p><h2>Upload otomatis</h2><p class="description">Pilih channel Buffer. Video akan masuk ke queue Buffer menggunakan jadwal channel.</p><div class="buffer-channel-list">' + checks + '</div><label class="buffer-caption-label">Caption<textarea id="bufferCaption" rows="4">' + escapeHtml(preview.caption_draft || "") + '</textarea></label><div class="modal-actions"><button class="secondary-button" data-close="true">Batal</button><button class="primary-button" id="confirmBufferUpload">Upload ke Buffer <span>→</span></button></div>';
+    $("#detailModal").classList.remove("hidden");
+    $("#modalContent [data-close]").addEventListener("click", () => $("#detailModal").classList.add("hidden"));
+    $("#confirmBufferUpload").addEventListener("click", async () => {
+      const channel_ids = [...document.querySelectorAll(".buffer-channel input:checked")].map((input) => input.value);
+      if (!channel_ids.length) return showToast("Pilih minimal satu channel Buffer");
+      if (!window.confirm("Masukkan video ini ke queue Buffer pada " + channel_ids.length + " channel?")) return;
+      const button = $("#confirmBufferUpload"); button.disabled = true; button.textContent = "Mengirim…";
+      try {
+        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel_ids, text: $("#bufferCaption").value }) });
+        const ok = (response.uploads || []).filter((item) => item.status === "queued").length;
+        $("#detailModal").classList.add("hidden"); showToast(ok + " channel berhasil masuk ke queue Buffer");
+      } catch (error) { button.disabled = false; button.textContent = "Upload ke Buffer →"; showToast("Upload Buffer gagal: " + error.message); }
+    });
+  } catch (error) { showToast("Buffer belum siap: " + error.message); }
+}
 function startPolling() {
   if (cfg.DEMO_MODE || state.pollTimer) return;
   state.pollTimer = setInterval(async () => {
@@ -284,7 +306,7 @@ function renderReviews() {
       '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
       '<div class="review-actions">' +
-      (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a>' : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
+      (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Download MP4 <span>↓</span></a><button class="primary-button buffer-upload-button" type="button">Upload ke Buffer <span>↗</span></button>' : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
   }).join("") || '<div class="empty-state">Belum ada preview siap review.</div>';
   document.querySelectorAll("video.review-video").forEach((video) => {
@@ -295,6 +317,10 @@ function renderReviews() {
     const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card);
     const preview = state.reviews[index];
     if (preview) reviewPreview(preview, button.dataset.reviewAction);
+  }));
+  document.querySelectorAll(".buffer-upload-button").forEach((button) => button.addEventListener("click", () => {
+    const card = button.closest(".review-card"); const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card); const preview = state.reviews[index];
+    if (preview) openBufferUpload(preview);
   }));
 }
 function showView(name) {

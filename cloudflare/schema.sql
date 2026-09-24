@@ -96,3 +96,14 @@ CREATE INDEX IF NOT EXISTS idx_job_stage_events_job ON job_stage_events(job_id, 
 CREATE INDEX IF NOT EXISTS idx_job_stage_events_run ON job_stage_events(run_id, stage, created_at);
 CREATE INDEX IF NOT EXISTS idx_previews_job ON previews(job_id);
 CREATE INDEX IF NOT EXISTS idx_preview_events_preview ON preview_events(preview_id, created_at);
+CREATE TABLE IF NOT EXISTS buffer_uploads (
+  id TEXT PRIMARY KEY,
+  preview_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  buffer_post_id TEXT,
+  status TEXT NOT NULL,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (preview_id) REFERENCES previews(id)
+);
+CREATE INDEX IF NOT EXISTS idx_buffer_uploads_preview ON buffer_uploads(preview_id, created_at);
