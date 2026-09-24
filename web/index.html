@@ -9,24 +9,24 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-mark">CE</div><div><strong>Clipper Engine</strong><span>Campaign workspace</span></div></div>
+      <div class="brand"><div class="brand-mark">CE</div><div><strong>Clipper Engine</strong><span>Ruang kerja campaign</span></div></div>
       <nav>
-        <a class="nav-item active" href="#campaigns"><span>▦</span> Campaigns</a>
-        <a class="nav-item" href="#jobs"><span>◷</span> Processing queue <b id="queueCount">0</b></a>
-        <a class="nav-item" href="#review"><span>✓</span> Ready for review</a>
+        <a class="nav-item active" href="#campaigns"><span>▦</span> Pilih campaign</a>
+        <a class="nav-item" href="#jobs"><span>◷</span> Proses berjalan <b id="queueCount">0</b></a>
+        <a class="nav-item" href="#review"><span>✓</span> Tinjau video</a>
       </nav>
-      <div class="sidebar-footer"><div class="worker-dot"></div><div><strong>Cloud worker</strong><span id="workerStatus">checking connection…</span></div></div>
+      <div class="sidebar-footer"><div class="worker-dot"></div><div><strong>Mesin video</strong><span id="workerStatus">memeriksa koneksi…</span></div></div>
     </aside>
     <main class="main-content">
-      <header class="topbar"><div><p class="eyebrow">WORKSPACE / CLIPPING</p><h1 id="pageTitle">Campaign radar</h1></div><button class="ghost-button" id="refreshButton">↻ Refresh</button></header>
+      <header class="topbar"><div><p class="eyebrow">RUANG KERJA / CLIPPING</p><h1 id="pageTitle">Pilih campaign</h1></div><button class="ghost-button" id="refreshButton">↻ Perbarui</button></header>
       <section id="campaignsView" class="view active-view">
-        <div class="hero-card"><div><p class="eyebrow light">TODAY'S OPPORTUNITIES</p><h2>Choose a campaign.<br><em>We handle the rest.</em></h2><p class="hero-copy">Rules are read before production. Only compliant clips reach your review queue.</p></div><div class="hero-stat"><span id="activeCount">—</span><small>active campaigns</small></div></div>
-        <div class="toolbar"><div class="search-box"><span>⌕</span><input id="searchInput" placeholder="Search campaign, brand, category…" /></div><select id="platformFilter"><option value="">All platforms</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option></select><select id="sortSelect"><option value="score">Priority first</option><option value="rate">Highest rate</option><option value="budget">Budget left</option><option value="recency">Newest</option></select></div>
-        <div class="section-heading"><div><p class="eyebrow">DISCOVER</p><h3>Recommended campaigns</h3></div><span class="muted" id="campaignMeta">Loading…</span></div>
+        <div class="hero-card"><div><p class="eyebrow light">PELUANG HARI INI</p><h2>Pilih campaign.<br><em>Mesin mengerjakan sisanya.</em></h2><p class="hero-copy">Mesin membaca aturan dan bahan resmi lebih dulu. Hanya video yang lolos pemeriksaan masuk ke halaman tinjauan.</p></div><div class="hero-stat"><span id="activeCount">—</span><small>campaign tersedia</small></div></div>
+        <div class="toolbar"><div class="search-box"><span>⌕</span><input id="searchInput" placeholder="Cari campaign, brand, kategori…" /></div><select id="platformFilter"><option value="">Semua platform</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option></select><select id="sortSelect"><option value="score">Rekomendasi mesin</option><option value="rate">Bayaran tertinggi</option><option value="budget">Sisa budget</option><option value="recency">Terbaru</option></select></div>
+        <div class="section-heading"><div><p class="eyebrow">PILIHAN MESIN</p><h3>Campaign yang direkomendasikan</h3></div><span class="muted" id="campaignMeta">Memuat…</span></div>
         <div id="campaignGrid" class="campaign-grid"></div>
       </section>
-      <section id="jobsView" class="view hidden"><div class="section-heading"><div><p class="eyebrow">AUTOMATION</p><h3>Processing queue</h3></div><div class="queue-monitor-badge"><i></i> LIVE</div></div><div id="queueSummary" class="queue-summary"></div><div id="jobsList" class="jobs-list"></div></section>
-      <section id="reviewView" class="view hidden"><div class="section-heading"><div><p class="eyebrow">YOUR DECISION</p><h3>Ready for review</h3></div></div><div id="reviewGrid" class="review-grid"></div></section>
+      <section id="jobsView" class="view hidden"><div class="section-heading"><div><p class="eyebrow">MESIN BEKERJA</p><h3>Proses berjalan</h3></div><div class="queue-monitor-badge"><i></i> MEMANTAU</div></div><div class="how-it-works"><b>Yang sedang dilakukan mesin</b><span>membaca aturan → mencari potongan → membuat subtitle → memeriksa video → menyiapkan review</span></div><div id="queueSummary" class="queue-summary"></div><div id="jobsList" class="jobs-list"></div></section>
+      <section id="reviewView" class="view hidden"><div class="section-heading"><div><p class="eyebrow">KEPUTUSAN ANDA</p><h3>Tinjau video</h3></div></div><div class="review-guide"><b>Alur Anda:</b><span>Putar video sampai selesai</span><i>→</i><span>Edit caption bila perlu</span><i>→</i><span>ACC, tolak, atau minta render ulang</span><i>→</i><span>Setelah ACC, masukkan ke Buffer</span></div><div id="reviewGrid" class="review-grid"></div></section>
     </main>
   </div>
   <div id="detailModal" class="modal hidden"><div class="modal-backdrop" data-close="true"></div><div class="modal-panel"><button class="modal-close" data-close="true">×</button><div id="modalContent"></div></div></div>
