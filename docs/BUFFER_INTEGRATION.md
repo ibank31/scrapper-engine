@@ -2,6 +2,8 @@
 
 The review queue now includes **Upload ke Buffer**. The button loads the connected Buffer channels, lets the reviewer select one or more channels, edits the caption, and queues the video through Buffer's GraphQL API. The browser never receives the Buffer key.
 
+Caption drafts are generated before upload from the campaign plan: explicit required handles, CTA links, hashtags, mandatory requirements, and relevant campaign context are included deterministically. When the campaign has no explicit hashtag rule, the engine adds only conservative hashtags supported by the campaign title, category, or spoken candidate context; it does not invent brand claims. The card shows an Indonesian **Ringkasan rules campaign** so the reviewer can see what was applied.
+
 ## Add the Buffer secret
 
 1. Open Buffer **Settings → API** at [publish.buffer.com/settings/api](https://publish.buffer.com/settings/api).
@@ -17,6 +19,8 @@ The backend also accepts an optional non-secret variable named `BUFFER_PUBLIC_ME
 The backend queries Buffer organizations and channels through `GET /api/buffer/channels`. The upload action calls `createPost` with `schedulingType: automatic`, `mode: addToQueue`, and the selected channel IDs. Each attempt is recorded in D1 in `buffer_uploads`, including the Buffer post ID or the error returned by Buffer.
 
 The action remains behind the existing review authorization (`REVIEW_TOKEN`, when configured) and shows a browser confirmation before sending. Uploading to Buffer schedules content in Buffer; it does not immediately publish outside Buffer's configured queue rules.
+
+Before each Buffer mutation, the backend runs a no-request preflight. It rejects an empty caption and checks UTF-16 length against a conservative platform limit: TikTok video 2,200, Instagram 2,196, X 280, LinkedIn 3,000, Threads/Bluesky 300, Pinterest 500, and 5,000 for Facebook/YouTube. A failed preflight is recorded locally as `preflight_error` and does not consume a Buffer request.
 
 ## Required deployment settings
 

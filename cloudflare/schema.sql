@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS previews (
   review_reason TEXT,
   reviewed_by TEXT,
   reviewed_at TEXT,
+  rules_summary_id TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (job_id) REFERENCES jobs(id)
 );

@@ -11,18 +11,60 @@ import sys
 from pathlib import Path
 
 
-def _caption(plan: dict, candidate: dict) -> str:
+def _values(value) -> list[str]:
+    if isinstance(value, (list, tuple)):
+        return [str(item.get("text") if isinstance(item, dict) else item).strip() for item in value if str(item.get("text") if isinstance(item, dict) else item).strip()]
+    return [str(value).strip()] if value and str(value).strip() else []
+
+
+def _hashtags(plan: dict, candidate: dict) -> list[str]:
     campaign = plan.get("campaign") or {}
     production = plan.get("production") or {}
-    parts = []
-    title = str(campaign.get("title") or campaign.get("brand") or "")
-    if title:
-        parts.append(title)
-    if production.get("required_handles"):
-        parts.extend(production["required_handles"])
-    if production.get("cta_urls"):
-        parts.extend(production["cta_urls"])
-    return " ".join(parts) + ("\n\n" + candidate.get("text", "").strip() if candidate.get("text") else "")
+    explicit = []
+    for key in ("hashtags", "required_hashtags", "tags"):
+        explicit.extend(_values(campaign.get(key)))
+        explicit.extend(_values(production.get(key)))
+    source = " ".join([str(campaign.get("title") or ""), str(campaign.get("brand") or ""), str(campaign.get("category") or ""), str(candidate.get("text") or "")]).lower()
+    inferred = []
+    for phrase, tag in (("trading card", "#TradingCards"), ("sports card", "#SportsCards"), ("nba", "#NBA"), ("podcast", "#Podcast"), ("basketball", "#Basketball"), ("football", "#Football"), ("music", "#Music"), ("creator", "#Creator")):
+        if phrase in source: inferred.append(tag)
+    result = []
+    for raw in explicit + inferred:
+        tag = "#" + "".join(ch for ch in str(raw).lstrip("#") if ch.isalnum() or ch == "_")
+        if len(tag) > 1 and tag.lower() not in {x.lower() for x in result}: result.append(tag)
+    return result[:8]
+
+
+def caption_metadata(plan: dict, candidate: dict) -> dict:
+    campaign = plan.get("campaign") or {}
+    production = plan.get("production") or {}
+    parts = [str(campaign.get("title") or campaign.get("brand") or "").strip()]
+    parts.extend(_values(production.get("required_handles")))
+    parts.extend(_values(production.get("cta_urls")))
+    if candidate.get("text"): parts.append(candidate["text"].strip())
+    tags = _hashtags(plan, candidate)
+    caption = " ".join(x for x in parts if x).strip()
+    if tags: caption = caption + "\n\n" + " ".join(tags)
+    source = plan.get("source_of_truth") or {}
+    required = []
+    for key in ("requirements", "normalized_requirements"):
+        for item in source.get(key) or []:
+            text = str(item.get("text") if isinstance(item, dict) else item).strip()
+            if text: required.append(text)
+    prohibited = []
+    for value in (production.get("prohibited"), source.get("prohibited")):
+        if isinstance(value, (list, tuple, str)): prohibited.extend(_values(value))
+    summary = ["Judul/brand: " + str(campaign.get("title") or campaign.get("brand") or "Tidak disebutkan")]
+    summary.append("Wajib: " + ("; ".join(dict.fromkeys(required)) if required else "Tidak ada aturan wajib eksplisit; caption memakai konteks kandidat."))
+    if production.get("required_handles"): summary.append("Handle wajib: " + ", ".join(_values(production["required_handles"])))
+    if production.get("cta_urls"): summary.append("CTA/link: " + ", ".join(_values(production["cta_urls"])))
+    if prohibited: summary.append("Dilarang: " + "; ".join(dict.fromkeys(prohibited)))
+    summary.append("Tagar: " + (" ".join(tags) if tags else "Tidak ada tagar eksplisit; tidak menambahkan tagar spekulatif."))
+    return {"caption": caption, "hashtags": tags, "rules_summary_id": " ".join(summary)}
+
+
+def _caption(plan: dict, candidate: dict) -> str:
+    return caption_metadata(plan, candidate)["caption"]
 
 
 def _thumbnail(video: str, output: str) -> None:
@@ -94,6 +136,7 @@ def build_queue(plan: dict, candidates: dict, validation: dict, rendered_dir: st
             "semantic": candidate.get("semantic") or {},
             "validation": result,
             "caption_draft": _caption(plan, candidate),
+            "rules_summary_id": caption_metadata(plan, candidate)["rules_summary_id"],
             "checklist": _checklist(plan, result),
         }
         queue.append(item)

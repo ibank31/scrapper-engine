@@ -258,17 +258,18 @@ async function openBufferUpload(preview) {
     if (!state.bufferChannels.length) state.bufferChannels = (await api("/api/buffer/channels")).channels || [];
     if (!state.bufferChannels.length) throw new Error("Tidak ada channel Buffer yang tersedia");
     const groups = state.bufferChannels.reduce((acc, channel) => { (acc[channel.organizationName || "Buffer"] ||= []).push(channel); return acc; }, {});
-    const checks = Object.entries(groups).map(([organization, channels]) => '<fieldset class="buffer-channel-group"><legend>' + escapeHtml(organization) + '</legend>' + channels.map((channel) => '<label class="buffer-channel"><input type="checkbox" value="' + escapeHtml(channel.id) + '"><span>' + escapeHtml(channel.name || channel.service) + '</span><small>' + escapeHtml(channel.service || "") + '</small></label>').join("") + '</fieldset>').join("");
+    const checks = Object.entries(groups).map(([organization, channels]) => '<fieldset class="buffer-channel-group"><legend>' + escapeHtml(organization) + '</legend>' + channels.map((channel) => '<label class="buffer-channel"><input type="checkbox" value="' + escapeHtml(channel.id) + '" data-service="' + escapeHtml(channel.service || "") + '"><span>' + escapeHtml(channel.name || channel.service) + '</span><small>' + escapeHtml(channel.service || "") + '</small></label>').join("") + '</fieldset>').join("");
     $("#modalContent").innerHTML = '<p class="eyebrow">BUFFER</p><h2>Upload otomatis</h2><p class="description">Pilih channel Buffer. Video akan masuk ke queue Buffer menggunakan jadwal channel.</p><div class="buffer-channel-list">' + checks + '</div><label class="buffer-caption-label">Caption<textarea id="bufferCaption" rows="4">' + escapeHtml(preview.caption_draft || "") + '</textarea></label><div class="modal-actions"><button class="secondary-button" data-close="true">Batal</button><button class="primary-button" id="confirmBufferUpload">Upload ke Buffer <span>→</span></button></div>';
     $("#detailModal").classList.remove("hidden");
     $("#modalContent [data-close]").addEventListener("click", () => $("#detailModal").classList.add("hidden"));
     $("#confirmBufferUpload").addEventListener("click", async () => {
-      const channel_ids = [...document.querySelectorAll(".buffer-channel input:checked")].map((input) => input.value);
+      const selected = [...document.querySelectorAll(".buffer-channel input:checked")];
+      const channel_ids = selected.map((input) => input.value);
       if (!channel_ids.length) return showToast("Pilih minimal satu channel Buffer");
       if (!window.confirm("Masukkan video ini ke queue Buffer pada " + channel_ids.length + " channel?")) return;
       const button = $("#confirmBufferUpload"); button.disabled = true; button.textContent = "Mengirim…";
       try {
-        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel_ids, text: $("#bufferCaption").value }) });
+        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel_ids, channels: selected.map((input) => ({ id: input.value, service: input.dataset.service })), text: $("#bufferCaption").value }) });
         const ok = (response.uploads || []).filter((item) => item.status === "queued").length;
         $("#detailModal").classList.add("hidden"); showToast(ok + " channel berhasil masuk ke queue Buffer");
       } catch (error) { button.disabled = false; button.textContent = "Upload ke Buffer →"; showToast("Upload Buffer gagal: " + error.message); }
@@ -303,6 +304,7 @@ function renderReviews() {
       (src ? '<video class="review-video" controls preload="none" poster="' + escapeHtml(r.thumbnail_url || "") + '" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
       '<div class="review-body"><span class="status review">' + escapeHtml(status.replaceAll("_", " ").toUpperCase()) + '</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
       '<p>Periksa video penuh, validasi, dan checklist campaign sebelum mengambil keputusan.</p>' +
+      (r.rules_summary_id ? '<div class="rules-summary"><strong>Ringkasan rules campaign</strong><p>' + escapeHtml(r.rules_summary_id) + '</p></div>' : '') +
       '<div class="review-validation"><span>Validator: <b>' + escapeHtml((validation.status || "needs_review").toUpperCase()) + '</b></span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
       '<div class="review-actions">' +

@@ -100,7 +100,7 @@ async function ensureSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_campaigns_ai_status ON campaigns(ai_rules_status)").run();
   const previewInfo = await db.prepare("PRAGMA table_info(previews)").all();
   const previewColumns = new Set((previewInfo.results || []).map((row) => row.name));
-  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT" })) {
+  for (const [name, definition] of Object.entries({ review_video_key: "TEXT", review_reason: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT", rules_summary_id: "TEXT" })) {
     if (!previewColumns.has(name)) await db.prepare("ALTER TABLE previews ADD COLUMN " + name + " " + definition).run();
   }
   await db.prepare("CREATE TABLE IF NOT EXISTS preview_events (id TEXT PRIMARY KEY, preview_id TEXT NOT NULL, from_status TEXT, to_status TEXT NOT NULL, action TEXT NOT NULL, reason TEXT, actor TEXT, created_at TEXT NOT NULL)").run();
@@ -159,6 +159,18 @@ async function bufferRequest(env, query, variables = {}) {
   const payload = await response.json();
   if (!response.ok || payload.errors?.length) throw new Error(payload.errors?.map((x) => x.message).join("; ") || `Buffer HTTP ${response.status}`);
   return payload.data;
+}
+
+function bufferTextLimit(service) {
+  const value = String(service || "").toLowerCase();
+  if (value === "twitter" || value === "x") return 280;
+  if (value === "threads" || value === "bluesky") return 300;
+  if (value === "pinterest") return 500;
+  if (value === "instagram") return 2196;
+  if (value === "tiktok") return 2200;
+  if (value === "linkedin") return 3000;
+  if (value === "facebook" || value === "youtube") return 5000;
+  return 2200;
 }
 
 function publicMediaUrl(request, env, key) {
@@ -221,10 +233,20 @@ export default {
         if (!["pending_review", "approved_for_manual_post"].includes(preview.status)) return json({ error: "preview_not_available", status: preview.status }, 409);
         const channelIds = [...new Set((body.channel_ids || []).map(String).filter(Boolean))].slice(0, 10);
         if (!channelIds.length) return json({ error: "channel_ids_required" }, 400);
+        const text = String(body.text || preview.caption_draft || "").trim();
+        if (!text) return json({ error: "caption_required", message: "Caption dan tagar wajib tersedia sebelum upload." }, 400);
         const uploaded = [];
         for (const channelId of channelIds) {
+          const channel = (body.channels || []).find((item) => String(item.id) === channelId) || {};
+          const limit = bufferTextLimit(channel.service);
+          if (text.length > limit) {
+            const error = `Caption ${text.length} UTF-16 code units melebihi batas konservatif ${limit} untuk ${channel.service || "channel ini"}.`;
+            await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, null, "preflight_error", error, now()).run();
+            uploaded.push({ channel_id: channelId, status: "preflight_error", error });
+            continue;
+          }
           try {
-            const data = await bufferRequest(env, "mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id dueAt channelId } } ... on MutationError { message } } }", { input: { text: String(body.text || preview.caption_draft || "").slice(0, 4000), channelId, schedulingType: "automatic", mode: "addToQueue", assets: [{ video: { url: publicMediaUrl(request, env, preview.video_key) } }] } });
+            const data = await bufferRequest(env, "mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id dueAt channelId } } ... on MutationError { message } } }", { input: { text, channelId, schedulingType: "automatic", mode: "addToQueue", assets: [{ video: { url: publicMediaUrl(request, env, preview.video_key) } }] } });
             const result = data.createPost || {};
             if (result.message && !result.post) throw new Error(result.message);
             await env.DB.prepare("INSERT INTO buffer_uploads (id,preview_id,channel_id,buffer_post_id,status,error,created_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), preview.id, channelId, result.post?.id || null, "queued", null, now()).run();
@@ -427,7 +449,7 @@ export default {
         return json({ job: row });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
+        const result = await env.DB.prepare("SELECT id,job_id,rank,status,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,rules_summary_id,checklist_json,review_reason,reviewed_by,reviewed_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         const previews = await Promise.all((result.results || []).map(async (preview) => ({
           ...preview,
           video_url: preview.review_video_key ? await previewUrl(request, env, preview.review_video_key, 3600) : null,
@@ -481,7 +503,7 @@ export default {
         if (!(await workerOrDispatchAuthorized(request, env, parts[2]))) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now();
         for (const preview of body.previews || []) {
-          await env.DB.prepare("INSERT OR REPLACE INTO previews (id,job_id,rank,status,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.video_key || null, preview.review_video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, JSON.stringify(preview.checklist || []), timestamp).run();
+          await env.DB.prepare("INSERT OR REPLACE INTO previews (id,job_id,rank,status,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,rules_summary_id,checklist_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(preview.id || crypto.randomUUID(), parts[2], preview.rank || 0, preview.status || "pending_review", preview.video_key || null, preview.review_video_key || null, preview.thumbnail_key || null, preview.download_url || null, JSON.stringify(preview.validation || {}), preview.caption_draft || null, preview.rules_summary_id || null, JSON.stringify(preview.checklist || []), timestamp).run();
         }
         await env.DB.prepare("UPDATE jobs SET status='review',progress=100,message=?,updated_at=? WHERE id=?").bind(`${(body.previews || []).length} preview siap review`, timestamp, parts[2]).run();
         return json({ ok: true });
