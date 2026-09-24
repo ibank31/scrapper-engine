@@ -10,6 +10,8 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
+from core.output_contract import build_output_contract
+
 URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']+", re.I)
 
 
@@ -184,6 +186,30 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     ai_ambiguities = list(ai_rules.get("ambiguities") or [])
     ai_status = "pass" if ai_confidence >= 0.70 and not any("critical" in str(x).lower() for x in ai_ambiguities) else "needs_review"
 
+    production = {
+        "provided_material_required": supplied_material_required,
+        "asset_urls": asset_urls,
+        "aspect_ratio": ai_aspect_ratio or ("9:16" if vertical_required else None),
+        "min_duration_seconds": ai_rule_set.get("min_duration_seconds") or parsed_min_duration,
+        "max_duration_seconds": ai_rule_set.get("max_duration_seconds") or parsed_max_duration,
+        "subtitle_required": bool(ai_rule_set.get("subtitle_required")),
+        "official_audio_required": official_audio_required,
+        "watermark_required": watermark_required,
+        "no_third_party_watermark": no_third_party_watermark,
+        "required_handles": tags,
+        "cta_urls": cta_urls,
+        "minimum_views": int(min_views) if min_views is not None else None,
+        "maximum_payout": max_payout,
+        "prohibited": list(dict.fromkeys(prohibited + [str(x) for x in (ai_rule_set.get("prohibited_content") or []) if x])),
+        "allowed_content": [str(x) for x in (ai_rule_set.get("allowed_content") or []) if x],
+        "topic_terms": topic_terms,
+        "hashtags": ai_hashtags,
+        "disclosures": ai_disclosures,
+        "posting_rules": [str(x) for x in (ai_rule_set.get("posting_rules") or []) if x],
+        "account_rules": [str(x) for x in (ai_rule_set.get("account_rules") or []) if x],
+        "cta_text": ai_rule_set.get("cta_text"),
+    }
+
     return {
         "schema_version": 2,
         "campaign": {
@@ -204,29 +230,11 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
         },
         "ai_rules": ai_rules,
         "ai_rules_status": ai_status if ai_rules else "unavailable",
-        "production": {
-            "provided_material_required": supplied_material_required,
-            "asset_urls": asset_urls,
-            "aspect_ratio": ai_aspect_ratio or ("9:16" if vertical_required else None),
-            "min_duration_seconds": ai_rule_set.get("min_duration_seconds") or parsed_min_duration,
-            "max_duration_seconds": ai_rule_set.get("max_duration_seconds") or parsed_max_duration,
-            "subtitle_required": bool(ai_rule_set.get("subtitle_required")),
-            "official_audio_required": official_audio_required,
-            "watermark_required": watermark_required,
-            "no_third_party_watermark": no_third_party_watermark,
-            "required_handles": tags,
-            "cta_urls": cta_urls,
-            "minimum_views": int(min_views) if min_views is not None else None,
-            "maximum_payout": max_payout,
-            "prohibited": list(dict.fromkeys(prohibited + [str(x) for x in (ai_rule_set.get("prohibited_content") or []) if x])),
-            "allowed_content": [str(x) for x in (ai_rule_set.get("allowed_content") or []) if x],
-            "topic_terms": topic_terms,
-            "hashtags": ai_hashtags,
-            "disclosures": ai_disclosures,
-            "posting_rules": [str(x) for x in (ai_rule_set.get("posting_rules") or []) if x],
-            "account_rules": [str(x) for x in (ai_rule_set.get("account_rules") or []) if x],
-            "cta_text": ai_rule_set.get("cta_text"),
-        },
+        "production": production,
+        "output_contract": build_output_contract(
+            production["min_duration_seconds"],
+            production["max_duration_seconds"],
+        ),
         "gates": gates,
         "automation_policy": {
             "render_allowed": bool(ai_rules) and ai_status == "pass",

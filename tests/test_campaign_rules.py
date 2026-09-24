@@ -1,6 +1,7 @@
 import unittest
 
 from core.campaign_rules import compile_plan, plan_markdown
+from core.output_contract import validate_output_contract, validate_plan_output_contract
 
 
 class CampaignRulesTest(unittest.TestCase):
@@ -61,6 +62,71 @@ class CampaignRulesTest(unittest.TestCase):
         production = compile_plan(detail)["production"]
         self.assertEqual(production["min_duration_seconds"], 15.0)
         self.assertEqual(production["max_duration_seconds"], 60.0)
+
+    def test_compiled_plan_has_valid_default_output_contract(self):
+        contract = compile_plan({"campaign": {"title": "Contract"}})["output_contract"]
+        self.assertEqual(contract, {
+            "version": "default-v1",
+            "expected_count": 2,
+            "tier_allocation": {"tier_1": 1, "tier_2": 1},
+            "min_duration_seconds": 0,
+            "max_duration_seconds": 0,
+            "distinctness_profile": "default-v1",
+        })
+        self.assertEqual(validate_output_contract(contract), {"valid": True, "reason": None, "errors": []})
+        self.assertEqual(validate_plan_output_contract({"output_contract": contract})["reason"], None)
+
+    def test_output_contract_requires_exact_two_outputs_and_tiers(self):
+        contract = compile_plan({"campaign": {}})["output_contract"]
+        self.assertEqual(contract["expected_count"], 2)
+        self.assertEqual(contract["tier_allocation"]["tier_1"], 1)
+        self.assertEqual(contract["tier_allocation"]["tier_2"], 1)
+
+    def test_output_contract_rejects_invalid_allocation_and_missing_allocation(self):
+        contract = compile_plan({"campaign": {}})["output_contract"]
+        invalid = {**contract, "tier_allocation": {"tier_1": 2, "tier_2": 0}}
+        result = validate_output_contract(invalid)
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "blocked_invalid_output_contract")
+        missing = {key: value for key, value in contract.items() if key != "tier_allocation"}
+        result = validate_output_contract(missing)
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "blocked_invalid_output_contract")
+
+    def test_output_contract_rejects_invalid_expected_count_and_allocation_total(self):
+        contract = compile_plan({"campaign": {}})["output_contract"]
+        result = validate_output_contract({**contract, "expected_count": 3})
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "blocked_invalid_output_contract")
+        result = validate_output_contract({**contract, "tier_allocation": {"tier_1": 2, "tier_2": 1}})
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "blocked_invalid_output_contract")
+
+    def test_output_contract_rejects_invalid_duration_range_and_distinctness(self):
+        contract = compile_plan({"campaign": {}})["output_contract"]
+        result = validate_output_contract({**contract, "min_duration_seconds": 20, "max_duration_seconds": 10})
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "blocked_invalid_output_contract")
+        result = validate_output_contract({key: value for key, value in contract.items() if key != "distinctness_profile"})
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "blocked_invalid_output_contract")
+
+    def test_output_contract_accepts_campaign_duration_override(self):
+        plan = compile_plan({
+            "campaign": {"description": "Clip duration 12–30 seconds."},
+        })
+        contract = plan["output_contract"]
+        self.assertEqual(contract["min_duration_seconds"], 12.0)
+        self.assertEqual(contract["max_duration_seconds"], 30.0)
+        self.assertTrue(validate_plan_output_contract(plan)["valid"])
+
+    def test_output_contract_rejects_malformed_or_missing_plan_contract(self):
+        result = validate_plan_output_contract({})
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "blocked_invalid_output_contract")
+        result = validate_output_contract("not-an-object")
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "blocked_invalid_output_contract")
 
 
 if __name__ == "__main__":

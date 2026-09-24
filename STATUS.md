@@ -1,6 +1,6 @@
 # Scrapper Engine Status
 
-**Updated:** 24 September 2026 — Phase 0 provenance and execution fencing implementation
+**Updated:** 24 September 2026 — P1-A output contract foundation complete; P1-B blocked on tier semantics
 **Branch:** `main`
 
 ## Current milestone
@@ -54,7 +54,7 @@ Jobs now capture an immutable plan snapshot, canonical rules hash, source finger
 
 ## Next milestone
 
-The remaining implementation is now split into bounded agent slices in `docs/IMPLEMENTATION_ROADMAP.md`. The next task is **P1-A — output contract foundation**: add the versioned two-output contract and pure validation tests only. Each subsequent session must execute one slice, pass its acceptance gate, report the next slice ID, and stop. No production deployment, Buffer mutation, publication, or expensive trial is part of the Phase 1 foundation work.
+The remaining implementation is split into bounded agent slices in `docs/IMPLEMENTATION_ROADMAP.md`. **P1-A — output contract foundation** is complete in the current working tree: compiled plans contain the versioned two-output contract and pure validation returns `blocked_invalid_output_contract` for malformed contracts. **P1-B — candidate identity and tiers is blocked** until the business owner defines the clip-level Tier 1/Tier 2 taxonomy, evidence required for classification, and the handling of unclassifiable candidates. The existing campaign `EN/Tier-1` metadata flag is explicitly not a candidate-tier definition. Each session must execute one slice, pass its acceptance gate, update `docs/AGENT_HANDOFF.md` and this file, and stop. No production deployment, Buffer mutation, publication, or expensive trial is part of the Phase 1 foundation work.
 
 Phase 0 provenance, approval, and stale-write fencing is implemented in commit `0b6e019` and verified by GitHub Actions run `35985728295` with 88 tests passing. The old P1/P2/P3 labels in historical notes are retained for audit context; the actionable sequence is now P1-A through P5-C in the implementation roadmap. The next agent must not combine slices or treat a green unit suite as proof of end-to-end readiness.
 
