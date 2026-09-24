@@ -167,13 +167,15 @@ The handoff and status files previously contained stale commit references; alway
 
 ### Exact operating procedure for the next agent
 
-1. Read this handoff, `STATUS.md`, `AGENTS.md`, and the clipping skill before editing.
-2. Confirm the repository head, live Pages production deployment commit, and live D1 schema. Never infer live state from a migration file or an old job row.
-3. Do not start another paid/expensive production trial until the local end-to-end fixture passes from plan to review manifest.
-4. First implement P0 authentication and atomic claim/dispatch. Add tests that simulate duplicate dispatch and stale workers.
-5. Then implement structured stage telemetry and durable manifest storage. A blocked job must still have enough evidence to explain the exact first empty stage.
-6. Then implement the known-good 20–30 second fixture and run it in a non-production workflow. Verify D1 changes and R2 artifact existence, not merely a green Actions badge.
-7. Only after those checks should a real campaign trial be started. Record the job id, run id, source hashes, plan hash, stage metrics, preview keys, validation status, and reviewer outcome.
+The Phase 0 safety boundary is implemented in commit `0b6e019` and verified by GitHub Actions run `35985728295`. The next task must name exactly one slice from `docs/IMPLEMENTATION_ROADMAP.md` — start with **P1-A**. Do not execute multiple slices in one session.
+
+1. Read this handoff, `STATUS.md`, `AGENTS.md`, and the named slice section before editing.
+2. Confirm the repository head and inspect the previous slice's acceptance evidence. Never infer live state from a migration file or an old job row.
+3. Limit edits to the named slice's contract, declared files, fixtures, and documentation needed to explain the change.
+4. Add regression tests for the slice's acceptance cases. Run the full local suite, static checks, and the slice-specific tests.
+5. Report exact files, test results, unresolved dependencies, and the next slice ID. Stop after the slice gate passes.
+6. Do not start the next slice, deploy production, call Buffer, publish, rotate secrets, or run a paid/expensive trial inside the same session.
+7. If a cross-phase dependency is discovered, document it and stop; do not silently expand scope.
 8. Never weaken campaign minimums to force a preview. Never allow Qwen or a fallback to override hard policy. Never publish automatically. Never remove gambling/money-game exclusions.
 
 ### Last known trial records

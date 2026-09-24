@@ -343,3 +343,138 @@ If any required platform capability is unsupported, the workflow is complete onl
 ---
 
 **End of roadmap.**
+
+
+## Agent-sized execution plan — 24 September 2026
+
+Phase 0 is implemented in commit `0b6e019` and verified by GitHub Actions run `35985728295`. The remaining roadmap phases are intentionally split into small, independently reviewable slices. **One agent session must execute at most one slice.** A slice may update production code only within its declared scope, must add or update its own regression tests, and must stop after its acceptance gate passes. It must not begin the next slice, run a production mutation, or broaden the scope because a nearby improvement was discovered.
+
+### Slice map
+
+| Slice | Phase outcome | Primary scope | Depends on | Expected work boundary |
+|---|---|---|---|---|
+| **P1-A** | Define the two-output contract | Plan schema, contract constants, deterministic validation helpers | Phase 0 | No rendering or UI mutation |
+| **P1-B** | Give candidates durable identity and tiers | Candidate normalization, source identity, tier classifier | P1-A | No provider/API work |
+| **P1-C** | Select exactly one Tier 1 and one Tier 2 | Selector contract gate, near-miss diagnostics, worker pre-render gate | P1-A, P1-B | No render changes beyond gate wiring |
+| **P1-D** | Make rendering and validation all-or-nothing | Render count, validation count, pairwise distinctness | P1-C | No caption or Buffer work |
+| **P1-E** | Expose output contract to review | D1 preview/job fields, manifest, dashboard contract summary | P1-D | No provider mutation |
+| **P2-A** | Normalize platform rule profiles | Instagram/TikTok/YouTube rule contract and capability types | P1-E | No caption editor yet |
+| **P2-B** | Store immutable caption revisions | Caption revision table/API/UI model and hashes | P2-A | No Buffer mutation changes until validator exists |
+| **P2-C** | Enforce caption compliance | One deterministic validator in save, approval, and provider preflight | P2-B | Provider calls must remain disabled in tests |
+| **P2-D** | Make subtitle delivery explicit | Subtitle profiles, artifact modes, safe areas, renderer wiring | P1-E, P2-A | No native provider claims |
+| **P2-E** | Represent sound and native tags honestly | Audio/tag records and `manual_required`/`unsupported` states | P2-A | Do not claim provider verification |
+| **P3-A** | Decide schedule semantics | Queue-vs-exact decision, timezone conversion contract, capability matrix | P2-A | Documentation and pure functions only |
+| **P3-B** | Create durable delivery operations | Operations schema, idempotency key, payload hash, state machine | P2-B, P3-A | No live provider mutation |
+| **P3-C** | Harden channel resolution and mutation | Server-side channel snapshot, preflight, strict GraphQL response handling | P3-B | Mock provider only |
+| **P3-D** | Reconcile per-channel outcomes in UI | Six-operation display, retry/reconcile actions, aggregate terminal state | P3-C | No pilot account |
+| **P4-A** | Protect media retention | Provider-dependent retention, cleanup references, HTTPS media contract | P3-B | No provider state polling yet |
+| **P4-B** | Add reconciliation, retries, and capacity | Provider lifecycle mapper, retry classes, budget/capacity preflight | P3-C, P4-A | Staging/mock provider only |
+| **P4-C** | Complete rerender and cancellation lineage | Parent revision, invalidated approval, recovery paths | Phase 0, P2-B, P3-B | No production pilot |
+| **P5-A** | Build the non-production end-to-end fixture | 20–30 second fixture from plan through review manifest | P1-E, P2-C, P4-C | No Buffer mutation |
+| **P5-B** | Prove staging readiness | Mock/staging provider, media reachability, capability and failure matrix | P3-D, P4-B, P5-A | No production credentials in fixtures |
+| **P5-C** | Run the controlled production pilot | Dedicated low-volume account, feature flag, evidence and rollback | All previous slices | Human confirmation required before provider mutation |
+
+### Slice acceptance contracts
+
+#### P1-A — Output contract foundation
+
+Add a versioned `output_contract` to compiled plans with `expected_count=2`, `tier_1=1`, `tier_2=1`, duration bounds, and a distinctness profile. Define Tier 1 and Tier 2 as explicit business terms in the plan; do not infer them from existing campaign metadata. Add pure tests for valid contracts, missing fields, invalid allocations, and campaign-bound duration overrides. The slice is complete when a plan can be rejected before candidate selection with a structured `blocked_invalid_output_contract` reason.
+
+#### P1-B — Candidate identity and tiers
+
+Add stable candidate identity from normalized source asset ID, source hash, transcript hash, start/end timestamps, and classifier version. Hash and deduplicate sources before applying the source-count limit, while retaining excluded-source evidence. Add deterministic fixtures for same-file duplicates, cross-path duplicates, and unclassifiable candidates. The slice must not change the number of candidates reaching review yet.
+
+#### P1-C — Exact selection gate
+
+Replace maximum-only selection with a pure contract gate requiring one eligible candidate per tier. Persist expected/actual counts, rejected reasons, and up to three bounded near misses. A failed gate must produce `blocked_insufficient_output_contract` and zero render attempts. Tests must cover one candidate, two candidates in one tier, two overlapping candidates, and a valid pair.
+
+#### P1-D — Artifact pair gate
+
+Require exactly two render results and exactly two validation passes. Add a versioned pairwise distinctness function using documented transcript similarity, temporal overlap, source identity, and media/audio evidence. Missing render or one validation failure blocks the job. Tests must prove that a partial pair never reaches `review` and that a valid pair retains evidence in the manifest.
+
+#### P1-E — Review contract visibility
+
+Persist output-contract summary, tier, candidate ID, artifact hash, and distinctness evidence in D1 and the manifest. Show `1/2 Tier 1`, `1/2 Tier 2`, and the blocking reason in the dashboard. Add API/UI fixture tests only; do not add Buffer behavior in this slice.
+
+#### P2-A — Platform profiles
+
+Create versioned rule profiles for Instagram, TikTok, and YouTube. Separate required from suggested handles, hashtags, disclosures, CTA, phrases, prohibited terms, caption limits, subtitle delivery, sound policy, and schedule capability. Add normalization tests for document-only rules and platform-specific applicability. No provider mutation should be changed.
+
+#### P2-B — Caption revisions
+
+Introduce immutable caption revisions with exact text, structured fields, platform, revision number, editor, character-count method, payload, and hash. Preserve the original draft and every edit. Add API/UI tests for revision creation and stale revision rejection. The existing approval fence must consume a revision ID rather than a free-floating caption.
+
+#### P2-C — Compliance validator
+
+Implement one deterministic validator used by caption save, approval, and provider preflight. It must report structured field-level failures for required/prohibited terms, handles, hashtags, disclosures, CTA, phrases, platform length, caption hash, and rules hash. A failed validation must make zero provider requests. Add a fixture for deletion of each mandatory field and one valid revision.
+
+#### P2-D — Subtitle delivery profiles
+
+Move subtitle behavior from a global worker flag into explicit profiles: `burned_in`, `native_caption_file`, `none`, or `manual_required`. Persist typography, safe area, cue limits, language, and artifact hash. Test each mode and ensure missing transcript is not silently treated as compliant.
+
+#### P2-E — Sound and native tags
+
+Represent official audio and native tags with platform, policy, source/track ID, evidence, and status. Valid statuses are `verified`, `unsupported`, `manual_required`, or `failed`. Buffer or a checklist must never upgrade a field to `verified` without provider evidence. Add pure normalization tests only.
+
+#### P3-A — Schedule semantics
+
+Choose and document one product contract: exact timezone-aware scheduling only if provider capability is verified; otherwise explicitly say “next queue slot.” Add pure IANA timezone/DST conversion tests and a versioned capability matrix. This slice must not send a provider request.
+
+#### P3-B — Delivery operation model
+
+Add an operation table keyed by preview/channel/schedule revision with idempotency key, exact payload hash, schedule intent, provider state, retry class, and reconciliation fields. Add a state-transition validator and duplicate-key tests. Provider calls remain mocked.
+
+#### P3-C — Channel and mutation hardening
+
+Resolve channel capabilities server-side, reject client-supplied service metadata, run a no-request preflight, and require a provider post ID plus schedule evidence before marking an operation scheduled. Test missing channels, unsupported capability, malformed success, timeout, and partial GraphQL results against a mock server.
+
+#### P3-D — Operations UI
+
+Display two previews × three channels, local/UTC intent, provider `dueAt`, status, error, retryability, and manual-native requirements. Add one-operation retry and reconciliation actions. A partial result must not be summarized as global success. Use mock API fixtures.
+
+#### P4-A — Retention safety
+
+Change cleanup to retain objects referenced by planned, attempting, unknown, scheduled, or unresolved operations. Add deletion evidence and a media reachability contract covering stable HTTPS, content type, and byte ranges. Test cleanup against active and terminal references.
+
+#### P4-B — Recovery and capacity
+
+Implement provider lifecycle reconciliation, bounded retry classes with jitter, stuck-operation alerts, and capacity/request-budget preflight. Test provider deletion, throttling, downtime, unknown result, and insufficient capacity. Do not run against production accounts.
+
+#### P4-C — Rerender lineage
+
+Make rerender create a new revision and artifact hash, preserve the parent, invalidate prior approval, and re-enter caption validation and review. Add cancellation recovery tests proving an old worker cannot write to the new generation.
+
+#### P5-A — Known-good fixture
+
+Check in a small legal fixture with a 20–30 second complete spoken moment, explicit 15–30 second rules, one Tier 1 and one Tier 2 expectation, and expected intake/transcript/candidate/render/validation/review-manifest outputs. Run it locally and in a non-production GitHub workflow. A green unit suite is not sufficient without this trace.
+
+#### P5-B — Staging readiness
+
+Run the complete failure matrix against mocks or a staging provider: approval failure, caption failure, unsupported field, duplicate click, timeout, partial result, cleanup dependency, and stale worker. Verify D1/R2 evidence and stable media reachability. Keep provider mutation feature-flagged off by default.
+
+#### P5-C — Controlled pilot
+
+Use a dedicated low-volume account only after every earlier gate is green. Capture job/run IDs, plan/rules hashes, source hashes, operation keys, provider IDs, due times, terminal states, and rollback evidence. Require explicit human confirmation immediately before the first provider mutation. Stop after the pilot evidence is complete; do not enable broad automation in the same session.
+
+### Agent session protocol
+
+Each future implementation request should name exactly one slice ID. The agent must:
+
+1. Read the slice section, current handoff, and repository instructions.
+2. Inspect the current branch and confirm the previous slice's acceptance evidence.
+3. Create a short plan limited to the slice's files and tests.
+4. Implement the smallest reversible change and its regression fixtures.
+5. Run the repository minimum checks plus the slice-specific acceptance tests.
+6. Report changed files, test output, known limitations, and the next slice ID.
+7. Stop. Do not start the next slice, deploy production, call Buffer, or broaden the contract without a new task.
+
+### Phase gates and production restrictions
+
+- **After P1-E:** two-output contract is reviewable, but provider mutation remains disabled.
+- **After P2-E:** captions and manual-native requirements are explicit, but provider mutation remains disabled.
+- **After P3-D:** operations are idempotent in mocks, but no production account is used.
+- **After P4-C:** recovery and retention are testable, but pilot remains disabled.
+- **After P5-B:** a pilot may be proposed, not automatically executed.
+- **After P5-C:** broad automation is still disabled until pilot evidence is manually reviewed.
+
+A slice that discovers a cross-phase dependency must document it and stop rather than silently implementing the dependency. Any external mutation, publication, billing change, secret rotation, or production deployment requires a separate explicit task and must never be hidden inside a coding slice.
