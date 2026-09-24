@@ -99,7 +99,7 @@ def write_ass(transcript: dict, candidate: dict, path: str) -> list[dict]:
     lines = [
         "[Script Info]", "ScriptType: v4.00+", "PlayResX: 1080", "PlayResY: 1920", "",
         "[V4+ Styles]", "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        "Style: Default,DejaVu Sans,48,&HFFE8F3,&HFFE8F3,&H3D1021,&H3D1021,1,0,0,0,100,100,0,0,1,3,1,2,80,80,720,1", "",
+        "Style: Default,DejaVu Sans,50,&HFFEB66,&HFFEB66,&H24142F,&H24142F,1,0,0,0,100,100,0,0,1,3,1,2,80,80,670,1", "",
         "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
     for index, cue in enumerate(cues, 1):
@@ -108,7 +108,7 @@ def write_ass(transcript: dict, candidate: dict, path: str) -> list[dict]:
         for word in cue.get("words", []):
             text = _ass_escape(word["word"])
             if is_emphasis_word(text) and highlighted < 2:
-                text = r"{\c&HE9FF6F&\b1}" + text + r"{\c&HFFE8F3&\b0}"
+                text = r"{\c&HE9A7FF&\b1}" + text + r"{\c&HFFEB66&\b0}"
                 highlighted += 1
             styled_words.append(text)
         text = " ".join(styled_words) or _ass_escape(cue["text"])

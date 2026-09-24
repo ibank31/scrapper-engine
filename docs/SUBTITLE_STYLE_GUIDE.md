@@ -21,18 +21,18 @@ Subtitle menggunakan satu atau dua baris sebagai default. Tiga baris hanya digun
 
 Panduan BBC untuk subtitle video vertikal menyarankan area tengah sekitar 75% secara vertikal dan 90% secara horizontal. Panduan tersebut juga mengizinkan sampai tiga baris untuk video vertikal, tetapi praktik produksi ini memilih satu atau dua baris sebagai default karena lebih ringan dan lebih aman terhadap UI [4].
 
-## Palet global dan ukuran baru
+## Palet global, ukuran, dan posisi terbaru
 
-Palet amber sebelumnya diganti karena terlalu datar dan tidak cukup selaras dengan visual neon campaign. Renderer global sekarang menggunakan kombinasi violet-cyan yang lebih energik:
+Tidak dibuat tiga jenis video per platform. Semua campaign menggunakan satu master 9:16 dan satu style subtitle global. Palet violet-cyan sebelumnya diganti karena masih terasa kurang tegas. Renderer global sekarang menggunakan teks cyan terang dengan stroke deep-violet:
 
 | Peran | Warna | Fungsi |
 |---|---|---|
-| Base caption | `#F3E8FF` | Lavender terang untuk body caption. |
-| Outline | `#21103D` | Deep violet untuk pemisahan dari footage. |
-| Emphasis | `#6FFFE9` | Electric cyan-lime untuk kata penting dan payoff. |
+| Base caption | `#66EBFF` | Cyan terang untuk body caption. |
+| Outline | `#2F1424` | Deep violet gelap sebagai stroke tegas. |
+| Emphasis | `#FFA7E9` | Magenta-lavender terang untuk kata penting dan payoff. |
 | Optional backing | `#21103D` dengan opacity tinggi | Panel atau pill ketika footage terlalu ramai. |
 
-Ukuran font global dinaikkan dari 42 menjadi 48 pada canvas 1080 × 1920. Margin bawah juga dinaikkan agar baseline tetap berada di lower-middle dan tidak masuk ke UI bawah. Hue tidak boleh menjadi satu-satunya pembawa makna. Kata emphasis tetap diberi bold sehingga pesan tidak hilang dalam grayscale. Kontras minimum yang dijadikan target adalah 4.5:1 untuk teks biasa dan 3:1 hanya untuk teks yang benar-benar memenuhi kriteria large text [5] [6].
+Ukuran font global dinaikkan menjadi 50 pada canvas 1080 × 1920. Posisi diturunkan sekitar 50 px dari versi sebelumnya agar tidak terasa terlalu tinggi, tetapi tetap berada di lower-middle dan tidak masuk ke UI bawah. Font memakai sans-serif bold dengan stroke gelap 3 px. Hue tidak boleh menjadi satu-satunya pembawa makna. Kata emphasis tetap diberi bold sehingga pesan tidak hilang dalam grayscale. Kontras minimum yang dijadikan target adalah 4.5:1 untuk teks biasa dan 3:1 hanya untuk teks yang benar-benar memenuhi kriteria large text [5] [6].
 
 ## Aturan kata penekanan
 
