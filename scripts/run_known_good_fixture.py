@@ -72,7 +72,9 @@ def run(output: Path) -> dict:
     candidates_path = output / "candidates.json"
     candidates_path.write_text(json.dumps({"candidates": selected}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     render_dir = output / "renders"
-    subprocess.run([sys.executable, "modules/clipping/render.py", str(source), str(candidates_path), "--transcript", str(transcript_path), "--plan", str(plan_path), "--out-dir", str(render_dir), "--static-crop", "--preset", "veryfast", "--crf", "28"], cwd=ROOT, check=True)
+    # Run as a module so modules/clipping/select.py cannot shadow Python's
+    # stdlib select module when render.py imports subprocess/selectors.
+    subprocess.run([sys.executable, "-m", "modules.clipping.render", str(source), str(candidates_path), "--transcript", str(transcript_path), "--plan", str(plan_path), "--out-dir", str(render_dir), "--static-crop", "--preset", "veryfast", "--crf", "28"], cwd=ROOT, check=True)
     validation = []
     for item in selected:
         path = render_dir / f"clip-{int(item['rank']):03d}.mp4"
