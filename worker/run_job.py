@@ -139,7 +139,7 @@ def main() -> None:
     ap.add_argument("--dispatch-token", default=os.environ.get("CLIPPER_DISPATCH_TOKEN", ""), required=False)
     ap.add_argument("--whisper-model", default=os.environ.get("CLIPPER_WHISPER_MODEL", "small"))
     ap.add_argument("--whisper-beam", type=int, default=int(os.environ.get("CLIPPER_WHISPER_BEAM", "5")))
-    ap.add_argument("--max-video-sources", type=int, default=int(os.environ.get("CLIPPER_MAX_VIDEO_SOURCES", "3")))
+    ap.add_argument("--max-video-sources", type=int, default=int(os.environ.get("CLIPPER_MAX_VIDEO_SOURCES", os.environ.get("CLIPPER_MAX_DEEP_SOURCES", "6"))), help="Maximum downloaded sources to send through deep transcription/selection")
     args = ap.parse_args()
     if not args.api_base or not args.worker_token:
         raise SystemExit("CLIPPER_API_URL dan CLIPPER_WORKER_TOKEN wajib tersedia")
@@ -248,14 +248,14 @@ def main() -> None:
             update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Rules campaign tidak konsisten: minimum durasi melebihi maksimum", "min_duration_seconds > max_duration_seconds")
             return
         max_sources = max(1, int(args.max_video_sources))
-        update(args.api_base, args.job_id, args.worker_token, "processing", 8, f"Membaca rules · max {max_sources} sumber video")
+        update(args.api_base, args.job_id, args.worker_token, "processing", 8, f"Membaca rules · maksimal {max_sources} sumber untuk deep analysis")
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "started", {"max_sources": max_sources})
         workspace_root = os.path.join(root, "jobs")
         # Intake records every selected source. A single blocked or rate-limited
         # URL must not discard other usable assets, but a run with no usable
         # video must become a clear blocked job instead of a raw traceback.
         intake = subprocess.run(
-            [sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root, "--max-video-sources", str(max_sources)],
+            [sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root],
             check=False,
             cwd=None,
             text=True,
@@ -266,7 +266,19 @@ def main() -> None:
             intake_manifest = json.loads((workspace / "assets.json").read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             intake_manifest = {}
-        sources = [p for p in (workspace / "assets").rglob("*") if p.is_file() and not p.name.startswith(".") and not p.name.endswith(".part") and p.suffix.lower() in VIDEO_EXTENSIONS]
+        manifest_sources = []
+        for item in intake_manifest.get("asset_manifest", []):
+            if not item.get("downloaded"):
+                continue
+            local_path = str(item.get("local_path") or "")
+            if local_path:
+                candidate_path = workspace / local_path
+                if candidate_path.is_file() and candidate_path.suffix.lower() in VIDEO_EXTENSIONS and not candidate_path.name.endswith(".part"):
+                    manifest_sources.append(candidate_path)
+        sources = manifest_sources or [
+            p for p in (workspace / "assets").rglob("*")
+            if p.is_file() and not p.name.startswith(".") and not p.name.endswith(".part") and p.suffix.lower() in VIDEO_EXTENSIONS
+        ]
         if intake.returncode != 0 and not sources:
             manifest_path = workspace / "assets.json"
             try:
@@ -302,7 +314,7 @@ def main() -> None:
             elif not record.get("duplicate_of") and not record.get("excluded_before_transcription"):
                 record["excluded_before_transcription"] = True
         (workspace / "source-preflight.json").write_text(json.dumps({"schema_version": 1, "sources": preflight_records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"source_count": len(preflight_records), "usable_sources": len(usable_sources)})
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"source_count": len(preflight_records), "usable_sources": len(usable_sources), "discovered_asset_count": (intake_manifest.get("discovery") or {}).get("discovered_asset_count", 0), "downloaded_asset_count": (intake_manifest.get("discovery") or {}).get("downloaded_asset_count", 0), "deferred_asset_count": (intake_manifest.get("discovery") or {}).get("deferred_asset_count", 0), "downloaded_bytes": (intake_manifest.get("discovery") or {}).get("downloaded_bytes", 0)})
         sources = usable_sources
         if not sources:
             reasons = [
@@ -423,6 +435,14 @@ def main() -> None:
             update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Belum ditemukan pasangan video Tier 1 dan Tier 2 yang berbeda", json.dumps({"reason": selection_result["reason"], **selection_diagnostics}, ensure_ascii=False), "blocked", selection_diagnostics)
             return
         selected = [all_candidates[int(item["_item_index"])] for item in selection_result["selected"]]
+        selected_sources = {str(item["source"]) for item in selected}
+        for source_path in sources:
+            if str(source_path) in selected_sources:
+                continue
+            try:
+                Path(source_path).unlink(missing_ok=True)
+            except OSError:
+                pass
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "selected", {
             "selected_count": len(selected),
             "candidate_pool_count": len(all_candidates),
