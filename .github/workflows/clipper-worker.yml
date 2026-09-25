@@ -100,4 +100,7 @@ jobs:
           CLIPPER_SEMANTIC_MODEL: /home/runner/.cache/clipper-semantic/qwen2.5-1.5b-instruct-q4_k_m.gguf
           CLIPPER_SEMANTIC_ENABLED: "auto"
           CLIPPER_SEMANTIC_THREADS: "4"
+          # Stop deep transcription once the global candidate funnel is already large enough.
+          CLIPPER_EARLY_STOP_CANDIDATES: "15"
+          CLIPPER_EARLY_STOP_MIN_SOURCES: "3"
         run: python worker/run_job.py
