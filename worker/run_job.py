@@ -27,6 +27,7 @@ from core.relevance import check_candidate
 from core.candidate_identity import deduplicate_source_records
 from core.output_selection import select_required_output_pair
 from core.output_gate import evaluate_output_pair
+from core.asset_gate import manifest_video_paths
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
 from core.semantic_ranker import rank_global_candidates
@@ -267,36 +268,9 @@ def main() -> None:
             intake_manifest = json.loads((workspace / "assets.json").read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             intake_manifest = {}
-        manifest_sources = []
-        for item in intake_manifest.get("asset_manifest", []):
-            if item.get("asset_kind") != "video":
-                continue
-            # New intake manifests only expose media that passed the cheap
-            # container/stream validation gate. Legacy manifests without that
-            # field remain eligible for the worker's defensive ffprobe.
-            media_validation = item.get("media_validation")
-            if media_validation is not None and media_validation.get("status") != "pass":
-                continue
-            if not item.get("downloaded"):
-                continue
-            local_path = str(item.get("local_path") or "")
-            if local_path:
-                candidate_path = workspace / local_path
-                if candidate_path.is_file() and candidate_path.suffix.lower() in VIDEO_EXTENSIONS and not candidate_path.name.endswith(".part"):
-                    manifest_sources.append(candidate_path)
-        has_manifest_media_validation = any(
-            item.get("asset_kind") == "video" and isinstance(item.get("media_validation"), dict)
-            for item in intake_manifest.get("asset_manifest", [])
-        )
-        # Never bypass the new cheap media gate by rediscovering raw .mp4 files
-        # from the workspace. The fallback exists only for legacy manifests that
-        # predate media_validation.
-        sources = manifest_sources
-        if not sources and not has_manifest_media_validation:
-            sources = [
-                p for p in (workspace / "assets").rglob("*")
-                if p.is_file() and not p.name.startswith(".") and not p.name.endswith(".part") and p.suffix.lower() in VIDEO_EXTENSIONS
-            ]
+        # The manifest is authoritative for new runs. Raw filesystem fallback
+        # is permitted only for legacy manifests without media_validation.
+        sources = manifest_video_paths(workspace, intake_manifest, extensions=VIDEO_EXTENSIONS)
         if intake.returncode != 0 and not sources:
             manifest_path = workspace / "assets.json"
             try:
