@@ -1,6 +1,6 @@
 # Scrapper Engine — Active Agent Handoff
 
-**Updated:** 24 September 2026
+**Updated:** 25 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Branch:** `main`
 **Phase:** Phase 5 local acceptance complete; controlled pilot not executed
@@ -33,6 +33,16 @@ git diff --check
 ```
 
 The existing subtitle tests still emit two unrelated `ResourceWarning` messages for unclosed fixture reads; they do not fail the suite. Gemini mock/retry diagnostics are expected in campaign-AI tests and do not indicate a production request.
+
+## 25 September 2026 — progressive intake hardening
+
+The Drive/YouTube intake path was hardened after a controlled run exhausted the GitHub runner disk while attempting to download an entire Drive folder. The current implementation is metadata-first: Drive folders are enumerated completely before download, per-asset manifest rows are retained, assets are cheaply ranked from metadata, distinct top-level sources receive fair download opportunities, and download count/byte/disk budgets are enforced.
+
+Current worker defaults are 8 downloaded assets, 2 GiB cumulative download budget, 1 GiB disk safety margin, and 6 sources for deep transcription/selection. Discovery is not capped by the deep-analysis limit. Drive downloads and YouTube/direct downloads use guarded temporary files where applicable; disk/quota limits produce deferred states rather than filling the runner.
+
+The worker consumes only manifest-confirmed completed video files for preflight/deep analysis, and deletes non-selected raw source files after final pair selection to reduce render-stage disk pressure. `source_manifest` now represents top-level references, while `asset_manifest` represents individual assets.
+
+The repository test workflow was executed through temporary PR #7 against this implementation. Result: **154 tests passed**, semantic fixture evaluation passed, and both Cloudflare/Worker Pages JavaScript syntax checks passed. The PR was closed after verification. The live controlled Backyard Breaks intake probe is still not executed from this agent because the GitHub connector exposes workflow read/re-run operations but not workflow_dispatch; therefore no claim is made that the production Drive folder has returned an exact 65-asset runtime count yet.
 
 ## Safety boundary
 
