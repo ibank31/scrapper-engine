@@ -97,7 +97,7 @@ def _boundary_quality(text: str) -> tuple[float, list[str]]:
     return score, reasons
 
 
-def segment_transcript(transcript: dict[str, Any]) -> list[dict[str, Any]]:
+def segment_transcript(transcript: dict[str, Any], max_unit_seconds: float | None = None) -> list[dict[str, Any]]:
     """Build sentence/turn units while preserving Whisper timestamps.
 
     Word timestamps are preferred. A long pause or terminal punctuation closes a
@@ -132,7 +132,9 @@ def segment_transcript(transcript: dict[str, Any]) -> list[dict[str, Any]]:
         if not words:
             item = {"text": str(segment.get("text") or "").strip(), "start": segment.get("start", 0), "end": segment.get("end", 0), "_segment_index": segment_index}
             if item["text"]:
-                if current and previous_end is not None and float(item["start"]) - previous_end > 1.2:
+                if current and max_unit_seconds and current_start is not None and float(item["start"]) - float(current_start) >= float(max_unit_seconds):
+                    flush()
+                elif current and previous_end is not None and float(item["start"]) - previous_end > 1.2:
                     flush()
                 if current_start is None:
                     current_start = float(item["start"])
@@ -148,7 +150,9 @@ def segment_transcript(transcript: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             start = float(word.get("start", segment.get("start", 0)))
             end = float(word.get("end", start))
-            if current and previous_end is not None and start - previous_end > 1.2:
+            if current and max_unit_seconds and current_start is not None and start - float(current_start) >= float(max_unit_seconds):
+                flush()
+            elif current and previous_end is not None and start - previous_end > 1.2:
                 flush()
             if current_start is None:
                 current_start = start
@@ -163,7 +167,11 @@ def segment_transcript(transcript: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10, source_path: str | None = None, max_gap_seconds: float = 3.0, plan: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    units = segment_transcript(transcript)
+    # Keep transcript units bounded by the active editorial band. This matters
+    # for Whisper output that contains long punctuation-free runs: without a
+    # bound, one giant unit can exceed every campaign duration band and produce
+    # zero candidates even though usable speech exists inside it.
+    units = segment_transcript(transcript, max_unit_seconds=max_seconds)
     if not units:
         return []
     candidates: list[dict[str, Any]] = []
