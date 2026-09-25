@@ -94,8 +94,10 @@ def main() -> int:
     discovered = len(source_manifest)
     accessible = sum(1 for e in source_manifest if e.get("accessible"))
     downloaded = sum(1 for e in source_manifest if e.get("downloaded"))
-    failed = sum(1 for e in source_manifest if e.get("status") in {"inaccessible", "failed"} or e.get("error_message"))
-    type_errors = Counter(e.get("source_type") for e in source_manifest if e.get("error_message"))
+    failed = sum(1 for e in source_manifest if e.get("status") in {"INACCESSIBLE", "DOWNLOAD_FAILED", "inaccessible", "failed"})
+    deferred = sum(1 for e in source_manifest if str(e.get("status", "")).startswith("DEFERRED"))
+    skipped = sum(1 for e in source_manifest if str(e.get("status", "")).startswith("SKIPPED"))
+    type_errors = Counter(e.get("source_type") for e in source_manifest if e.get("status") in {"INACCESSIBLE", "DOWNLOAD_FAILED", "inaccessible", "failed"})
     transcribed = len(results)
     segments_positive = sum(1 for r in results if r["segments"] > 0)
     segments_zero = sum(1 for r in results if r["segments"] == 0)
@@ -110,6 +112,8 @@ def main() -> int:
             "total_accessible": accessible,
             "total_downloaded": downloaded,
             "total_failed": failed,
+            "total_deferred": deferred,
+            "total_skipped": skipped,
             "errors_by_source_type": dict(type_errors),
             "sources_entered_transcription": transcribed,
             "sources_segments_gt_0": segments_positive,

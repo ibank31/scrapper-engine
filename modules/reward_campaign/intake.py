@@ -312,7 +312,7 @@ def main() -> None:
             for child in children:
                 name = str(child.get("name") or "")
                 mime = str(child.get("mimeType") or "")
-                is_media = mime.startswith("video/") or mime.startswith("audio/") or Path(name).suffix.lower() in DIRECT_EXTENSIONS
+                is_video = mime.startswith("video/") or Path(name).suffix.lower() in VIDEO_EXTENSIONS
                 can_download = child.get("capabilities", {}).get("canDownload", True) is not False
                 child_id = str(child.get("id") or child.get("shortcut_id") or "")
                 child_entry = {
@@ -329,13 +329,14 @@ def main() -> None:
                     "accessible": bool(can_download),
                     "downloaded": False,
                     "local_path": None,
-                    "status": "READY_FOR_DOWNLOAD" if is_media and can_download else "SKIPPED_NON_MEDIA" if not is_media else "INACCESSIBLE",
-                    "error_code": None if is_media and can_download else "non_media" if not is_media else "access_denied",
-                    "error_message": None if is_media and can_download else "not a supported media asset" if not is_media else "Drive asset cannot be downloaded",
+                    "asset_kind": "video" if is_video else "other",
+                    "status": "READY_FOR_DOWNLOAD" if is_video and can_download else "SKIPPED_NON_MEDIA" if not is_video else "INACCESSIBLE",
+                    "error_code": None if is_video and can_download else "non_video" if not is_video else "access_denied",
+                    "error_message": None if is_video and can_download else "not a video asset" if not is_video else "Drive asset cannot be downloaded",
                 }
                 asset_manifest.append(child_entry)
                 source_manifest.append(child_entry)
-                if is_media and can_download and child_id:
+                if is_video and can_download and child_id:
                     media_children.append((child, child_entry))
             download_limit = max(0, int(os.getenv("CLIPPER_DOWNLOAD_MAX_ASSETS", "12")))
             download_budget = max(0, int(os.getenv("CLIPPER_DOWNLOAD_MAX_BYTES", str(2 * 1024 * 1024 * 1024))))
