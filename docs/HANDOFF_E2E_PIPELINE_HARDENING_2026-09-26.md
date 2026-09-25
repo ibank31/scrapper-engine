@@ -457,3 +457,20 @@ The next agent should:
 8. Only then prepare a controlled E2E test plan.
 
 Do not claim the engine is production-ready until the E2E chain has actually been demonstrated.
+
+## 2026-09-26 continuation update
+
+Additional hardening completed after the initial handoff:
+
+- `_resolve_symbolic_asset()` now resolves symbolic references only from explicit campaign-plan mappings and otherwise emits `UNRESOLVED_SYMBOLIC_ASSET`.
+- Google Doc symbolic references now enter the auditable reference manifest with resolution status and mapping evidence.
+- Worker no longer falls back to scanning raw workspace video files when a modern `asset_manifest` is present. This prevents an invalid/unvalidated file from bypassing the media-validation gate.
+- Zero-ready-source diagnostics now propagate the structured `asset_preflight` metrics into the job error/stage telemetry.
+- Added regression coverage for mapped, normalized, and unresolved symbolic assets.
+
+Latest commits on branch:
+- `b78b28cbbdd30774122fce2100fccaf76a2a51ae` — safe symbolic asset resolution
+- `7d0caae76b5d1133e47237f9239655167d46851d` — enforce validated asset manifest at worker gate
+- `5d93611e086bd4beb22bcd58650bda684b28d148` — symbolic asset regression tests
+
+CI still needs to be observed on PR #12. The branch remains non-production until deterministic CI and controlled real-asset E2E are proven.
