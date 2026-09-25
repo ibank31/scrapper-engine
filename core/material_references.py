@@ -17,7 +17,7 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 
-URL_RE = re.compile(r"https?://[^\s<>\[\]{}"']+", re.I)
+URL_RE = re.compile(r'https?://[^\s<>\[\]{}"\']+', re.I)
 NAMED_MEDIA_RE = re.compile(
     r"^(?P<label>[A-Za-z][A-Za-z0-9 _/.-]{1,80})\s*[:：-]\s*(?P<value>[^\n]{2,240})$",
     re.I,
