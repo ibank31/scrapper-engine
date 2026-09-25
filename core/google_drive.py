@@ -111,7 +111,7 @@ class GoogleDriveClient:
                     time.sleep(min(8, 2 ** attempt))
         raise GoogleDriveError(f"Google Drive request gagal: {str(last_error)[:300]}")
 
-    def list_media(self, folder_id: str, page_size: int = 100, max_depth: int = 2) -> list[dict]:
+    def list_media(self, folder_id: str, page_size: int = 100, max_depth: int = 5) -> list[dict]:
         files: list[dict] = []
         visited: set[str] = set()
 
@@ -175,7 +175,7 @@ class GoogleDriveClient:
         return response.content
 
 
-def download_folder_oauth(folder_url: str, destination: str, max_files: int = 3) -> tuple[str, str | None, int]:
+def download_folder_oauth(folder_url: str, destination: str, max_files: int = 0) -> tuple[str, str | None, int]:
     folder_id = extract_drive_id(folder_url)
     if not folder_id:
         return "failed", "folder ID Google Drive tidak ditemukan", 0
@@ -185,7 +185,7 @@ def download_folder_oauth(folder_url: str, destination: str, max_files: int = 3)
         if not files:
             return "failed", "folder tidak berisi media yang dapat diunduh atau akses ditolak", 0
         downloaded = 0
-        for item in files[:max(1, max_files)]:
+        for item in files if max_files <= 0 else files[:max_files]:
             safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", str(item.get("name") or item["id"]))
             size = client.download_file(item["id"], str(Path(destination) / safe_name))
             downloaded += size
