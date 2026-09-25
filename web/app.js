@@ -17,6 +17,7 @@ function friendlyError(value) {
   if (/unknown_requires_reconciliation|unknown/i.test(text)) return "Hasil pengiriman belum pasti. Cek status provider sebelum mencoba ulang.";
   if (/timeout|503|429|rate limit|temporar/i.test(text)) return "Layanan sedang sibuk atau belum menjawab. Tunggu sebentar sebelum mencoba lagi.";
   if (/review_unauthorized|unauthorized/i.test(text)) return "Sesi review belum terhubung. Muat ulang halaman atau periksa akses.";
+  if (/source_assets_unavailable|tidak dapat diakses|tidak dapat diunduh|sign in to confirm.*bot|youtube.*429/i.test(text)) return "Bahan video campaign tidak bisa diakses dari worker. Pilih campaign dengan sumber video yang dapat dibuka, atau sediakan file video resmi yang dapat diunduh.";
   return text || "Mesin berhenti sebelum selesai. Coba ulangi dari campaign ini.";
 }
 const readinessOrder = { siap: 0, ketat: 1, belum_siap: 2, lewati: 3 };

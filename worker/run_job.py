@@ -251,10 +251,34 @@ def main() -> None:
         update(args.api_base, args.job_id, args.worker_token, "processing", 8, f"Membaca rules · max {max_sources} sumber video")
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "started", {"max_sources": max_sources})
         workspace_root = os.path.join(root, "jobs")
-        run([sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root, "--max-video-sources", str(max_sources)])
+        # Intake records every selected source. A single blocked or rate-limited
+        # URL must not discard other usable assets, but a run with no usable
+        # video must become a clear blocked job instead of a raw traceback.
+        intake = subprocess.run(
+            [sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root, "--max-video-sources", str(max_sources)],
+            check=False,
+            cwd=None,
+            text=True,
+        )
         workspace = next(Path(workspace_root).glob("*/"), None)
         if not workspace: raise RuntimeError("workspace asset tidak terbentuk")
         sources = [p for p in (workspace / "assets").rglob("*") if p.suffix.lower() in VIDEO_EXTENSIONS]
+        if intake.returncode != 0 and not sources:
+            manifest_path = workspace / "assets.json"
+            try:
+                intake_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                intake_manifest = {}
+            failures = [
+                f"{Path(item.get('url') or item.get('path') or 'sumber').name}: {item.get('error') or 'tidak dapat diunduh'}"
+                for item in intake_manifest.get("assets", [])
+                if item.get("status") == "failed"
+            ]
+            detail = "; ".join(failures[:3]) or "tidak ada file video yang berhasil diunduh"
+            blocked_error = "source_assets_unavailable: " + detail[:700]
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Bahan video campaign tidak dapat diakses", blocked_error)
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"usable_sources": 0, "intake_returncode": intake.returncode}, "source_assets_unavailable", detail)
+            return
         # Prefer the highest-quality usable sources, not the smallest files.
         sources.sort(key=source_priority, reverse=True)
         if not sources: raise RuntimeError("tidak ada video asset langsung; periksa MANUAL_ASSETS.md")
