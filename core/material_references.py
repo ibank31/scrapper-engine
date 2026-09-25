@@ -191,6 +191,7 @@ def resolve_named_youtube_reference(
         if not title or not url:
             continue
         channel = str(entry.get("channel") or entry.get("uploader") or "").strip()
+        channel_verified = bool(entry.get("channel_is_verified") or entry.get("uploader_is_verified"))
         similarity = _similarity(value, title)
         channel_similarity = _similarity(campaign_evidence, channel) if channel else 0.0
         official_hint = "official" in title.lower() or "official" in channel.lower()
@@ -202,6 +203,7 @@ def resolve_named_youtube_reference(
             "view_count": entry.get("view_count"),
             "similarity": similarity,
             "channel_similarity": channel_similarity,
+            "channel_verified": channel_verified,
             "official_hint": official_hint,
         })
 
@@ -220,7 +222,10 @@ def resolve_named_youtube_reference(
     if official_reference:
         if not best.get("official_hint"):
             verified = False
-        if not best.get("channel") or float(best.get("channel_similarity") or 0) < 0.55:
+        channel_match = bool(best.get("channel")) and float(best.get("channel_similarity") or 0) >= 0.55
+        verified_channel = bool(best.get("channel_verified"))
+        exact_title = float(best.get("similarity") or 0) >= 0.90
+        if not (channel_match or (verified_channel and exact_title)):
             verified = False
     if not verified:
         return {
