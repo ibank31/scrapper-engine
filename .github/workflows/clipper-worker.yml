@@ -53,6 +53,11 @@ jobs:
       - name: Install FFmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
+      - name: Setup Deno for YouTube extraction
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.3.0
+
       - name: Install Python dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
 
@@ -75,14 +80,14 @@ jobs:
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
-          GOOGLE_DRIVE_MAX_FILES: "3"
+          GOOGLE_DRIVE_MAX_FILES: "0"
           JOB_ID: ${{ inputs.job_id }}
           CLIPPER_DISPATCH_TOKEN: ${{ inputs.dispatch_token }}
           PYTHONPATH: ${{ github.workspace }}
           # Trial default: process the best official source for predictable latency.
           CLIPPER_WHISPER_MODEL: small
           CLIPPER_WHISPER_BEAM: "3"
-          CLIPPER_MAX_VIDEO_SOURCES: "1"
+          CLIPPER_MAX_VIDEO_SOURCES: "3"
           CLIPPER_FFMPEG_PRESET: medium
           CLIPPER_FFMPEG_CRF: "19"
           CLIPPER_SEMANTIC_MODEL: /home/runner/.cache/clipper-semantic/qwen2.5-1.5b-instruct-q4_k_m.gguf
