@@ -64,7 +64,6 @@ def fetch_bytes(url, headers=None, retries=1, timeout=60, backoff=10, min_bytes=
 
 def download_stream(url, destination, headers=None, retries=2, timeout=180, max_bytes=0, chunk_size=1024 * 1024):
     """Stream an HTTP response directly to a .part file without buffering it in RAM."""
-    import os
     from pathlib import Path
 
     h = dict(DEFAULT_HEADERS)
@@ -75,37 +74,41 @@ def download_stream(url, destination, headers=None, retries=2, timeout=180, max_
     target.parent.mkdir(parents=True, exist_ok=True)
     last = None
     for attempt in range(max(1, int(retries))):
+        response = None
         try:
             response = _get_stream(url, h, timeout)
             if response.status_code != 200:
                 last = "HTTP " + str(response.status_code)
-                response.close()
-            else:
-                declared = int(response.headers.get("Content-Length") or 0)
-                if max_bytes > 0 and declared > max_bytes:
-                    response.close()
-                    raise FetchError("response melebihi byte budget (%d B)" % max_bytes)
-                part.unlink(missing_ok=True)
-                total = 0
-                with part.open("wb") as output:
-                    for chunk in response.iter_content(chunk_size=chunk_size):
-                        if not chunk:
-                            continue
-                        total += len(chunk)
-                        if max_bytes > 0 and total > max_bytes:
-                            raise FetchError("response melebihi byte budget (%d B)" % max_bytes)
-                        output.write(chunk)
-                response.close()
-                if total <= 0:
-                    raise FetchError("empty response")
-                part.replace(target)
-                return total
+                continue
+            declared = int(response.headers.get("Content-Length") or 0)
+            if max_bytes > 0 and declared > max_bytes:
+                raise FetchError("response melebihi byte budget (%d B)" % max_bytes)
+            part.unlink(missing_ok=True)
+            total = 0
+            with part.open("wb") as output:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if max_bytes > 0 and total > max_bytes:
+                        raise FetchError("response melebihi byte budget (%d B)" % max_bytes)
+                    output.write(chunk)
+            if total <= 0:
+                raise FetchError("empty response")
+            part.replace(target)
+            return total
         except FetchError:
             part.unlink(missing_ok=True)
             raise
-        except Exception as e:
-            last = str(e)
+        except Exception as exc:
+            last = str(exc)
             part.unlink(missing_ok=True)
+        finally:
+            if response is not None:
+                try:
+                    response.close()
+                except Exception:
+                    pass
         if attempt < max(1, int(retries)) - 1:
             time.sleep(backoff_for_stream(attempt))
     raise FetchError(last or "unknown")
