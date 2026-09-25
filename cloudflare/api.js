@@ -529,7 +529,7 @@ export default {
               "x-github-api-version": "2022-11-28",
               "user-agent": "clipper-engine"
             },
-            body: JSON.stringify({ ref, inputs: { job_id: jobId, dispatch_token: dispatchToken } })
+            body: JSON.stringify({ ref, inputs: { job_id: jobId, dispatch_token: dispatchToken }, return_run_details: true })
           });
           if (!response.ok) {
             const detail = await response.text();
@@ -537,8 +537,15 @@ export default {
             await env.DB.prepare("UPDATE jobs SET dispatch_token=NULL,active_run_token=NULL,message=?,error=?,updated_at=? WHERE id=? AND dispatch_token=?").bind("Gagal memicu worker GitHub", message, now(), jobId, dispatchToken).run();
             return json({ error: "github_dispatch_failed", message, github_status: response.status }, 502);
           }
-          await env.DB.prepare("UPDATE jobs SET message=?,error=NULL,updated_at=? WHERE id=? AND dispatch_token=?").bind("Worker GitHub dipicu · menunggu runner", now(), jobId, dispatchToken).run();
-          return json({ ok: true, dispatched: true, job_id: jobId, workflow, ref });
+          const dispatchResult = await response.json().catch(() => ({}));
+          const workflowRunId = String(dispatchResult.workflow_run_id || "").trim();
+          if (!workflowRunId) {
+            const message = "GitHub menerima dispatch tetapi tidak mengembalikan workflow_run_id";
+            await env.DB.prepare("UPDATE jobs SET dispatch_token=NULL,active_run_token=NULL,message=?,error=?,updated_at=? WHERE id=? AND dispatch_token=?").bind("Dispatch GitHub tidak terkonfirmasi", message, now(), jobId, dispatchToken).run();
+            return json({ error: "github_dispatch_unconfirmed", message, job_id: jobId, workflow, ref }, 502);
+          }
+          await env.DB.prepare("UPDATE jobs SET run_id=?,message=?,error=NULL,updated_at=? WHERE id=? AND dispatch_token=?").bind(workflowRunId, `Worker GitHub dibuat · run ${workflowRunId} · menunggu runner`, now(), jobId, dispatchToken).run();
+          return json({ ok: true, dispatched: true, job_id: jobId, workflow, ref, workflow_run_id: workflowRunId, run_url: dispatchResult.run_url || null, html_url: dispatchResult.html_url || null });
         } catch (error) {
           const message = String(error.message || error).slice(0, 500);
           await env.DB.prepare("UPDATE jobs SET dispatch_token=NULL,active_run_token=NULL,message=?,error=?,updated_at=? WHERE id=? AND dispatch_token=?").bind("Tidak dapat menghubungi GitHub Actions", message, now(), jobId, dispatchToken).run();
