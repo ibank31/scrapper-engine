@@ -50,7 +50,7 @@ def _reference_urls(url: str) -> list[str]:
 def download_youtube(url: str, destination: str) -> tuple[str, str | None]:
     try:
         command = [
-            sys.executable, "-m", "yt_dlp", "--no-playlist", "--max-filesize", "800M",
+            sys.executable, "-m", "yt_dlp", "--no-playlist", "--retries", "5", "--fragment-retries", "5", "--extractor-retries", "3", "--retry-sleep", "http:linear=2::2", "--socket-timeout", "30", "--max-filesize", "800M",
             "--download-sections", "*0-300", "--force-keyframes-at-cuts",
             "-f", "bv*[height<=1080]+ba/b[height<=1080]", "--merge-output-format", "mp4",
             "-o", destination, url,
@@ -59,6 +59,8 @@ def download_youtube(url: str, destination: str) -> tuple[str, str | None]:
         if os.path.exists(destination) and os.path.getsize(destination) > 0:
             return "downloaded", None
         return "failed", "yt-dlp produced no file"
+    except subprocess.CalledProcessError as exc:
+        return "failed", f"yt-dlp exit {exc.returncode}; YouTube may require a supported JS runtime or the video may be unavailable"
     except Exception as exc:
         return "failed", str(exc)[:300]
 
@@ -70,7 +72,7 @@ def download_drive(url: str, destination: str, folder: bool = False) -> tuple[st
                 status, error, _ = download_folder_oauth(
                     url,
                     destination,
-                    max_files=max(1, int(os.getenv("GOOGLE_DRIVE_MAX_FILES", "3"))),
+                    max_files=int(os.getenv("GOOGLE_DRIVE_MAX_FILES", "0")),
                 )
                 return status, error
             return download_file_oauth(url, destination)
@@ -230,7 +232,7 @@ def main() -> None:
         seen_source_ids.add(source_id)
         candidate["source_asset_id"] = source_id
         unique_candidates.append(candidate)
-    selected_candidates = unique_candidates[:max_sources]
+    # Download every discovered campaign source. The worker applies max_sources\n    # later only to transcription/rendering, so no campaign material is silently skipped at intake.\n    selected_candidates = unique_candidates
 
     video_count = 0
     manual_lines = [
