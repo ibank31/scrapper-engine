@@ -112,7 +112,7 @@ def _reference_urls(url: str) -> list[str]:
     return [u.rstrip(".,;") for u in URL_RE.findall(text)]
 
 
-def download_youtube(url: str, destination: str, required_size: int = 0, safety_margin: int | None = None) -> tuple[str, str | None]:
+def download_youtube(url: str, destination: str, required_size: int = 0, safety_margin: int | None = None, max_bytes: int = 0) -> tuple[str, str | None]:
     """Download at most the first five minutes into an isolated temporary directory."""
     destination_path = Path(destination)
     temp_dir = destination_path.parent / ".youtube-tmp" / destination_path.stem
@@ -129,7 +129,7 @@ def download_youtube(url: str, destination: str, required_size: int = 0, safety_
             sys.executable, "-m", "yt_dlp", "--no-playlist", "--retries", "5",
             "--fragment-retries", "5", "--extractor-retries", "3",
             "--retry-sleep", "http:linear=2::2", "--socket-timeout", "30",
-            "--max-filesize", "800M", "--download-sections", "*0-300",
+            "--max-filesize", f"{max_bytes}B" if max_bytes > 0 else "800M", "--download-sections", "*0-300",
             "--force-keyframes-at-cuts", "-f", "bv*[height<=1080]+ba/b[height<=1080]",
             "--merge-output-format", "mp4", "-o", str(temp_dir / "source.%(ext)s"), url,
         ]
@@ -592,7 +592,7 @@ def main() -> None:
             )
         elif kind == "youtube":
             dl_status, dl_error = download_youtube(
-                str(item.get("url")), destination, required_size=0, safety_margin=disk_margin
+                str(item.get("url")), destination, required_size=0, safety_margin=disk_margin, max_bytes=remaining_budget
             )
             actual_size = Path(destination).stat().st_size if dl_status == "downloaded" and Path(destination).exists() else 0
         elif kind == "drive_file":
