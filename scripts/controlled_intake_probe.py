@@ -104,6 +104,7 @@ def main() -> int:
     segments_zero = sum(1 for r in results if r["segments"] == 0)
     raw_candidates = sum(r["candidate_count"] for r in results)
     discovery = manifest.get("discovery") or {}
+    discovery = manifest.get("discovery") or {}
     report = {
         "commit": os.environ.get("GITHUB_SHA"),
         "campaign_id": os.environ.get("CAMPAIGN_ID"),
@@ -127,8 +128,15 @@ def main() -> int:
             "partial_files_remaining": len(partial_files),
             "download_limit": (discovery.get("download_limits") or {}).get("max_assets"),
             "download_byte_budget": (discovery.get("download_limits") or {}).get("max_bytes"),
+            "manifest_discovered_asset_count": int(discovery.get("discovered_asset_count") or 0),
+            "manifest_discovered_media_asset_count": int(discovery.get("discovered_media_asset_count") or 0),
+            "manifest_downloaded_bytes": int(discovery.get("downloaded_bytes") or 0),
+            "partial_files_remaining": len(partial_files),
+            "download_limit": (discovery.get("download_limits") or {}).get("max_assets"),
+            "download_byte_budget": (discovery.get("download_limits") or {}).get("max_bytes"),
         },
         "candidate_sources": [r for r in results if r["candidate_count"] > 0],
+        "integrity": {"no_partial_files": not partial_files, "manifest_has_asset_rows": bool(source_manifest), "discovery_metrics": discovery},
         "integrity": {"no_partial_files": not partial_files, "manifest_has_asset_rows": bool(source_manifest), "discovery_metrics": discovery},
         "source_results": results,
         "source_manifest": source_manifest,
