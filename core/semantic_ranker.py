@@ -216,10 +216,47 @@ def rank_candidates_with_metadata(candidates: list[dict[str, Any]], plan: dict[s
     return ranked, runtime
 
 
+def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any], semantic_limit: int = 15) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Cheap-rank globally, then run the local semantic model once on a bounded shortlist."""
+    prepared = [dict(item) for item in candidates]
+    prepared.sort(key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
+    shortlist = prepared[:max(1, int(semantic_limit))]
+    for index, item in enumerate(shortlist, 1):
+        item["rank"] = index
+    ranked_shortlist, runtime = rank_candidates_with_metadata(shortlist, plan)
+    by_key = {(str(item.get("source") or ""), round(float(item.get("start") or 0), 3), round(float(item.get("end") or 0), 3)): item for item in ranked_shortlist}
+    merged: list[dict[str, Any]] = []
+    for original in prepared:
+        key = (str(original.get("source") or ""), round(float(original.get("start") or 0), 3), round(float(original.get("end") or 0), 3))
+        if key in by_key:
+            merged.append(by_key[key])
+        else:
+            item = dict(original)
+            local = _deterministic(item, plan)
+            local["hard_policy_gate"] = local["decision"] == "reject"
+            local["engine"] = "deterministic"
+            local["fallback_used"] = True
+            local["fallback_reason"] = "outside_semantic_shortlist"
+            item["semantic"] = local
+            item["score"] = round(float(item.get("score") or 0) * 0.65 + float(local.get("semantic_score") or 0) / 100 * 0.35, 4)
+            merged.append(item)
+    merged.sort(key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
+    for index, item in enumerate(merged, 1):
+        item["rank"] = index
+        if isinstance(item.get("semantic"), dict):
+            item["semantic"]["rank"] = index
+    runtime = dict(runtime)
+    runtime["scope"] = "global"
+    runtime["shortlist_limit"] = max(1, int(semantic_limit))
+    runtime["candidate_count"] = len(candidates)
+    return merged, runtime
+
+
+
 def rank_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
     """Backward-compatible ranking API; use rank_candidates_with_metadata for diagnostics."""
     ranked, _runtime = rank_candidates_with_metadata(candidates, plan)
     return ranked
 
 
-__all__ = ["rank_candidates", "rank_candidates_with_metadata", "SCHEMA"]
+__all__ = ["rank_candidates", "rank_candidates_with_metadata", "rank_global_candidates", "SCHEMA"]
