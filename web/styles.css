@@ -38,6 +38,8 @@
 .phase-track{display:flex;align-items:center;gap:5px;margin-top:13px}
 .phase-track>span:not(.line){width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:#edf1ed;color:#8b9991;font:9px 'DM Mono';flex:0 0 18px}
 .phase-track>span.done{background:#dff0d8;color:#397c55}
+.phase-track>span.active{background:#fff0d9;color:#b47632;box-shadow:0 0 0 3px rgba(180,118,50,.08)}
+.phase-track>span.alert{background:#ffe3df;color:#b45d52}
 .phase-track .line{height:2px;background:#e6ebe7;flex:1;min-width:12px;border-radius:2px}
 .phase-track .line.done{background:#7fa88b}
 .phase-labels{display:grid;grid-template-columns:repeat(4,1fr);margin-top:5px;color:#96a29b;font:8px 'DM Mono';text-align:center}
