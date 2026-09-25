@@ -125,7 +125,7 @@ class GoogleDriveClient:
                     "q": f"'{current_id}' in parents and trashed = false",
                     "pageSize": min(1000, page_size),
                     "orderBy": "name",
-                    "fields": "nextPageToken,files(id,name,mimeType,size,capabilities/canDownload,md5Checksum)",
+                    "fields": "nextPageToken,files(id,name,mimeType,size,capabilities/canDownload,md5Checksum,shortcutDetails(targetId,targetMimeType))",
                     "supportsAllDrives": "true",
                     "includeItemsFromAllDrives": "true",
                 }
@@ -135,7 +135,15 @@ class GoogleDriveClient:
                 for item in body.get("files", []):
                     name = str(item.get("name") or "")
                     mime = str(item.get("mimeType") or "")
-                    if mime == "application/vnd.google-apps.folder":
+                    if mime == "application/vnd.google-apps.shortcut":
+                        shortcut = item.get("shortcutDetails") or {}
+                        target_id = str(shortcut.get("targetId") or "")
+                        target_mime = str(shortcut.get("targetMimeType") or "")
+                        if target_id and target_mime == "application/vnd.google-apps.folder":
+                            walk(target_id, depth + 1)
+                        elif target_id and (target_mime.startswith(VIDEO_MIME_PREFIXES) or Path(name).suffix.lower() in MEDIA_EXTENSIONS):
+                            files.append({**item, "id": target_id, "mimeType": target_mime, "shortcut_target_id": target_id})
+                    elif mime == "application/vnd.google-apps.folder":
                         walk(str(item.get("id") or ""), depth + 1)
                     elif (mime.startswith(VIDEO_MIME_PREFIXES) or Path(name).suffix.lower() in MEDIA_EXTENSIONS) and item.get("capabilities", {}).get("canDownload", True):
                         files.append(item)
