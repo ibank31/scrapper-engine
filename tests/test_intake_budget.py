@@ -36,7 +36,10 @@ class IntakeBudgetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             destination = str(Path(tmp) / "asset.mp4")
             def fake_run(command, check, text, timeout):
-                Path(destination + ".part").write_bytes(b"complete")
+                output_template = command[command.index("-o") + 1]
+                output_path = Path(output_template.replace("%(ext)s", "mp4"))
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(b"complete")
                 return None
             with patch("modules.reward_campaign.intake._download_guard", return_value=("ready", None)), patch(
                 "modules.reward_campaign.intake.subprocess.run", side_effect=fake_run
@@ -45,17 +48,21 @@ class IntakeBudgetTests(unittest.TestCase):
             self.assertEqual((status, error), ("downloaded", None))
             self.assertEqual(Path(destination).read_bytes(), b"complete")
             self.assertFalse(Path(destination + ".part").exists())
+            self.assertFalse((Path(tmp) / ".youtube-tmp").exists())
 
     def test_youtube_failure_cleans_partial_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             destination = str(Path(tmp) / "asset.mp4")
-            Path(destination + ".part").write_bytes(b"partial")
+            temp_dir = Path(tmp) / ".youtube-tmp" / "asset"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            (temp_dir / "source.part").write_bytes(b"partial")
             with patch("modules.reward_campaign.intake._download_guard", return_value=("ready", None)), patch(
                 "modules.reward_campaign.intake.subprocess.run", side_effect=subprocess.CalledProcessError(1, ["yt-dlp"])
             ):
                 status, error = intake.download_youtube("https://youtu.be/test", destination)
             self.assertEqual(status, "failed")
             self.assertFalse(Path(destination + ".part").exists())
+            self.assertFalse((Path(tmp) / ".youtube-tmp").exists())
             self.assertIsNotNone(error)
 
 
