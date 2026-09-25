@@ -297,7 +297,14 @@ def main() -> None:
             return
         # Prefer the highest-quality usable sources, not the smallest files.
         sources.sort(key=source_priority, reverse=True)
-        if not sources: raise RuntimeError("tidak ada video asset langsung; periksa MANUAL_ASSETS.md")
+        if not sources:
+            # A campaign can be valid but temporarily lack an accessible source.
+            # This is a normal, auditable block, not a worker crash. Keep the queue
+            # healthy so other campaigns can continue processing.
+            detail = "tidak ada video asset yang dapat diunduh dari sumber campaign"
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Sumber video campaign belum tersedia", "source_assets_unavailable: " + detail)
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"usable_sources": 0, "intake_returncode": intake.returncode}, "source_assets_unavailable", detail)
+            return
         preflight_records = []
         for source in sources:
             quality = source_quality_preflight(str(source))
