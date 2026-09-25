@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       sample_size:
-        description: "Explicit deep-analysis sample size after full intake"
+        description: "Explicit deep-analysis sample size after bounded intake"
         required: false
         default: "3"
         type: string
@@ -25,8 +25,10 @@ jobs:
       GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
       GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
       GOOGLE_DRIVE_MAX_FILES: "0"
-      CLIPPER_DOWNLOAD_MAX_ASSETS: "3"
-      CLIPPER_DOWNLOAD_MAX_BYTES: "1200000000"
+      CLIPPER_DOWNLOAD_MAX_ASSETS: "8"
+      CLIPPER_DOWNLOAD_MAX_BYTES: "2147483648"
+      CLIPPER_DISK_SAFETY_MARGIN: "1073741824"
+      CLIPPER_UNKNOWN_DOWNLOAD_RESERVE: "838860800"
       PYTHONPATH: ${{ github.workspace }}
     steps:
       - name: Checkout requested commit
@@ -37,13 +39,8 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Install dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
-      - name: Pin engine under test
-        run: |
-          set -euo pipefail
-          cp scripts/controlled_intake_probe.py /tmp/controlled_intake_probe.py
-          git fetch --no-tags --depth=1 origin 6c4dda48367091576945389cf7e4c2b951b9d647
-          git checkout --detach 6c4dda48367091576945389cf7e4c2b951b9d647
-          test "$(git rev-parse HEAD)" = "6c4dda48367091576945389cf7e4c2b951b9d647"
+      - name: Pin probe script from checked-out main
+        run: cp scripts/controlled_intake_probe.py /tmp/controlled_intake_probe.py
       - name: Read campaign plan without mutation
         run: |
           set -euo pipefail
