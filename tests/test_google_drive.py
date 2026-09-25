@@ -58,6 +58,7 @@ class GoogleDriveTests(unittest.TestCase):
         responses = [
             FakeResponse({"access_token": "access"}),
             FakeResponse({"id": "shortcut", "mimeType": "application/vnd.google-apps.shortcut", "shortcutDetails": {"targetId": "target", "targetMimeType": "video/mp4"}}),
+            FakeResponse({"id": "target", "name": "target.mp4", "mimeType": "video/mp4", "size": "3", "capabilities": {"canDownload": True}}),
             FakeResponse(content=b"abc", chunks=[b"abc"]),
         ]
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"GOOGLE_DRIVE_REFRESH_TOKEN": "refresh", "GOOGLE_OAUTH_CLIENT_ID": "client", "GOOGLE_OAUTH_CLIENT_SECRET": "secret"}), patch("core.google_drive.requests.post", side_effect=responses[:1]), patch("core.google_drive.requests.request", side_effect=responses[1:]):
