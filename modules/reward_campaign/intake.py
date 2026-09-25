@@ -40,6 +40,39 @@ POSITIVE_NAME_HINTS = ("master", "final", "source", "original", "clean", "1080",
 NEGATIVE_NAME_HINTS = ("proxy", "preview", "thumb", "thumbnail", "lowres", "low-res", "watermark", "bumper", "intro", "sample")
 
 
+def _resolve_symbolic_asset(plan: dict, reference: str) -> tuple[str | None, dict]:
+    """Resolve a symbolic asset only from explicit campaign mappings; never invent a URL."""
+    key = str(reference or "").strip().lower().replace("-", "_").replace(" ", "_")
+    production = plan.get("production") or {}
+    campaign = plan.get("campaign") or {}
+    containers = [
+        production.get("asset_mappings"), production.get("symbolic_assets"),
+        production.get("assets"), production.get("brand_assets"),
+        campaign.get("asset_mappings"), campaign.get("assets"),
+    ]
+    for container in containers:
+        if isinstance(container, dict):
+            for candidate_key in (reference, key):
+                value = container.get(candidate_key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip(), {"mapping_source": "campaign_plan", "mapping_key": candidate_key}
+                if isinstance(value, dict):
+                    url = value.get("url") or value.get("source_url")
+                    if isinstance(url, str) and url.strip():
+                        return url.strip(), {"mapping_source": "campaign_plan", "mapping_key": candidate_key}
+        elif isinstance(container, list):
+            for item in container:
+                if not isinstance(item, dict):
+                    continue
+                item_key = str(item.get("name") or item.get("key") or item.get("id") or "").strip().lower().replace("-", "_").replace(" ", "_")
+                if item_key != key:
+                    continue
+                url = item.get("url") or item.get("source_url")
+                if isinstance(url, str) and url.strip():
+                    return url.strip(), {"mapping_source": "campaign_plan", "mapping_key": item_key}
+    return None, {"mapping_source": None, "mapping_key": key}
+
+
 def _env_int(name: str, default: int) -> int:
     try:
         return int(os.getenv(name, str(default)))
@@ -322,14 +355,31 @@ def main() -> None:
     explicit_reference_values = [str(value).strip() for value in references if str(value).strip()]
     for raw_reference in explicit_reference_values:
         if is_symbolic_reference(raw_reference):
-            unresolved_references.append({
+            resolved_url, mapping = _resolve_symbolic_asset(plan, raw_reference)
+            reference_manifest.append({
                 "reference": raw_reference,
                 "kind": "SYMBOLIC_ASSET_REFERENCE",
                 "role": "PRIMARY_SOURCE_CANDIDATE",
-                "status": "UNRESOLVED",
-                "reason": "symbolic_asset_reference_requires_campaign_asset_mapping",
+                "reference_kind": "SYMBOLIC_ASSET",
+                "status": "RESOLVED" if resolved_url else "UNRESOLVED",
+                "resolution": mapping,
+                "url": resolved_url,
             })
+            if resolved_url:
+                discovered.append(resolved_url)
+            else:
+                unresolved_references.append({
+                    "reference": raw_reference,
+                    "kind": "SYMBOLIC_ASSET_REFERENCE",
+                    "role": "PRIMARY_SOURCE_CANDIDATE",
+                    "status": "UNRESOLVED",
+                    "reason": "UNRESOLVED_SYMBOLIC_ASSET",
+                    **mapping,
+                })
+            continue
     for url in references:
+        if is_symbolic_reference(str(url)):
+            continue
         discovered.append(url)
         if is_google_sheet_url(url):
             try:
@@ -377,14 +427,31 @@ def main() -> None:
                     for item in extracted.get("urls", [])
                 ])
                 for symbolic in extracted.get("symbolic_assets", []):
-                    unresolved_references.append({
+                    symbolic_value = str(symbolic.get("reference") or "").strip()
+                    resolved_url, mapping = _resolve_symbolic_asset(plan, symbolic_value)
+                    reference_entry = {
                         **symbolic,
-                        "reference": symbolic.get("reference"),
+                        "reference": symbolic_value,
                         "kind": "SYMBOLIC_ASSET_REFERENCE",
-                        "status": "UNRESOLVED",
-                        "reason": "symbolic_asset_reference_requires_campaign_asset_mapping",
+                        "reference_kind": "SYMBOLIC_ASSET",
+                        "status": "RESOLVED" if resolved_url else "UNRESOLVED",
+                        "resolution": mapping,
+                        "url": resolved_url,
                         "origin": url,
-                    })
+                    }
+                    reference_manifest.append(reference_entry)
+                    if resolved_url and resolved_url not in discovered:
+                        discovered.append(resolved_url)
+                    elif not resolved_url:
+                        unresolved_references.append({
+                            **symbolic,
+                            "reference": symbolic_value,
+                            "kind": "SYMBOLIC_ASSET_REFERENCE",
+                            "status": "UNRESOLVED",
+                            "reason": "UNRESOLVED_SYMBOLIC_ASSET",
+                            "origin": url,
+                            **mapping,
+                        })
                 for item in extracted.get("urls", []):
                     candidate_url = item["url"]
                     if item.get("role") == "REFERENCE_ONLY":
