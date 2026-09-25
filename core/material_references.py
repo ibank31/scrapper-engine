@@ -15,6 +15,7 @@ import sys
 from difflib import SequenceMatcher
 from typing import Any, Callable
 from urllib.parse import urlparse
+from pathlib import PurePosixPath
 
 
 URL_RE = re.compile(r'https?://[^\s<>\[\]{}"\']+', re.I)
@@ -66,10 +67,32 @@ def classify_context(text: str, *, explicit_source: bool = False) -> str:
     return "AMBIGUOUS_REFERENCE"
 
 
+def classify_url(url: str, context: str = "") -> str:
+    """Classify a URL using both its provider and the surrounding evidence.
+
+    A raw URL in a brief is not automatically footage. Direct media and Drive
+    file URLs are deterministic primary sources; hosted video pages remain
+    candidates until the normal access/download gates succeed.
+    """
+    parsed = urlparse(str(url or ""))
+    host = parsed.netloc.lower()
+    suffix = PurePosixPath(parsed.path).suffix.lower()
+    if suffix in {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}:
+        return "PRIMARY_SOURCE"
+    if "drive.google.com" in host and ("/file/" in parsed.path or "open" in parsed.path):
+        return "PRIMARY_SOURCE"
+    if any(host.endswith(domain) for domain in ("youtube.com", "youtu.be", "vimeo.com")):
+        return "REFERENCE_ONLY" if any(term in str(context).lower() for term in REFERENCE_TERMS) else "PRIMARY_SOURCE_CANDIDATE"
+    if "tiktok.com" in host or "genius.com" in host:
+        return "REFERENCE_ONLY"
+    return classify_context(context)
+
+
 def extract_document_references(text: str) -> dict[str, list[dict[str, Any]]]:
     """Extract explicit URLs and named media references with line evidence."""
     urls: list[dict[str, Any]] = []
     named: list[dict[str, Any]] = []
+    symbolic: list[dict[str, Any]] = []
     for line_number, raw_line in enumerate(str(text or "").splitlines(), 1):
         line = " ".join(raw_line.strip().split())
         if not line:
@@ -80,11 +103,18 @@ def extract_document_references(text: str) -> dict[str, list[dict[str, Any]]]:
                 "url": url,
                 "line_number": line_number,
                 "context": line[:500],
-                "role": classify_context(line),
+                "role": classify_url(url, line),
             })
         without_urls = URL_RE.sub("", line).strip(" -–—:：")
         match = NAMED_MEDIA_RE.match(without_urls)
         if not match:
+            if is_symbolic_reference(line):
+                symbolic.append({
+                    "reference": line,
+                    "line_number": line_number,
+                    "context": line[:500],
+                    "role": "PRIMARY_SOURCE_CANDIDATE",
+                })
             continue
         label = str(match.group("label") or "").strip()
         value = str(match.group("value") or "").strip()
@@ -99,7 +129,7 @@ def extract_document_references(text: str) -> dict[str, list[dict[str, Any]]]:
             "context": label_context[:500],
             "role": role,
         })
-    return {"urls": urls, "named_media": named}
+    return {"urls": urls, "named_media": named, "symbolic_assets": symbolic}
 
 
 def is_symbolic_reference(value: str) -> bool:
@@ -199,6 +229,7 @@ def resolve_named_youtube_reference(
 __all__ = [
     "URL_RE",
     "classify_context",
+    "classify_url",
     "extract_document_references",
     "is_symbolic_reference",
     "resolve_named_youtube_reference",

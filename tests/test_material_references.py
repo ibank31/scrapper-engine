@@ -4,6 +4,7 @@ import unittest
 
 from core.material_references import (
     classify_context,
+    classify_url,
     extract_document_references,
     is_symbolic_reference,
     resolve_named_youtube_reference,
@@ -11,6 +12,18 @@ from core.material_references import (
 
 
 class MaterialReferenceTests(unittest.TestCase):
+    def test_direct_media_and_drive_urls_are_primary_sources(self):
+        extracted = extract_document_references(
+            "Footage: https://cdn.example.test/source.mp4\nDrive: https://drive.google.com/file/d/abc/view"
+        )
+        self.assertEqual([item["role"] for item in extracted["urls"]], ["PRIMARY_SOURCE", "PRIMARY_SOURCE"])
+
+    def test_youtube_url_without_source_context_is_candidate(self):
+        self.assertEqual(
+            classify_url("https://www.youtube.com/watch?v=abc", "Video: https://www.youtube.com/watch?v=abc"),
+            "PRIMARY_SOURCE_CANDIDATE",
+        )
+
     def test_examples_are_not_promoted_to_source_assets(self):
         text = "TikTok examples: https://www.tiktok.com/@creator/video/123"
         extracted = extract_document_references(text)
@@ -27,6 +40,8 @@ class MaterialReferenceTests(unittest.TestCase):
     def test_symbolic_asset_is_not_silently_accepted(self):
         self.assertTrue(is_symbolic_reference("brandAsset"))
         self.assertFalse(is_symbolic_reference("https://example.com/a.mp4"))
+        extracted = extract_document_references("brandAsset")
+        self.assertEqual(extracted["symbolic_assets"][0]["reference"], "brandAsset")
 
     def test_explicit_source_context_is_primary(self):
         self.assertEqual(
@@ -71,6 +86,14 @@ class MaterialReferenceTests(unittest.TestCase):
             runner=fake_runner,
         )
         self.assertEqual(result["status"], "unresolved")
+
+    def test_named_youtube_reference_reports_malformed_metadata(self):
+        def fake_runner(*args, **kwargs):
+            return subprocess.CompletedProcess(args=args[0], returncode=0, stdout="not-json", stderr="")
+
+        result = resolve_named_youtube_reference("A named video", runner=fake_runner)
+        self.assertEqual(result["status"], "unresolved")
+        self.assertIn("youtube_search_error", result["reason"])
 
 
 if __name__ == "__main__":

@@ -376,6 +376,15 @@ def main() -> None:
                     {**item, "origin": url, "reference_kind": "EXPLICIT_URL"}
                     for item in extracted.get("urls", [])
                 ])
+                for symbolic in extracted.get("symbolic_assets", []):
+                    unresolved_references.append({
+                        **symbolic,
+                        "reference": symbolic.get("reference"),
+                        "kind": "SYMBOLIC_ASSET_REFERENCE",
+                        "status": "UNRESOLVED",
+                        "reason": "symbolic_asset_reference_requires_campaign_asset_mapping",
+                        "origin": url,
+                    })
                 for item in extracted.get("urls", []):
                     candidate_url = item["url"]
                     if item.get("role") == "REFERENCE_ONLY":
@@ -837,6 +846,10 @@ def main() -> None:
         "reference_manifest": reference_manifest,
         "discovery": {
             "reference_count": len(references),
+            "explicit_url_count": sum(1 for item in reference_manifest if item.get("reference_kind") == "EXPLICIT_URL"),
+            "named_reference_count": sum(1 for item in reference_manifest if item.get("reference_kind") == "NAMED_MEDIA"),
+            "primary_source_count": sum(1 for item in reference_manifest if item.get("role") in {"PRIMARY_SOURCE", "PRIMARY_SOURCE_CANDIDATE"}),
+            "reference_only_count": sum(1 for item in reference_manifest if item.get("role") == "REFERENCE_ONLY"),
             "tracker_rows": tracker_records,
             "discovered_media_sources": len(media_candidates),
             "selected_media_sources": len(selected_candidates),
@@ -857,6 +870,26 @@ def main() -> None:
             "downloaded_bytes": downloaded_bytes,
             "unresolved_references": unresolved_references,
             "reference_manifest_count": len(reference_manifest),
+            "inaccessible_source_count": sum(1 for item in source_manifest if not item.get("accessible") and item.get("status") in {"inaccessible", "failed"}),
+            "asset_preflight": {
+                "references_discovered": len(references) + len(reference_manifest) + len(unresolved_references),
+                "explicit_urls": sum(1 for item in reference_manifest if item.get("reference_kind") == "EXPLICIT_URL"),
+                "named_references": sum(1 for item in reference_manifest if item.get("reference_kind") == "NAMED_MEDIA"),
+                "primary_sources": sum(1 for item in reference_manifest if item.get("role") in {"PRIMARY_SOURCE", "PRIMARY_SOURCE_CANDIDATE"}),
+                "reference_only_sources": sum(1 for item in reference_manifest if item.get("role") == "REFERENCE_ONLY"),
+                "unresolved_references": len(unresolved_references),
+                "inaccessible_sources": sum(1 for item in source_manifest if not item.get("accessible") and item.get("status") in {"inaccessible", "failed"}),
+                "video_assets_discovered": discovered_media_asset_count,
+                "accessible_video_assets": accessible_media_asset_count,
+                "download_attempted": downloaded_assets + failed_assets,
+                "downloaded": downloaded_assets,
+                "download_failed": failed_assets,
+                "deferred": deferred_media_asset_count,
+                "valid_media": ready_media_asset_count,
+                "invalid_media": invalid_media_asset_count,
+                "downloaded_bytes": downloaded_bytes,
+                "ready_for_processing": ready_media_asset_count,
+            },
         },
         "updated_at": now_iso(),
     }
