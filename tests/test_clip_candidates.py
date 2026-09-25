@@ -38,6 +38,16 @@ class ClipCandidatesTest(unittest.TestCase):
         self.assertGreaterEqual(candidates[0]["score"], 0)
         self.assertTrue(candidates[0]["end"] <= 60)
 
+    def test_bounds_long_punctuation_free_whisper_run_to_editorial_window(self):
+        words = []
+        for index in range(90):
+            start = index * 0.5
+            words.append({"start": start, "end": start + 0.45, "word": "business" if index % 5 else "because"})
+        transcript = {"segments": [{"start": 0, "end": 45, "words": words}]}
+        candidates = select_candidates(transcript, min_seconds=20, max_seconds=35, limit=3)
+        self.assertTrue(candidates)
+        self.assertTrue(all(20 <= item["duration"] <= 35 for item in candidates))
+
     def test_rewards_complete_payoff_over_keyword_only_excerpt(self):
         transcript = {
             "segments": [
