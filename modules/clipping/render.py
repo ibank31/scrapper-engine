@@ -56,14 +56,14 @@ def main() -> None:
         raise SystemExit("campaign mewajibkan watermark, tetapi --watermark belum diberikan")
     out_dir = args.out_dir or os.path.join(os.path.dirname(os.path.abspath(args.candidates)), "renders")
     os.makedirs(out_dir, exist_ok=True)
-    try:
-        base_crop = f"{crop_filter(args.input)},setsar=1" if not args.static_crop else "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
-    except Exception as exc:
-        print(f"WARN: face tracking unavailable, using centered crop: {exc}", file=sys.stderr)
-        base_crop = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
     with tempfile.TemporaryDirectory(prefix="clip-subs-") as temp:
         for item in payload.get("candidates", []):
             rank = int(item.get("rank", 0))
+            try:
+                base_crop = f"{crop_filter(args.input, start=float(item.get("start") or 0), duration=float(item.get("duration") or 0))},setsar=1" if not args.static_crop else "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
+            except Exception as exc:
+                print(f"WARN: face tracking unavailable, using centered crop: {exc}", file=sys.stderr)
+                base_crop = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
             output = os.path.join(out_dir, f"clip-{rank:03d}.mp4")
             filters = [base_crop]
             subtitle_path = None
