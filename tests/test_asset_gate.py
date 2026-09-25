@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.asset_gate import manifest_video_paths
+from core.asset_gate import manifest_has_invalid_media, manifest_video_paths
 
 
 class AssetGateTests(unittest.TestCase):
@@ -52,6 +52,18 @@ class AssetGateTests(unittest.TestCase):
                 ]
             }
             self.assertEqual(manifest_video_paths(root, manifest, extensions={".mp4"}), [good])
+
+    def test_invalid_media_state_is_detected_for_worker_gate(self):
+        self.assertTrue(
+            manifest_has_invalid_media(
+                {
+                    "asset_manifest": [
+                        {"asset_kind": "video", "status": "INVALID_MEDIA"}
+                    ]
+                }
+            )
+        )
+        self.assertFalse(manifest_has_invalid_media({"asset_manifest": []}))
 
     def test_legacy_manifest_can_use_defensive_filesystem_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
