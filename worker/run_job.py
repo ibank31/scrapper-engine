@@ -390,7 +390,7 @@ def main() -> None:
                     candidate_stats["relevance_blocks"] += 1
                     continue
                 all_candidates.append({"candidate": dict(local_item), "source": str(source), "transcript": str(transcript_dir / "transcript.json"), "relevance": relevance})
-            update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)} · kandidat lokal selesai")            update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)}")
+            update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)} · kandidat lokal selesai")
         # Global semantic pass: deterministic candidate generation happens per source,
         # but the semantic model is loaded once and sees only the strongest global shortlist.
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "semantic_ranking", "started", {
