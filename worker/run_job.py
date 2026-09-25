@@ -284,10 +284,19 @@ def main() -> None:
                 candidate_path = workspace / local_path
                 if candidate_path.is_file() and candidate_path.suffix.lower() in VIDEO_EXTENSIONS and not candidate_path.name.endswith(".part"):
                     manifest_sources.append(candidate_path)
-        sources = manifest_sources or [
-            p for p in (workspace / "assets").rglob("*")
-            if p.is_file() and not p.name.startswith(".") and not p.name.endswith(".part") and p.suffix.lower() in VIDEO_EXTENSIONS
-        ]
+        has_manifest_media_validation = any(
+            item.get("asset_kind") == "video" and isinstance(item.get("media_validation"), dict)
+            for item in intake_manifest.get("asset_manifest", [])
+        )
+        # Never bypass the new cheap media gate by rediscovering raw .mp4 files
+        # from the workspace. The fallback exists only for legacy manifests that
+        # predate media_validation.
+        sources = manifest_sources
+        if not sources and not has_manifest_media_validation:
+            sources = [
+                p for p in (workspace / "assets").rglob("*")
+                if p.is_file() and not p.name.startswith(".") and not p.name.endswith(".part") and p.suffix.lower() in VIDEO_EXTENSIONS
+            ]
         if intake.returncode != 0 and not sources:
             manifest_path = workspace / "assets.json"
             try:
@@ -307,12 +316,81 @@ def main() -> None:
         # Prefer the highest-quality usable sources, not the smallest files.
         sources.sort(key=source_priority, reverse=True)
         if not sources:
-            # A campaign can be valid but temporarily lack an accessible source.
-            # This is a normal, auditable block, not a worker crash. Keep the queue
-            # healthy so other campaigns can continue processing.
-            detail = "tidak ada video asset yang dapat diunduh dari sumber campaign"
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Sumber video campaign belum tersedia", "source_assets_unavailable: " + detail)
-            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"usable_sources": 0, "intake_returncode": intake.returncode}, "source_assets_unavailable", detail)
+            discovery = intake_manifest.get("discovery") or {}
+            invalid_media = [
+                {
+                    "name": item.get("name") or item.get("asset_id"),
+                    "url": item.get("url"),
+                    "status": item.get("status"),
+                    "error": item.get("error_message") or item.get("error_code"),
+                    "validation": item.get("media_validation"),
+                }
+                for item in intake_manifest.get("asset_manifest", [])
+                if item.get("asset_kind") == "video" and item.get("status") in {"INVALID_MEDIA", "DOWNLOAD_FAILED"}
+            ]
+            unresolved = intake_manifest.get("unresolved_references") or []
+            if invalid_media:
+                detail_payload = {
+                    "discovery": {
+                        "discovered_asset_count": discovery.get("discovered_asset_count", 0),
+                        "downloaded_asset_count": discovery.get("downloaded_asset_count", 0),
+                        "ready_for_processing_asset_count": discovery.get("ready_for_processing_asset_count", 0),
+                        "invalid_media_asset_count": discovery.get("invalid_media_asset_count", 0),
+                    },
+                    "invalid_media": invalid_media[:8],
+                    "unresolved_references": unresolved[:6],
+                }
+                detail = json.dumps(detail_payload, ensure_ascii=False, separators=(",", ":"))[:1400]
+                update(
+                    args.api_base,
+                    args.job_id,
+                    args.worker_token,
+                    "blocked",
+                    100,
+                    "Bahan video ditemukan tetapi tidak lolos pemeriksaan media",
+                    "source_media_invalid: " + detail,
+                )
+                stage_event(
+                    args.api_base,
+                    args.job_id,
+                    args.worker_token,
+                    run_id,
+                    "asset_preflight",
+                    "blocked",
+                    detail_payload,
+                    "source_media_invalid",
+                    detail,
+                )
+            else:
+                detail_payload = {
+                    "discovery": {
+                        "discovered_asset_count": discovery.get("discovered_asset_count", 0),
+                        "downloaded_asset_count": discovery.get("downloaded_asset_count", 0),
+                        "ready_for_processing_asset_count": discovery.get("ready_for_processing_asset_count", 0),
+                    },
+                    "unresolved_references": unresolved[:8],
+                }
+                detail = json.dumps(detail_payload, ensure_ascii=False, separators=(",", ":"))[:1400]
+                update(
+                    args.api_base,
+                    args.job_id,
+                    args.worker_token,
+                    "blocked",
+                    100,
+                    "Sumber video campaign belum tersedia",
+                    "source_assets_unavailable: " + detail,
+                )
+                stage_event(
+                    args.api_base,
+                    args.job_id,
+                    args.worker_token,
+                    run_id,
+                    "asset_preflight",
+                    "blocked",
+                    detail_payload,
+                    "source_assets_unavailable",
+                    detail,
+                )
             return
         preflight_records = []
         for source in sources:
