@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from core.clip_candidates import segment_transcript, select_candidates
+from core.clip_candidates import segment_transcript, select_candidates, select_candidates_for_bands
 
 
 class ClipCandidatesTest(unittest.TestCase):
@@ -128,6 +128,28 @@ class ClipCandidatesTest(unittest.TestCase):
         self.assertEqual((candidates[0]["start"], candidates[0]["end"]), (0.0, 25.0))
         self.assertEqual(candidates[0]["media_score_adjustment"], -0.12)
 
+    def test_single_pass_bands_reuses_candidate_pool_and_bounds_media_analysis(self):
+        transcript = {
+            "segments": [
+                {"start": 0, "end": 15, "text": "Here is the biggest business lesson because this matters."},
+                {"start": 15, "end": 32, "text": "The answer is to simplify the process so that it works."},
+                {"start": 32, "end": 52, "text": "Finally, the result is repeatable every week."},
+            ]
+        }
+        with tempfile.NamedTemporaryFile() as source, mock.patch(
+            "core.clip_candidates.source_quality_preflight",
+            return_value={"available": True, "duration_seconds": 90, "duplicate_hash": "abc"},
+        ), mock.patch(
+            "core.clip_candidates.candidate_signals",
+            return_value={"available": True},
+        ) as media:
+            candidates, diagnostics = select_candidates_for_bands(
+                transcript, [(18, 35), (30, 50)], limit=2, source_path=source.name, plan={"production": {"subtitle_required": False}}, media_top_n=2
+            )
+        self.assertTrue(candidates)
+        self.assertLessEqual(diagnostics["media_analyzed"], 2)
+        self.assertEqual(diagnostics["candidate_pool_count"] > 0, True)
+        self.assertLessEqual(media.call_count, 2)
 
 if __name__ == "__main__":
     unittest.main()
