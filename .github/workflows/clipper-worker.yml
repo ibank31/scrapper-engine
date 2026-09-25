@@ -23,8 +23,8 @@ concurrency:
 jobs:
   process:
     runs-on: ubuntu-latest
-    # Quality-first path: allow three sources and small Whisper to finish cleanly.
-    # Hard stop at 55 minutes so a hung download/transcribe is still bounded.
+    # Resource-safe path: discover all campaign assets, download a bounded prioritized subset,
+    # then deep-analyze only the best usable sources. Hard stop keeps a hung job bounded.
     timeout-minutes: 55
     permissions:
       contents: read
@@ -81,13 +81,18 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           GOOGLE_DRIVE_MAX_FILES: "0"
+          # Discovery is unlimited; downloads are bounded after metadata-first prioritization.
+          CLIPPER_DOWNLOAD_MAX_ASSETS: "8"
+          CLIPPER_DOWNLOAD_MAX_BYTES: "2147483648"
+          CLIPPER_DISK_SAFETY_MARGIN: "1073741824"
+          CLIPPER_UNKNOWN_DOWNLOAD_RESERVE: "838860800"
           JOB_ID: ${{ inputs.job_id }}
           CLIPPER_DISPATCH_TOKEN: ${{ inputs.dispatch_token }}
           PYTHONPATH: ${{ github.workspace }}
-          # Trial default: process the best official source for predictable latency.
+          # Deep analysis limit is separate from discovery/download limits.
           CLIPPER_WHISPER_MODEL: small
           CLIPPER_WHISPER_BEAM: "3"
-          CLIPPER_MAX_VIDEO_SOURCES: "3"
+          CLIPPER_MAX_VIDEO_SOURCES: "6"
           CLIPPER_FFMPEG_PRESET: medium
           CLIPPER_FFMPEG_CRF: "19"
           CLIPPER_SEMANTIC_MODEL: /home/runner/.cache/clipper-semantic/qwen2.5-1.5b-instruct-q4_k_m.gguf
