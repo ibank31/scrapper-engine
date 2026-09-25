@@ -48,7 +48,7 @@ class IntakeBudgetTests(unittest.TestCase):
             self.assertEqual((status, error), ("downloaded", None))
             self.assertEqual(Path(destination).read_bytes(), b"complete")
             self.assertFalse(Path(destination + ".part").exists())
-            self.assertFalse((Path(tmp) / ".youtube-tmp").exists())
+            self.assertFalse(any((Path(tmp) / ".youtube-tmp").rglob("*")))
 
     def test_youtube_failure_cleans_partial_file(self):
         with tempfile.TemporaryDirectory() as tmp:
