@@ -1,4 +1,5 @@
 name: controlled-intake-probe
+# verification: current main intake
 on:
   workflow_dispatch:
     inputs:
