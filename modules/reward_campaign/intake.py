@@ -168,7 +168,7 @@ def download_drive(url: str, destination: str, folder: bool = False) -> tuple[st
         return "failed", str(exc)[:300]
 
 
-def download_direct(url: str, destination: str, safety_margin: int | None = None) -> tuple[str, str | None]:
+def download_direct(url: str, destination: str, safety_margin: int | None = None, max_bytes: int = 0) -> tuple[str, str | None]:
     try:
         guard, reason = _download_guard(destination, 0, safety_margin)
         if guard != "ready":
@@ -182,6 +182,9 @@ def download_direct(url: str, destination: str, safety_margin: int | None = None
         if part.stat().st_size <= 0:
             part.unlink(missing_ok=True)
             return "failed", "empty response"
+        if max_bytes > 0 and part.stat().st_size > max_bytes:
+            part.unlink(missing_ok=True)
+            return "deferred", "DEFERRED_DOWNLOAD_BYTE_BUDGET"
         part.replace(target)
         return "downloaded", None
     except (FetchError, OSError, Exception) as exc:
@@ -566,8 +569,11 @@ def main() -> None:
             deferred_assets += 1
             continue
         required_size = int(item.get("size") or 0)
-        if download_budget > 0 and required_size and downloaded_bytes + required_size > download_budget:
-            asset_entry.update({"status": "DEFERRED_RESOURCE_BUDGET", "error_code": "download_bytes_budget", "error_message": f"download byte budget {download_budget} exceeded"})
+        unknown_reserve = max(512 * 1024 * 1024, _env_int("CLIPPER_UNKNOWN_DOWNLOAD_RESERVE", DEFAULT_UNKNOWN_DOWNLOAD_RESERVE))
+        estimated_size = required_size if required_size > 0 else unknown_reserve
+        remaining_budget = max(0, download_budget - downloaded_bytes) if download_budget > 0 else 0
+        if download_budget > 0 and estimated_size > remaining_budget:
+            asset_entry.update({"status": "DEFERRED_RESOURCE_BUDGET", "error_code": "download_bytes_budget", "error_message": f"download requires reservation {estimated_size} bytes but only {remaining_budget} bytes remain"})
             source_entry["deferred_asset_count"] += 1
             deferred_assets += 1
             continue
@@ -590,10 +596,10 @@ def main() -> None:
             )
             actual_size = Path(destination).stat().st_size if dl_status == "downloaded" and Path(destination).exists() else 0
         elif kind == "drive_file":
-            dl_status, dl_error = download_file_oauth(str(item.get("url")), destination)
+            dl_status, dl_error = download_file_oauth(str(item.get("url")), destination, max_bytes=remaining_budget)
             actual_size = Path(destination).stat().st_size if dl_status == "downloaded" and Path(destination).exists() else 0
         else:
-            dl_status, dl_error = download_direct(str(item.get("url")), destination, safety_margin=disk_margin)
+            dl_status, dl_error = download_direct(str(item.get("url")), destination, safety_margin=disk_margin, max_bytes=remaining_budget)
             actual_size = Path(destination).stat().st_size if dl_status == "downloaded" and Path(destination).exists() else 0
 
         if dl_status == "downloaded" and Path(destination).exists() and Path(destination).stat().st_size > 0:
@@ -619,7 +625,8 @@ def main() -> None:
                 video_count += 1
             continue
         if dl_status == "deferred":
-            asset_entry.update({"status": "DEFERRED_DISK_BUDGET", "error_code": dl_error or "DEFERRED_DISK_BUDGET", "error_message": "runner disk budget is insufficient for this asset"})
+            budget_error = dl_error == "DEFERRED_DOWNLOAD_BYTE_BUDGET"
+            asset_entry.update({"status": "DEFERRED_RESOURCE_BUDGET" if budget_error else "DEFERRED_DISK_BUDGET", "error_code": dl_error or "DEFERRED_DISK_BUDGET", "error_message": "download byte budget is insufficient for this asset" if budget_error else "runner disk budget is insufficient for this asset"})
             source_entry["deferred_asset_count"] += 1
             deferred_assets += 1
             continue
