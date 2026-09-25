@@ -502,9 +502,13 @@ export default {
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "run" && request.method === "POST") {
         const jobId = parts[2];
-        const job = await env.DB.prepare("SELECT id,campaign_id,status FROM jobs WHERE id = ?").bind(jobId).first();
+        const job = await env.DB.prepare("SELECT id,campaign_id,status,run_id,dispatch_token,updated_at FROM jobs WHERE id = ?").bind(jobId).first();
         if (!job) return json({ error: "job_not_found" }, 404);
         if (job.status !== "queued") return json({ error: "job_not_queued", status: job.status }, 409);
+        const dispatchStaleSeconds = Math.max(60, Number(env.GITHUB_DISPATCH_STALE_SECONDS || 180));
+        const dispatchAgeSeconds = job.updated_at ? (Date.now() - Date.parse(job.updated_at)) / 1000 : 0;
+        const staleUndispatched = Boolean(job.dispatch_token && !job.run_id && Number.isFinite(dispatchAgeSeconds) && dispatchAgeSeconds >= dispatchStaleSeconds);
+        if (job.dispatch_token && !staleUndispatched) return json({ error: "job_already_dispatched", run_id: job.run_id || null }, 409);
         const githubToken = env.GITHUB_ACTIONS_TOKEN || env.GITHUB_TOKEN;
         if (!githubToken) {
           const message = "Manual dispatch belum tersedia: Pages Function tidak menerima GITHUB_ACTIONS_TOKEN pada runtime Production";
@@ -513,7 +517,7 @@ export default {
         }
 
         const dispatchToken = crypto.randomUUID();
-        const dispatchClaim = await env.DB.prepare("UPDATE jobs SET dispatch_token=?,active_run_token=?,message=?,error=NULL,updated_at=? WHERE id=? AND status='queued' AND dispatch_token IS NULL").bind(dispatchToken, dispatchToken, "Worker GitHub dipicu · dispatching", now(), jobId).run();
+        const dispatchClaim = await env.DB.prepare("UPDATE jobs SET dispatch_token=?,active_run_token=?,run_id=NULL,message=?,error=NULL,updated_at=? WHERE id=? AND status='queued' AND (dispatch_token IS NULL OR (run_id IS NULL AND updated_at < ?))").bind(dispatchToken, dispatchToken, staleUndispatched ? "Worker GitHub diulang · dispatch stale" : "Worker GitHub dipicu · dispatching", now(), jobId, new Date(Date.now() - dispatchStaleSeconds * 1000).toISOString()).run();
         if (!(dispatchClaim.meta?.changes > 0)) return json({ error: "job_already_dispatched" }, 409);
         const repo = env.GITHUB_REPOSITORY || "ibank31/scrapper-engine";
         const workflow = env.GITHUB_WORKFLOW_FILE || "clipper-worker.yml";
