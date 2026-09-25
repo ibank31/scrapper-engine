@@ -232,7 +232,9 @@ def main() -> None:
         seen_source_ids.add(source_id)
         candidate["source_asset_id"] = source_id
         unique_candidates.append(candidate)
-    # Download every discovered campaign source. The worker applies max_sources\n    # later only to transcription/rendering, so no campaign material is silently skipped at intake.\n    selected_candidates = unique_candidates
+    # Download every discovered campaign source. The worker applies max_sources
+    # later only to transcription/rendering, so no campaign material is silently skipped at intake.
+    selected_candidates = unique_candidates
 
     video_count = 0
     manual_lines = [
