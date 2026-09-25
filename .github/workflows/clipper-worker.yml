@@ -1,6 +1,9 @@
 name: clipper-worker
 
 on:
+  push:
+    branches:
+      - main
   # Clipping runs only when started manually from the homepage.
   workflow_dispatch:
     inputs:
