@@ -62,7 +62,7 @@ class IntakeBudgetTests(unittest.TestCase):
                 status, error = intake.download_youtube("https://youtu.be/test", destination)
             self.assertEqual(status, "failed")
             self.assertFalse(Path(destination + ".part").exists())
-            self.assertFalse((Path(tmp) / ".youtube-tmp").exists())
+            self.assertFalse(any((Path(tmp) / ".youtube-tmp").rglob("*")))
             self.assertIsNotNone(error)
 
 
