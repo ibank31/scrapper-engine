@@ -44,6 +44,23 @@ class IntakeBudgetTests(unittest.TestCase):
             self.assertFalse(Path(destination).exists())
             self.assertFalse(Path(destination + ".part").exists())
 
+
+    def test_youtube_download_rejects_output_above_budget(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = str(Path(tmp) / "asset.mp4")
+            def fake_run(command, check, text, timeout):
+                output_template = command[command.index("-o") + 1]
+                output_path = Path(output_template.replace("%(ext)s", "mp4"))
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(b"0123456789")
+                return None
+            with patch("modules.reward_campaign.intake._download_guard", return_value=("ready", None)), patch(
+                "modules.reward_campaign.intake.subprocess.run", side_effect=fake_run
+            ):
+                status, error = intake.download_youtube("https://youtu.be/test", destination, max_bytes=5)
+            self.assertEqual((status, error), ("deferred", "DEFERRED_DOWNLOAD_BYTE_BUDGET"))
+            self.assertFalse(Path(destination).exists())
+
     def test_youtube_download_is_atomic_and_removes_part(self):
         with tempfile.TemporaryDirectory() as tmp:
             destination = str(Path(tmp) / "asset.mp4")
