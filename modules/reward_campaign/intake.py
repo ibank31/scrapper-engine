@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from core.fetch import DEFAULT_HEADERS, FetchError, fetch_bytes
@@ -222,7 +222,7 @@ def _is_youtube_collection_url(url: str) -> bool:
         return False
     path = parsed.path.rstrip("/").lower()
     if path == "/playlist":
-        return bool(__import__("urllib.parse", fromlist=["parse_qs"]).parse_qs(parsed.query).get("list"))
+        return bool(parse_qs(parsed.query).get("list"))
     if path == "/watch":
         return False
     return bool(re.match(r"^/(?:@[^/]+|channel/[^/]+|user/[^/]+|c/[^/]+)(?:/(?:videos|shorts|streams|live|featured))?$", path, re.I))
