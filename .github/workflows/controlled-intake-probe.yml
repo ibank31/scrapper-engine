@@ -1,0 +1,62 @@
+name: controlled-intake-probe
+on:
+  workflow_dispatch:
+    inputs:
+      campaign_id:
+        description: "Campaign UUID to inspect"
+        required: true
+        type: string
+      sample_size:
+        description: "Explicit deep-analysis sample size after full intake"
+        required: false
+        default: "3"
+        type: string
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      CAMPAIGN_ID: ${{ inputs.campaign_id }}
+      CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
+      CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
+      GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+      GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+      GOOGLE_DRIVE_MAX_FILES: "0"
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - name: Checkout requested commit
+        uses: actions/checkout@v4
+        with:
+          ref: b0d189496a53cf346444d85a789bd2a06a7a7819
+      - name: Install FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Read campaign plan without mutation
+        run: |
+          set -euo pipefail
+          test -n "$CLIPPER_API_URL"
+          test -n "$CLIPPER_WORKER_TOKEN"
+          curl --fail-with-body -sS "$CLIPPER_API_URL/api/campaigns/$CAMPAIGN_ID" \
+            -H "x-worker-token: $CLIPPER_WORKER_TOKEN" \
+            -H "accept: application/json" > /tmp/campaign.json
+          jq -e '.campaign.plan' /tmp/campaign.json > /tmp/plan.json
+          jq -e --arg id "$CAMPAIGN_ID" '.campaign.id == $id' /tmp/campaign.json
+      - name: Run full intake then sampled deep analysis
+        env:
+          PROBE_OUT: ${{ github.workspace }}/controlled-e2e-report.json
+        run: |
+          set -o pipefail
+          python scripts/controlled_intake_probe.py --plan /tmp/plan.json --workspace "$RUNNER_TEMP/intake" --sample-size "${{ inputs.sample_size }}" --model small | tee controlled-e2e-metrics.json
+      - name: Upload source-level evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: controlled-intake-${{ inputs.campaign_id }}-${{ github.run_id }}
+          path: |
+            controlled-e2e-report.json
+            controlled-e2e-report.md
+            controlled-e2e-metrics.json
+          if-no-files-found: error
