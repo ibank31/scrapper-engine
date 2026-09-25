@@ -68,12 +68,7 @@ def classify_context(text: str, *, explicit_source: bool = False) -> str:
 
 
 def classify_url(url: str, context: str = "") -> str:
-    """Classify a URL using both its provider and the surrounding evidence.
-
-    A raw URL in a brief is not automatically footage. Direct media and Drive
-    file URLs are deterministic primary sources; hosted video pages remain
-    candidates until the normal access/download gates succeed.
-    """
+    """Classify a URL using both provider and surrounding evidence."""
     parsed = urlparse(str(url or ""))
     host = parsed.netloc.lower()
     suffix = PurePosixPath(parsed.path).suffix.lower()
@@ -162,6 +157,9 @@ def resolve_named_youtube_reference(
 
     This is deliberately metadata-only. The returned candidate is still a
     source candidate and can enter the normal access/download gates afterward.
+    For references explicitly described as "official", title similarity alone
+    is insufficient: when channel metadata is available, it must also match
+    the campaign/brand evidence.
     """
     query_parts = [str(value or "").strip(), str(brand or "").strip(), str(campaign_title or "").strip()]
     query = " ".join(part for part in query_parts if part)
@@ -185,31 +183,45 @@ def resolve_named_youtube_reference(
 
     entries = [item for item in (payload.get("entries") or []) if isinstance(item, dict)]
     candidates = []
+    official_reference = "official" in str(value).lower()
+    campaign_evidence = " ".join(part for part in (str(brand), str(campaign_title), str(value)) if part).strip()
     for entry in entries:
         title = str(entry.get("title") or "").strip()
         url = _candidate_url(entry)
         if not title or not url:
             continue
+        channel = str(entry.get("channel") or entry.get("uploader") or "").strip()
         similarity = _similarity(value, title)
-        official_hint = "official" in value.lower() or "official" in title.lower()
+        channel_similarity = _similarity(campaign_evidence, channel) if channel else 0.0
+        official_hint = "official" in title.lower() or "official" in channel.lower()
         candidates.append({
             "url": url,
             "title": title,
-            "channel": entry.get("channel") or entry.get("uploader"),
+            "channel": channel or None,
             "duration": entry.get("duration"),
             "view_count": entry.get("view_count"),
             "similarity": similarity,
+            "channel_similarity": channel_similarity,
             "official_hint": official_hint,
         })
 
-    candidates.sort(key=lambda item: (-float(item["similarity"]), str(item["title"]).lower()))
+    candidates.sort(
+        key=lambda item: (
+            -float(item["similarity"]),
+            -float(item["channel_similarity"]),
+            str(item["title"]).lower(),
+        )
+    )
     best = candidates[0] if candidates else None
     if not best:
         return {"status": "unresolved", "reason": "no_youtube_match", "query": query, "candidates": []}
 
     verified = float(best["similarity"]) >= float(min_similarity)
-    if "official" in value.lower() and not best.get("official_hint"):
-        verified = False
+    if official_reference:
+        if not best.get("official_hint"):
+            verified = False
+        if not best.get("channel") or float(best.get("channel_similarity") or 0) < 0.55:
+            verified = False
     if not verified:
         return {
             "status": "unresolved",
