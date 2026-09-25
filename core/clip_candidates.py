@@ -166,14 +166,84 @@ def segment_transcript(transcript: dict[str, Any], max_unit_seconds: float | Non
     return units
 
 
+def _visual_fallback_candidates(
+    transcript: dict[str, Any],
+    min_seconds: float,
+    max_seconds: float,
+    limit: int,
+    source_path: str,
+    plan: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Create bounded visual candidates when speech is absent or unusable.
+
+    Speech is not a universal requirement for clipping. Music, sports, gaming,
+    reaction and montage campaigns can still have valid visual moments. This
+    fallback is disabled when subtitles are explicitly required.
+    """
+    production = (plan or {}).get("production") or {}
+    if production.get("subtitle_required") is True:
+        return []
+    quality = source_quality_preflight(source_path, transcript)
+    total_duration = float(quality.get("duration_seconds") or 0)
+    if total_duration < max(0.75, float(min_seconds)):
+        return []
+    upper = min(float(max_seconds), total_duration)
+    lower = max(0.75, float(min_seconds))
+    if upper < lower:
+        return []
+    target = min(upper, max(lower, 30.0))
+    if target < lower:
+        target = upper
+    if target <= 0:
+        return []
+    max_start = max(0.0, total_duration - target)
+    starts = [0.0, max_start * 0.33, max_start * 0.66, max_start]
+    candidates: list[dict[str, Any]] = []
+    seen_starts: set[float] = set()
+    for start in starts:
+        start = round(max(0.0, min(max_start, float(start))), 3)
+        if start in seen_starts:
+            continue
+        seen_starts.add(start)
+        end = round(start + target, 3)
+        item = {
+            "start": start,
+            "end": end,
+            "duration": round(end - start, 3),
+            "text": "",
+            "score": 0.25,
+            "reasons": ["visual fallback: transcript tidak menyediakan jendela bicara lengkap"],
+            "source_segment_start": None,
+            "source_segment_end": None,
+        }
+        item["source_quality"] = quality
+        item["media_signals"] = candidate_signals(source_path, item, transcript)
+        adjustment, signal_reasons = media_score_adjustment(item["media_signals"])
+        item["media_score_adjustment"] = adjustment
+        item["score"] = round(max(0.0, min(1.0, item["score"] + adjustment)), 4)
+        item["reasons"].extend(signal_reasons)
+        item = enrich_candidate(item, plan)
+        item = annotate_candidate(
+            item,
+            source_path,
+            quality.get("duplicate_hash"),
+            transcript,
+            plan,
+        )
+        item["reasons"].extend(item.get("production_quality_reasons") or [])
+        candidates.append(item)
+    candidates.sort(key=lambda item: (-float(item.get("score") or 0), float(item.get("start") or 0)))
+    for rank, item in enumerate(candidates[:max(1, int(limit))], 1):
+        item["rank"] = rank
+    return candidates[:max(1, int(limit))]
+
+
 def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max_seconds: float = 60.0, limit: int = 10, source_path: str | None = None, max_gap_seconds: float = 3.0, plan: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     # Keep transcript units bounded by the active editorial band. This matters
     # for Whisper output that contains long punctuation-free runs: without a
     # bound, one giant unit can exceed every campaign duration band and produce
     # zero candidates even though usable speech exists inside it.
     units = segment_transcript(transcript, max_unit_seconds=max_seconds)
-    if not units:
-        return []
     candidates: list[dict[str, Any]] = []
     source_quality = source_quality_preflight(source_path, transcript) if source_path else None
     for start_index, first in enumerate(units):
@@ -237,7 +307,11 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
             selected.append(candidate)
         if len(selected) >= limit:
             break
-    return selected
+    if selected:
+        return selected
+    if source_path and plan is not None:
+        return _visual_fallback_candidates(transcript, min_seconds, max_seconds, limit, source_path, plan)
+    return []
 
 
 def _candidate_tokens(candidate: dict[str, Any]) -> set[str]:
