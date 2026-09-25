@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from core.fetch import DEFAULT_HEADERS, FetchError, fetch_bytes
+from core.fetch import DEFAULT_HEADERS, FetchError, download_stream, fetch_bytes
 from core.google_drive import (
     configured as google_drive_configured,
     discover_folder_oauth,
@@ -180,21 +180,30 @@ def download_direct(url: str, destination: str, safety_margin: int | None = None
         if guard != "ready":
             return "deferred", reason
         target = Path(destination)
-        part = Path(str(target) + ".part")
         target.unlink(missing_ok=True)
+        part = Path(str(target) + ".part")
         part.unlink(missing_ok=True)
-        data = fetch_bytes(url, headers=DEFAULT_HEADERS, retries=3, timeout=180, min_bytes=1)
-        part.write_bytes(data)
-        if part.stat().st_size <= 0:
-            part.unlink(missing_ok=True)
+        download_stream(
+            url,
+            str(target),
+            headers=DEFAULT_HEADERS,
+            retries=3,
+            timeout=180,
+            max_bytes=max_bytes,
+        )
+        if not target.exists() or target.stat().st_size <= 0:
+            target.unlink(missing_ok=True)
             return "failed", "empty response"
-        if max_bytes > 0 and part.stat().st_size > max_bytes:
-            part.unlink(missing_ok=True)
-            return "deferred", "DEFERRED_DOWNLOAD_BYTE_BUDGET"
-        part.replace(target)
         return "downloaded", None
-    except (FetchError, OSError, Exception) as exc:
+    except FetchError as exc:
         Path(str(destination) + ".part").unlink(missing_ok=True)
+        Path(destination).unlink(missing_ok=True)
+        if "byte budget" in str(exc).lower():
+            return "deferred", "DEFERRED_DOWNLOAD_BYTE_BUDGET"
+        return "failed", str(exc)[:300]
+    except OSError as exc:
+        Path(str(destination) + ".part").unlink(missing_ok=True)
+        Path(destination).unlink(missing_ok=True)
         return "failed", str(exc)[:300]
 
 

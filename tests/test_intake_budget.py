@@ -60,9 +60,11 @@ class IntakeBudgetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             destination = str(Path(tmp) / "asset.mp4")
             with patch("modules.reward_campaign.intake._download_guard", return_value=("ready", None)), patch(
-                "modules.reward_campaign.intake.fetch_bytes", return_value=b"0123456789"
-            ):
+                "modules.reward_campaign.intake.download_stream",
+                side_effect=intake.FetchError("response melebihi byte budget (5 B)"),
+            ) as download_mock:
                 status, error = intake.download_direct("https://example.test/video.mp4", destination, max_bytes=5)
+            download_mock.assert_called_once()
             self.assertEqual((status, error), ("deferred", "DEFERRED_DOWNLOAD_BYTE_BUDGET"))
             self.assertFalse(Path(destination).exists())
             self.assertFalse(Path(destination + ".part").exists())
