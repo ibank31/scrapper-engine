@@ -30,11 +30,17 @@ jobs:
       - name: Checkout requested commit
         uses: actions/checkout@v4
         with:
-          ref: b0d189496a53cf346444d85a789bd2a06a7a7819
+          ref: main
       - name: Install FFmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Install dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Pin engine under test
+        run: |
+          set -euo pipefail
+          cp scripts/controlled_intake_probe.py /tmp/controlled_intake_probe.py
+          git checkout --detach b0d189496a53cf346444d85a789bd2a06a7a7819
+          test "$(git rev-parse HEAD)" = "b0d189496a53cf346444d85a789bd2a06a7a7819"
       - name: Read campaign plan without mutation
         run: |
           set -euo pipefail
@@ -50,7 +56,7 @@ jobs:
           PROBE_OUT: ${{ github.workspace }}/controlled-e2e-report.json
         run: |
           set -o pipefail
-          python scripts/controlled_intake_probe.py --plan /tmp/plan.json --workspace "$RUNNER_TEMP/intake" --sample-size "${{ inputs.sample_size }}" --model small | tee controlled-e2e-metrics.json
+          python /tmp/controlled_intake_probe.py --plan /tmp/plan.json --workspace "$RUNNER_TEMP/intake" --sample-size "${{ inputs.sample_size }}" --model small | tee controlled-e2e-metrics.json
       - name: Upload source-level evidence
         uses: actions/upload-artifact@v4
         with:
