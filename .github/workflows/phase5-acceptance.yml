@@ -6,6 +6,7 @@ on:
     paths:
       - 'core/**'
       - 'modules/**'
+      - 'worker/**'
       - 'scripts/run_known_good_fixture.py'
       - 'scripts/run_staging_failure_matrix.py'
       - 'tests/test_known_good_fixture.py'
