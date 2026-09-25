@@ -1,5 +1,5 @@
 requests>=2.31
 faster-whisper>=1.1
-yt-dlp>=2025.1
+yt-dlp[default]>=2026.8.19
 gdown>=5.2
 opencv-python-headless>=4.10,<5
