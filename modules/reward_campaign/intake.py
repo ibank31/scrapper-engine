@@ -215,6 +215,56 @@ def _source_type(url: str, host: str | None = None) -> str:
     return "direct_media"
 
 
+def _is_youtube_collection_url(url: str) -> bool:
+    """Return True for YouTube channel/tab/playlist URLs that must be expanded before download."""
+    parsed = urlparse(str(url or ""))
+    if parsed.netloc.lower() not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+        return False
+    path = parsed.path.rstrip("/").lower()
+    if path == "/playlist":
+        return bool(__import__("urllib.parse", fromlist=["parse_qs"]).parse_qs(parsed.query).get("list"))
+    if path == "/watch":
+        return False
+    return bool(re.match(r"^/(?:@[^/]+|channel/[^/]+|user/[^/]+|c/[^/]+)(?:/(?:videos|shorts|streams|live|featured))?$", path, re.I))
+
+
+def _discover_youtube_entries(url: str, limit: int = 24) -> list[dict]:
+    """Discover recent individual videos from a channel/playlist without downloading media."""
+    command = [
+        sys.executable, "-m", "yt_dlp", "--flat-playlist", "--dump-single-json", "--skip-download",
+        "--no-warnings", "--playlist-end", str(max(1, int(limit))),
+        "--extractor-args", "youtubetab:approximate_date", url,
+    ]
+    completed = subprocess.run(command, check=False, text=True, capture_output=True, timeout=180)
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or f"yt-dlp exit {completed.returncode}").strip()
+        raise RuntimeError(detail[:500])
+    try:
+        payload = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"yt-dlp metadata bukan JSON: {exc}") from exc
+    entries = payload.get("entries") or []
+    result = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        video_id = str(entry.get("id") or "").strip()
+        video_url = str(entry.get("webpage_url") or entry.get("original_url") or "").strip()
+        if not video_url and video_id:
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+        if not video_url or "youtube.com/watch" not in video_url:
+            continue
+        result.append({
+            "url": video_url,
+            "id": video_id,
+            "name": str(entry.get("title") or video_id or video_url),
+            "duration": entry.get("duration"),
+            "upload_date": entry.get("upload_date"),
+            "view_count": entry.get("view_count"),
+        })
+    return result
+
+
 def _record(
     path: Path,
     workspace: str,
@@ -325,6 +375,28 @@ def main() -> None:
     for url, metadata in source_metadata.items():
         if url in media_candidates:
             media_candidates[url]["metadata"] = metadata
+
+    # YouTube channel/playlist references are source collections, not downloadable videos.
+    # Expand them into individual video URLs during metadata-only discovery.
+    expanded_candidates: dict[str, dict] = {}
+    for url, candidate in list(media_candidates.items()):
+        if not _is_youtube_collection_url(url):
+            expanded_candidates[url] = candidate
+            continue
+        try:
+            entries = _discover_youtube_entries(url, _env_int("CLIPPER_YOUTUBE_DISCOVERY_LIMIT", 24))
+        except Exception as exc:
+            candidate["collection_error"] = str(exc)[:500]
+            expanded_candidates[url] = candidate
+            continue
+        for entry in entries:
+            video_url = entry["url"]
+            item = dict(candidate)
+            item["url"] = video_url
+            item["name"] = entry.get("name")
+            item["metadata"] = {**(candidate.get("metadata") or {}), "youtube_parent_source": url, "youtube_entry": entry}
+            expanded_candidates.setdefault(video_url, item)
+    media_candidates = expanded_candidates
 
     ordered_candidates = sorted(
         media_candidates.values(),
@@ -524,7 +596,7 @@ def main() -> None:
             asset_manifest.append(asset_entry)
             source_entry["asset_count"] = 1
             source_entry["media_asset_count"] = 1 if is_video else 0
-            if is_video:
+            if is_video and not _is_youtube_collection_url(url):
                 download_queue.append({
                     "kind": "youtube" if is_youtube else "drive_file" if is_drive else "direct",
                     "source_id": source_id,
