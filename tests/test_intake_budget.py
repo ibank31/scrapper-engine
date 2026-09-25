@@ -9,6 +9,29 @@ from modules.reward_campaign import intake
 
 
 class IntakeBudgetTests(unittest.TestCase):
+    def test_youtube_collection_detection(self):
+        self.assertTrue(intake._is_youtube_collection_url("https://www.youtube.com/@MichaelSartain"))
+        self.assertTrue(intake._is_youtube_collection_url("https://www.youtube.com/@MichaelSartain/videos"))
+        self.assertTrue(intake._is_youtube_collection_url("https://www.youtube.com/playlist?list=PL123"))
+        self.assertFalse(intake._is_youtube_collection_url("https://www.youtube.com/watch?v=abc123"))
+        self.assertFalse(intake._is_youtube_collection_url("https://youtu.be/abc123"))
+
+    @patch("modules.reward_campaign.intake.subprocess.run")
+    def test_youtube_collection_discovery_expands_video_entries(self, run):
+        run.return_value = subprocess.CompletedProcess(
+            args=["yt-dlp"],
+            returncode=0,
+            stdout='{"entries":[{"id":"abc123","title":"Episode 1","duration":120},{"id":"def456","title":"Episode 2"}]}',
+            stderr="",
+        )
+        entries = intake._discover_youtube_entries("https://www.youtube.com/@MichaelSartain", limit=2)
+        self.assertEqual([item["url"] for item in entries], [
+            "https://www.youtube.com/watch?v=abc123",
+            "https://www.youtube.com/watch?v=def456",
+        ])
+        run.assert_called_once()
+        self.assertIn("--flat-playlist", run.call_args.args[0])
+
     def test_metadata_priority_prefers_high_quality_master(self):
         high = {
             "id": "high",
