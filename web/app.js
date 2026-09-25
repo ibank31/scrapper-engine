@@ -6,6 +6,18 @@ const operationNames = { pending: "Menunggu dikirim", attempting: "Sedang mengir
 const tierNames = { tier_1: "Audiens utama", tier_2: "Audiens cadangan", unknown: "Audiens belum terbaca" };
 const subtitleNames = { burned_in: "Subtitle tertanam di video", native_caption_file: "File subtitle siap", none: "Tanpa subtitle", manual_required: "Perlu ditambahkan manual" };
 const soundNames = { verified: "Audio resmi terverifikasi", manual_required: "Audio resmi ditambahkan saat posting", unsupported: "Audio belum diverifikasi", unknown: "Audio belum diketahui" };
+const stageNames = {
+  claim: "Klaim job",
+  campaign_rules: "Aturan campaign",
+  asset_preflight: "Bahan & akses",
+  transcription: "Transkripsi",
+  selector: "Cari potongan",
+  semantic_ranking: "Ranking AI",
+  render: "Render video",
+  validation: "Validasi",
+  r2_upload: "Simpan preview",
+  manual_review: "Siap ditinjau"
+};
 function friendlyOperation(status) { return operationNames[String(status || "").toLowerCase()] || "Status pengiriman: " + String(status || "belum diketahui"); }
 function friendlyValidation(status) { return ({ pass: "Pemeriksaan dasar lolos", needs_review: "Perlu diperiksa manusia", fail: "Ada syarat yang belum lolos" }[String(status || "").toLowerCase()] || "Menunggu pemeriksaan"); }
 function friendlyError(value) {
@@ -181,6 +193,42 @@ function formatAge(iso) {
   if (minutes < 60) return minutes + "m " + (seconds % 60) + "s lalu";
   return Math.floor(minutes / 60) + "j " + (minutes % 60) + "m lalu";
 }
+function stageStatusClass(status) {
+  const value = String(status || "").toLowerCase();
+  if (value === "completed" || value === "selected") return "done";
+  if (value === "started" || value === "running" || value === "attempting") return "active";
+  return "blocked";
+}
+function renderStageTrack(job) {
+  const rows = Array.isArray(job.stages) ? job.stages : [];
+  if (!rows.length) return "";
+  const canonical = ["campaign_rules","asset_preflight","transcription","semantic_ranking","render","validation","r2_upload","manual_review"];
+  const latest = new Map();
+  for (const row of rows) latest.set(String(row.stage || ""), row);
+  const relevant = canonical.map((name) => ({ stage: name, row: latest.get(name) })).filter((item) => item.row);
+  if (!relevant.length) return "";
+  return '<div class="phase-track">' + relevant.map((item, index) => {
+    const row = item.row;
+    const cls = stageStatusClass(row.status);
+    const count = index + 1;
+    const metric = parseObject(row.metrics_json, row.metrics || {});
+    const hasAlert = row.error_code || row.status === "blocked" || row.status === "item_failed";
+    return (index ? '<span class="line ' + (cls === "done" ? "done" : "") + '"></span>' : "") +
+      '<span class="' + cls + (hasAlert ? ' alert' : '') + '" title="' + escapeHtml(stageNames[item.stage] || item.stage) + '">' + count + '</span>';
+  }).join("") + '</div>' +
+  '<div class="phase-labels">' + relevant.map((item) => '<span>' + escapeHtml(stageNames[item.stage] || item.stage) + '</span>').join("") + '</div>';
+}
+
+async function loadJobStages(job) {
+  if (cfg.DEMO_MODE || !job?.id || String(job.id).startsWith("local-")) return;
+  try {
+    const response = await api("/api/jobs/" + encodeURIComponent(job.id) + "/stages");
+    job.stages = response.stages || [];
+  } catch (_) {
+    job.stages = job.stages || [];
+  }
+}
+
 function jobPhase(job) {
   const p = Number(job.progress || 0);
   const msg = String(job.message || "").toLowerCase();
@@ -230,6 +278,7 @@ function renderJobs() {
         '<div class="job-head"><div class="job-title-wrap"><strong>' + escapeHtml(j.campaign_title || j.campaign_id) + '</strong><span class="job-phase">' + escapeHtml(phase.label) + '</span></div><span class="status ' + escapeHtml(j.status) + '">' + statusText(j.status) + '</span></div>' +
         '<p class="job-message"><b>' + escapeHtml(phase.detail || j.message || "Menunggu pembaruan…") + '</b>' + (j.error ? " · " + escapeHtml(friendlyError(j.error)) : "") + '</p>' +
         '<div class="job-output-contract">' + escapeHtml(outputContractSummary(j)) + '</div>' +
+        renderStageTrack(j) +
         '<div class="job-progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><span class="progress-number">' + progress + '%</span></div>' +
         '<div class="job-meta"><span>Pembaruan ' + formatAge(j.updated_at) + '</span>' + (stale ? '<span class="stale-warning">⚠ Belum ada pembaruan cukup lama</span>' : "") + '</div>' +
         ((j.status === "queued" || j.status === "processing") ? '<button class="stop-button" data-stop-id="' + escapeHtml(j.id) + '" type="button">Stop proses</button>' : "") +
@@ -246,6 +295,8 @@ async function loadJobs() {
     const response = await api("/api/jobs");
     state.jobs = response.jobs || [];
     state.reviews = [];
+    const stageTargets = state.jobs.filter((j) => ["queued", "processing", "review", "blocked", "error"].includes(j.status)).slice(0, 8);
+    await Promise.all(stageTargets.map((job) => loadJobStages(job)));
     renderJobs();
     for (const job of state.jobs.filter((j) => j.status === "review")) await loadPreviews(job);
   } catch (error) {
@@ -337,10 +388,16 @@ async function reconcileOperation(operationKey) {
     await loadJobs(); showToast("Status pengiriman sudah dicek ulang.");
   } catch (error) { showToast("Belum bisa mengecek status: " + friendlyError(error.message)); }
 }
+async function refreshVisibleJobStages() {
+  const visible = state.jobs.filter((j) => ["queued", "processing", "review", "blocked", "error"].includes(j.status)).slice(0, 8);
+  await Promise.all(visible.map((job) => loadJobStages(job)));
+}
+
 function startPolling() {
   if (cfg.DEMO_MODE || state.pollTimer) return;
   state.pollTimer = setInterval(async () => {
     await loadJobs();
+    await refreshVisibleJobStages();
     if (!state.jobs.some((j) => j.status === "queued" || j.status === "processing")) {
       clearInterval(state.pollTimer);
       state.pollTimer = null;
