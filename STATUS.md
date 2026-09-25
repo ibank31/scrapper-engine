@@ -104,3 +104,10 @@ The production smoke test for job `0ca3b531-a506-4e51-80f2-ad2e92180641` ran in 
 The job is now `review` at 100% with two `pending_review` previews. R2 contains the two MP4 artifacts, two review MP4s, two thumbnails, and `jobs/0ca3b531-a506-4e51-80f2-ad2e92180641/manifest.json`; D1 contains the corresponding two review records. Auto-publish remains disabled. Both previews are marked `needs_review` because campaign relevance is uncertain and human verification of third-party watermark/relevance remains required.
 
 Operational note: the D1 job row retains the historical `run_id` `35863583776` because the current update uses `COALESCE`; the stage-event rows and `claimed_by` correctly identify the successful run `35888149181`. This metadata issue does not invalidate the completed smoke test, but should be corrected in a future telemetry-focused change rather than by changing campaign behavior.
+
+
+## 25 September 2026 — source-adapter and non-speech hardening
+
+The production pipeline exposed multiple source classes rather than a single campaign-specific failure. Three generic fixes are now on main: YouTube channel/playlist references are expanded to individual video URLs during metadata-only discovery; a campaign with no accessible video source is recorded as an auditable blocked job instead of crashing the worker with MANUAL_ASSETS.md; and campaigns where speech is optional now have a bounded visual-candidate fallback so music, sports, gaming, reaction, and montage sources are not discarded solely because Whisper produced no usable candidate window.
+
+Production Pages deployment for commit aec5f6660180fe0372df0fb6a75fa8a4c22f9eab completed successfully. This deployment contains the source-adapter and visual-fallback changes. The changes have not yet been validated by a fresh production clipping job after deployment, so historical job cards must not be interpreted as results of the new code.
