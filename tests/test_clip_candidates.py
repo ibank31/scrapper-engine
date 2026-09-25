@@ -94,6 +94,27 @@ class ClipCandidatesTest(unittest.TestCase):
         self.assertGreaterEqual(len(cases), 4)
         self.assertTrue(all(case.get("candidate", {}).get("text") for case in cases))
 
+    def test_visual_fallback_handles_non_speech_source_when_subtitles_are_optional(self):
+        transcript = {"segments": []}
+        with tempfile.NamedTemporaryFile() as source, mock.patch(
+            "core.clip_candidates.source_quality_preflight",
+            return_value={"available": True, "duration_seconds": 90, "duplicate_hash": "abc"},
+        ), mock.patch(
+            "core.clip_candidates.candidate_signals",
+            return_value={"available": True, "scene_change": {"available": True, "scene_change_score": 0.8}},
+        ):
+            candidates = select_candidates(
+                transcript,
+                min_seconds=10,
+                max_seconds=45,
+                limit=2,
+                source_path=source.name,
+                plan={"production": {"subtitle_required": False}},
+            )
+        self.assertEqual(len(candidates), 2)
+        self.assertTrue(all(10 <= item["duration"] <= 45 for item in candidates))
+        self.assertIn("visual fallback", candidates[0]["reasons"][0])
+
     def test_media_adjustment_does_not_change_candidate_interval(self):
         transcript = {"segments": [
             {"start": 0, "end": 10, "text": "Here is the biggest business problem."},
