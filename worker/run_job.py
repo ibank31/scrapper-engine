@@ -29,6 +29,7 @@ from core.output_selection import select_required_output_pair
 from core.output_gate import evaluate_output_pair
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
+from core.semantic_ranker import rank_global_candidates
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 MAX_REVIEW_CANDIDATES = 2
@@ -367,60 +368,72 @@ def main() -> None:
             transcript_payload = json.loads((transcript_dir / "transcript.json").read_text(encoding="utf-8"))
             transcript_duration = max((float(segment.get("end", 0)) for segment in transcript_payload.get("segments", [])), default=0.0)
             bands = duration_bands(plan, transcript_duration)
-            band_candidates: list[dict] = []
-            band_diagnostics: list[dict] = []
-            for band_index, (adaptive_min, adaptive_max) in enumerate(bands, 1):
-                band_path = transcript_dir / f"candidates-band-{band_index:02d}.json"
-                run([
-                    sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
-                    "--min-seconds", f"{adaptive_min:.3f}", "--max-seconds", f"{adaptive_max:.3f}", "--limit", "10",
-                    "--source", str(source), "--plan", plan_path, "--out", str(band_path),
-                ])
-                band_payload = json.loads(band_path.read_text(encoding="utf-8"))
-                band_candidates.extend(band_payload.get("candidates") or [])
-                band_diagnostics.append({"min_seconds": adaptive_min, "max_seconds": adaptive_max, "candidate_count": len(band_payload.get("candidates") or [])})
-            unique_candidates: dict[tuple[float, float], dict] = {}
-            for candidate in band_candidates:
-                key = (round(float(candidate.get("start") or 0), 3), round(float(candidate.get("end") or 0), 3))
-                previous = unique_candidates.get(key)
-                if previous is None or float(candidate.get("score") or 0) > float(previous.get("score") or 0):
-                    unique_candidates[key] = candidate
-            band_candidates = sorted(unique_candidates.values(), key=lambda item: (-float(item.get("score") or 0), float(item.get("start") or 0)))
-            for candidate_rank, candidate in enumerate(band_candidates, 1):
-                candidate["rank"] = candidate_rank
-            local_candidates = {
-                "schema_version": 2,
-                "transcript": transcript_payload.get("input"),
-                "selection": {"duration_bands": band_diagnostics, "candidate_count": len(band_candidates)},
-                "candidates": band_candidates,
-            }
-            (transcript_dir / "candidates.json").write_text(json.dumps(local_candidates, ensure_ascii=False, indent=2), encoding="utf-8")
-            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "selector", "completed", {"source_index": source_index, "duration_bands": band_diagnostics, "candidate_count": len(band_candidates)})
-            if local_candidates.get("candidates"):
-                run([
-                    sys.executable, "run.py", "semantic_rank", str(transcript_dir / "candidates.json"),
-                    "--plan", plan_path,
-                ])
-                local_candidates = json.loads((transcript_dir / "candidates.json").read_text(encoding="utf-8"))
-            else:
-                local_candidates["semantic_runtime"] = {"schema_version": 1, "engine": "skipped", "fallback_used": False, "reason": "no complete candidate in any editorial duration band"}
-                (transcript_dir / "candidates.json").write_text(json.dumps(local_candidates, ensure_ascii=False, indent=2), encoding="utf-8")
+            band_path = transcript_dir / "candidates.json"
+            run([
+                sys.executable, "run.py", "select_clips", str(transcript_dir / "transcript.json"),
+                "--bands-json", json.dumps([[round(float(lo), 3), round(float(hi), 3)] for lo, hi in bands]),
+                "--limit", "10", "--media-top-n", os.environ.get("CLIPPER_MEDIA_TOP_N", "24"),
+                "--source", str(source), "--plan", plan_path, "--out", str(band_path),
+            ])
+            local_candidates = json.loads(band_path.read_text(encoding="utf-8"))
+            selection = local_candidates.get("selection") or {}
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "selector", "completed", {
+                "source_index": source_index,
+                "duration_bands": selection.get("diagnostics", {}).get("bands") or [],
+                "candidate_count": len(local_candidates.get("candidates") or []),
+                "media_analyzed": selection.get("diagnostics", {}).get("media_analyzed", 0),
+            })
             for local_item in local_candidates.get("candidates", []):
                 candidate_stats["raw_candidates"] += 1
-                semantic = local_item.get("semantic") or {}
-                if semantic.get("decision") == "reject":
-                    candidate_stats["semantic_rejects"] += 1
-                # Qwen is advisory. Only the deterministic local hard-policy
-                # gate may discard a candidate before human review.
-                if semantic.get("decision") == "reject" and semantic.get("hard_policy_gate") is True:
-                    candidate_stats["hard_policy_rejects"] += 1
-                    continue
                 relevance = check_candidate(plan, local_item)
                 if relevance.get("status") == "blocked":
                     candidate_stats["relevance_blocks"] += 1
                     continue
                 all_candidates.append({"candidate": dict(local_item), "source": str(source), "transcript": str(transcript_dir / "transcript.json"), "relevance": relevance})
-            update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)}")
+            update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)} · kandidat lokal selesai")            update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)}")
+        # Global semantic pass: deterministic candidate generation happens per source,
+        # but the semantic model is loaded once and sees only the strongest global shortlist.
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "semantic_ranking", "started", {
+            "candidate_count": len(all_candidates),
+            "shortlist_limit": int(os.environ.get("CLIPPER_SEMANTIC_TOP_N", "15")),
+        })
+        if all_candidates:
+            semantic_pool = [dict(item["candidate"], source=item["source"], _wrapper_index=index) for index, item in enumerate(all_candidates)]
+            ranked_pool, semantic_runtime = rank_global_candidates(
+                semantic_pool, plan, int(os.environ.get("CLIPPER_SEMANTIC_TOP_N", "15"))
+            )
+            kept_candidates = []
+            for ranked_item in ranked_pool:
+                wrapper_index = int(ranked_item.get("_wrapper_index", -1))
+                if wrapper_index < 0 or wrapper_index >= len(all_candidates):
+                    continue
+                wrapper = all_candidates[wrapper_index]
+                candidate = dict(ranked_item)
+                candidate.pop("_wrapper_index", None)
+                semantic = candidate.get("semantic") or {}
+                if semantic.get("decision") == "reject":
+                    candidate_stats["semantic_rejects"] += 1
+                if semantic.get("decision") == "reject" and semantic.get("hard_policy_gate") is True:
+                    candidate_stats["hard_policy_rejects"] += 1
+                    continue
+                wrapper["candidate"] = candidate
+                kept_candidates.append(wrapper)
+            all_candidates = kept_candidates
+            (workspace / "semantic-ranking.json").write_text(json.dumps({
+                "schema_version": 1,
+                "runtime": semantic_runtime,
+                "candidate_count": len(ranked_pool),
+                "kept_count": len(all_candidates),
+            }, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+        else:
+            semantic_runtime = {"schema_version": 1, "engine": "skipped", "fallback_used": False, "reason": "no candidates"}
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "semantic_ranking", "completed", {
+            "candidate_count": candidate_stats["raw_candidates"],
+            "kept_count": len(all_candidates),
+            "semantic_rejects": candidate_stats["semantic_rejects"],
+            "hard_policy_rejects": candidate_stats["hard_policy_rejects"],
+            "runtime": semantic_runtime,
+        })
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "transcription", "completed", candidate_stats)
         if not all_candidates:
             update(
