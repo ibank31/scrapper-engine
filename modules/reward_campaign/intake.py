@@ -327,7 +327,6 @@ def main() -> None:
         ),
         reverse=True,
     )
-    max_sources = max(1, args.max_video_sources)
     unique_candidates = []
     seen_source_ids = set()
     for candidate in ordered_candidates:
