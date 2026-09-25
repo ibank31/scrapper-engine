@@ -136,6 +136,10 @@ def download_youtube(url: str, destination: str, required_size: int = 0, safety_
         subprocess.run(command, check=True, text=True, timeout=900)
         rendered = temp_dir / "source.mp4"
         if rendered.exists() and rendered.stat().st_size > 0:
+            if max_bytes > 0 and rendered.stat().st_size > max_bytes:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                destination_path.unlink(missing_ok=True)
+                return "deferred", "DEFERRED_DOWNLOAD_BYTE_BUDGET"
             rendered.replace(destination_path)
             shutil.rmtree(temp_dir, ignore_errors=True)
             return "downloaded", None
