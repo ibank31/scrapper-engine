@@ -61,3 +61,5 @@ class IntakeBudgetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+# Verification branch: execute through the repository tests workflow.
