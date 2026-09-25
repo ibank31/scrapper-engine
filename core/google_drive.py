@@ -177,7 +177,7 @@ class GoogleDriveClient:
                 files.append(item)
         return files
 
-    def download_file(self, file_id: str, destination: str, chunk_size: int = 1024 * 1024) -> int:
+    def download_file(self, file_id: str, destination: str, chunk_size: int = 1024 * 1024, max_bytes: int = 0) -> int:
         response = self._request("GET", f"/files/{file_id}", params={"alt": "media", "supportsAllDrives": "true"}, stream=True)
         target = Path(destination)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -188,8 +188,11 @@ class GoogleDriveClient:
             with temporary.open("wb") as output:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if chunk:
+                        next_total = total + len(chunk)
+                        if max_bytes > 0 and next_total > max_bytes:
+                            raise GoogleDriveError(f"Download Drive melebihi byte budget ({max_bytes} bytes)")
                         output.write(chunk)
-                        total += len(chunk)
+                        total = next_total
             if total <= 0:
                 raise GoogleDriveError(f"File Drive {file_id} kosong")
             temporary.replace(target)
@@ -273,7 +276,7 @@ def download_asset_oauth(file_id: str, destination: str, required_size: int = 0,
         return "failed", f"Google Drive integration error: {str(exc)[:240]}", 0
 
 
-def download_file_oauth(file_url: str, destination: str) -> tuple[str, str | None]:
+def download_file_oauth(file_url: str, destination: str, max_bytes: int = 0) -> tuple[str, str | None]:
     file_id = extract_drive_id(file_url)
     if not file_id:
         return "failed", "file ID Google Drive tidak ditemukan"
@@ -299,7 +302,7 @@ def download_file_oauth(file_url: str, destination: str) -> tuple[str, str | Non
         status, reason = _disk_budget_status(destination, int(metadata.get("size") or 0), int(os.getenv("CLIPPER_DISK_SAFETY_MARGIN", str(1024 * 1024 * 1024))))
         if status != "ready":
             return "deferred", reason
-        client.download_file(file_id, destination)
+        client.download_file(file_id, destination, max_bytes=max_bytes)
         return "downloaded", None
     except GoogleDriveError as exc:
         return "failed", str(exc)[:300]
