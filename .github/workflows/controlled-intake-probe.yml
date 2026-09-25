@@ -41,9 +41,9 @@ jobs:
         run: |
           set -euo pipefail
           cp scripts/controlled_intake_probe.py /tmp/controlled_intake_probe.py
-          git fetch --no-tags --depth=1 origin 7cc55525a59509d3f55ff9e810cc418754bb5a6d
-          git checkout --detach 7cc55525a59509d3f55ff9e810cc418754bb5a6d
-          test "$(git rev-parse HEAD)" = "7cc55525a59509d3f55ff9e810cc418754bb5a6d"
+          git fetch --no-tags --depth=1 origin 6c4dda48367091576945389cf7e4c2b951b9d647
+          git checkout --detach 6c4dda48367091576945389cf7e4c2b951b9d647
+          test "$(git rev-parse HEAD)" = "6c4dda48367091576945389cf7e4c2b951b9d647"
       - name: Read campaign plan without mutation
         run: |
           set -euo pipefail
