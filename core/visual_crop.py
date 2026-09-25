@@ -26,12 +26,17 @@ def _smooth(values: list[float], alpha: float = 0.28) -> list[float]:
     return result
 
 
-def detect_centers(path: str, sample_seconds: float = 0.5) -> tuple[int, int, float, list[tuple[float, float]]]:
+def detect_centers(path: str, sample_seconds: float = 0.5, start: float = 0.0, duration: float | None = None) -> tuple[int, int, float, list[tuple[float, float]]]:
     """Return source dimensions, duration and sampled face centers."""
     width, height = video_size(path)
-    duration = float(subprocess.check_output([
+    source_duration = float(subprocess.check_output([
         "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", path,
     ], text=True).strip())
+    start = max(0.0, float(start))
+    if start >= source_duration:
+        return width, height, 0.0, [(width / 2, height / 2)]
+    duration = min(float(duration) if duration is not None else source_duration - start, source_duration - start)
+    duration = max(0.0, duration)
     try:
         import cv2
     except (ImportError, AttributeError):
@@ -44,7 +49,7 @@ def detect_centers(path: str, sample_seconds: float = 0.5) -> tuple[int, int, fl
     last = (width / 2, height / 2)
     frame_count = max(1, int(duration / sample_seconds) + 1)
     for index in range(frame_count):
-        cap.set(cv2.CAP_PROP_POS_MSEC, index * sample_seconds * 1000.0)
+        cap.set(cv2.CAP_PROP_POS_MSEC, (start + index * sample_seconds) * 1000.0)
         ok, frame = cap.read()
         if not ok:
             centers.append(last)
@@ -141,9 +146,9 @@ def _piecewise(values: list[float], duration: float, default: float) -> str:
     return expr.replace(",", "\\,")
 
 
-def crop_filter(path: str, out_width: int = 1080, out_height: int = 1920, sample_seconds: float = 0.5) -> str:
+def crop_filter(path: str, out_width: int = 1080, out_height: int = 1920, sample_seconds: float = 0.5, start: float = 0.0, duration: float | None = None) -> str:
     """Return scale+crop filters; follow face when source is wider than 9:16."""
-    width, height, duration, centers = detect_centers(path, sample_seconds)
+    width, height, duration, centers = detect_centers(path, sample_seconds, start=start, duration=duration)
     crop_width = min(width, int(round(height * out_width / out_height)))
     crop_height = min(height, int(round(width * out_height / out_width)))
     if width / height >= out_width / out_height:
