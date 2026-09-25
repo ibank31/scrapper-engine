@@ -84,7 +84,8 @@ def _asset_priority(item: dict) -> tuple[float, str]:
             tracker_score += float(value or 0) * (4.0 / (index + 1))
         except (TypeError, ValueError):
             continue
-    score = mime_score + resolution_score + duration_score + size_score + _name_priority(name) + tracker_score
+    base_priority = float(item.get("_base_priority") or 0)
+    score = base_priority + mime_score + resolution_score + duration_score + size_score + _name_priority(name) + tracker_score
     return round(score, 4), str(item.get("id") or item.get("url") or name)
 
 
@@ -144,22 +145,15 @@ def download_youtube(url: str, destination: str, required_size: int = 0, safety_
 
 def download_drive(url: str, destination: str, folder: bool = False) -> tuple[str, str | None]:
     try:
+        if folder:
+            return "failed", "Drive folder download is disabled; use metadata-first discovery"
         if google_drive_configured():
-            if folder:
-                return "failed", "Drive folder download is disabled; use metadata-first discovery"
             return download_file_oauth(url, destination)
         timeout = max(30, int(os.getenv("GOOGLE_DRIVE_PUBLIC_TIMEOUT_SECONDS", "180")))
-        command = [sys.executable, "-m", "gdown"]
-        if folder:
-            os.makedirs(destination, exist_ok=True)
-            command += ["--folder", url, "-O", destination, "--remaining-ok"]
-        else:
-            command += [url, "-O", destination, "--fuzzy"]
+        command = [sys.executable, "-m", "gdown", url, "-O", destination, "--fuzzy"]
         completed = subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
         if completed.returncode != 0:
             return "failed", (completed.stderr or completed.stdout or f"gdown exit {completed.returncode}")[:300]
-        if folder:
-            return ("downloaded", None) if any(Path(destination).rglob("*")) else ("failed", "empty Drive folder")
         return ("downloaded", None) if os.path.exists(destination) and os.path.getsize(destination) > 0 else ("failed", "empty Drive file")
     except Exception as exc:
         return "failed", str(exc)[:300]
@@ -238,7 +232,6 @@ def main() -> None:
     ap.add_argument("plan", help="campaign plan.json")
     ap.add_argument("--workspace", default="data/jobs")
     ap.add_argument("--no-download", action="store_true", help="write rules/material manifest only")
-    ap.add_argument("--max-video-sources", type=int, default=MAX_VIDEO_SOURCES)
     args = ap.parse_args()
 
     plan = read_json(args.plan)
@@ -488,6 +481,7 @@ def main() -> None:
                         "source_entry": source_entry,
                         "asset_entry": asset_entry,
                         "item": queue_item,
+                        "base_priority": 20,
                     })
         else:
             is_youtube = "youtube.com/" in url or "youtu.be/" in url
@@ -521,18 +515,40 @@ def main() -> None:
                     "source_id": source_id,
                     "source_entry": source_entry,
                     "asset_entry": asset_entry,
-                    "item": {"url": url, "priority": candidate.get("priority") or (), "name": asset_entry["name"]},
+                    "item": {
+                        "url": url,
+                        "priority": candidate.get("priority") or (),
+                        "name": asset_entry["name"],
+                        "mimeType": "video/*" if is_video else "",
+                    },
+                    "base_priority": 60 if is_youtube else 55 if is_drive else 35,
                 })
 
         source_manifest.append(source_entry)
 
     # Complete discovery is finished before any media download.
-    download_queue.sort(
-        key=lambda entry: _asset_priority({**entry["item"], "url": entry["item"].get("url")}),
+    # Give each distinct top-level source one opportunity before filling the
+    # remaining slots by metadata score. This prevents a large Drive folder from
+    # starving a separate authorized YouTube source.
+    ranked_queue = sorted(
+        download_queue,
+        key=lambda entry: (
+            _asset_priority({**entry["item"], "url": entry["item"].get("url"), "_base_priority": entry.get("base_priority", 0)}),
+            str(entry["asset_entry"].get("asset_id") or ""),
+        ),
         reverse=True,
     )
+    fair_queue: list[dict] = []
+    seen_queue_sources: set[str] = set()
+    for entry in ranked_queue:
+        source_id = str(entry.get("source_id") or "")
+        if source_id in seen_queue_sources:
+            continue
+        seen_queue_sources.add(source_id)
+        fair_queue.append(entry)
+    fair_queue.extend(entry for entry in ranked_queue if entry not in fair_queue)
 
-    for entry in download_queue:
+    for entry in fair_queue:
         asset_entry = entry["asset_entry"]
         source_entry = entry["source_entry"]
         item = entry["item"]
