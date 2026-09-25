@@ -48,4 +48,13 @@ def manifest_video_paths(
     ]
 
 
-__all__ = ["manifest_video_paths"]
+def manifest_has_invalid_media(manifest: dict[str, Any]) -> bool:
+    """Return whether the authoritative manifest contains failed video media."""
+    return any(
+        item.get("asset_kind") == "video"
+        and item.get("status") in {"INVALID_MEDIA", "DOWNLOAD_FAILED"}
+        for item in (manifest.get("asset_manifest") or [])
+    )
+
+
+__all__ = ["manifest_video_paths", "manifest_has_invalid_media"]
