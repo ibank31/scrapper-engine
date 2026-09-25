@@ -160,16 +160,6 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
             "platform": item.get("platform", "all") if isinstance(item, dict) else "all",
         })
 
-    gates = [
-        {"id": "campaign_active", "required": True, "check": "campaign status is active"},
-        {"id": "assets_available", "required": supplied_material_required, "check": "required campaign assets are downloaded or supplied"},
-        {"id": "vertical_916", "required": vertical_required, "check": "output aspect ratio is 9:16"},
-        {"id": "watermark", "required": watermark_required, "check": "required official watermark is present for the full clip"},
-        {"id": "no_third_party_watermark", "required": no_third_party_watermark, "check": "no third-party watermark is visible"},
-        {"id": "official_audio", "required": official_audio_required, "check": "official audio/sound is attached or used as required"},
-        {"id": "human_review", "required": True, "check": "human review completed before submission"},
-    ]
-
     ai_aspect_ratio = ai_rule_set.get("aspect_ratio")
     if ai_aspect_ratio not in {"9:16", "16:9", "1:1"}:
         ai_aspect_ratio = None
@@ -186,6 +176,16 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     ai_confidence = float(ai_rules.get("confidence") or 0)
     ai_ambiguities = list(ai_rules.get("ambiguities") or [])
     ai_status = "pass" if ai_confidence >= 0.70 and not any("critical" in str(x).lower() for x in ai_ambiguities) else "needs_review"
+
+    gates = [
+        {"id": "campaign_active", "required": True, "check": "campaign status is active"},
+        {"id": "assets_available", "required": supplied_material_required, "check": "required campaign assets are downloaded or supplied"},
+        {"id": "vertical_916", "required": vertical_required, "check": "output aspect ratio is 9:16"},
+        {"id": "watermark", "required": watermark_required, "check": "required official watermark is present for the full clip"},
+        {"id": "no_third_party_watermark", "required": no_third_party_watermark, "check": "no third-party watermark is visible"},
+        {"id": "official_audio", "required": official_audio_required, "check": "official audio/sound is attached or used as required"},
+        {"id": "human_review", "required": True, "check": "human review completed before submission"},
+    ]
 
     production = {
         "provided_material_required": supplied_material_required,
