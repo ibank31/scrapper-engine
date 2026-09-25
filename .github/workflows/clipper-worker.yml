@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  issues:
+    types: [opened]
   # Clipping runs only when started manually from the homepage.
   workflow_dispatch:
     inputs:
