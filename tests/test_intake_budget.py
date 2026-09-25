@@ -9,6 +9,7 @@ from modules.reward_campaign import intake
 
 
 class IntakeBudgetTests(unittest.TestCase):
+    """Regression coverage for the bounded media intake path."""
     def test_metadata_priority_prefers_high_quality_master(self):
         high = {
             "id": "high",
