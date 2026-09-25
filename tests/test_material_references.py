@@ -72,6 +72,52 @@ class MaterialReferenceTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "verified_candidate")
         self.assertEqual(result["candidate"]["url"], "https://www.youtube.com/watch?v=abc123")
+        self.assertGreaterEqual(result["candidate"]["channel_similarity"], 0.55)
+
+    def test_named_official_reference_rejects_unrelated_channel(self):
+        payload = {
+            "entries": [
+                {
+                    "id": "abc123",
+                    "title": "Dardan - Erinnerung (Official Video)",
+                    "channel": "Random Fan Uploads",
+                }
+            ]
+        }
+
+        def fake_runner(*args, **kwargs):
+            return subprocess.CompletedProcess(
+                args=args[0], returncode=0, stdout=json.dumps(payload), stderr=""
+            )
+
+        result = resolve_named_youtube_reference(
+            "Dardan - Erinnerung (Official Video)",
+            campaign_title="Dardan Music Clipping",
+            runner=fake_runner,
+        )
+        self.assertEqual(result["status"], "unresolved")
+
+    def test_named_official_reference_rejects_missing_channel_metadata(self):
+        payload = {
+            "entries": [
+                {
+                    "id": "abc123",
+                    "title": "Dardan - Erinnerung (Official Video)",
+                }
+            ]
+        }
+
+        def fake_runner(*args, **kwargs):
+            return subprocess.CompletedProcess(
+                args=args[0], returncode=0, stdout=json.dumps(payload), stderr=""
+            )
+
+        result = resolve_named_youtube_reference(
+            "Dardan - Erinnerung (Official Video)",
+            campaign_title="Dardan Music Clipping",
+            runner=fake_runner,
+        )
+        self.assertEqual(result["status"], "unresolved")
 
     def test_named_youtube_reference_rejects_weak_match(self):
         payload = {"entries": [{"id": "x", "title": "Unrelated video"}]}
