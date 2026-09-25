@@ -30,7 +30,7 @@ def main() -> int:
     args = ap.parse_args()
 
     workspace_root = Path(args.workspace)
-    intake = run([sys.executable, "run.py", "reward_intake", args.plan, "--workspace", str(workspace_root), "--max-video-sources", "0"])
+    intake = run([sys.executable, "run.py", "reward_intake", args.plan, "--workspace", str(workspace_root)])
     print(intake.stdout, end="")
     print(intake.stderr, end="", file=sys.stderr)
     workspaces = sorted(workspace_root.glob("*/"))
@@ -39,7 +39,8 @@ def main() -> int:
     workspace = workspaces[-1]
     manifest = json.loads((workspace / "assets.json").read_text(encoding="utf-8"))
     source_manifest = manifest.get("asset_manifest") or manifest.get("source_manifest") or []
-    asset_files = sorted(p for p in (workspace / "assets").rglob("*") if p.is_file() and p.suffix.lower() in VIDEO_EXTENSIONS)
+    asset_files = sorted(p for p in (workspace / "assets").rglob("*") if p.is_file() and not p.name.startswith(".") and not p.name.endswith(".part") and p.suffix.lower() in VIDEO_EXTENSIONS)
+    partial_files = sorted(p for p in (workspace / "assets").rglob("*.part") if p.is_file())
 
     # Fixed, explicit sample after full discovery/download. This is not an intake cap.
     sample = asset_files[: max(0, args.sample_size)]
@@ -102,6 +103,7 @@ def main() -> int:
     segments_positive = sum(1 for r in results if r["segments"] > 0)
     segments_zero = sum(1 for r in results if r["segments"] == 0)
     raw_candidates = sum(r["candidate_count"] for r in results)
+    discovery = manifest.get("discovery") or {}
     report = {
         "commit": os.environ.get("GITHUB_SHA"),
         "campaign_id": os.environ.get("CAMPAIGN_ID"),
@@ -119,8 +121,15 @@ def main() -> int:
             "sources_segments_gt_0": segments_positive,
             "sources_segments_eq_0": segments_zero,
             "raw_candidates": raw_candidates,
+            "manifest_discovered_asset_count": int(discovery.get("discovered_asset_count") or 0),
+            "manifest_discovered_media_asset_count": int(discovery.get("discovered_media_asset_count") or 0),
+            "manifest_downloaded_bytes": int(discovery.get("downloaded_bytes") or 0),
+            "partial_files_remaining": len(partial_files),
+            "download_limit": (discovery.get("download_limits") or {}).get("max_assets"),
+            "download_byte_budget": (discovery.get("download_limits") or {}).get("max_bytes"),
         },
         "candidate_sources": [r for r in results if r["candidate_count"] > 0],
+        "integrity": {"no_partial_files": not partial_files, "manifest_has_asset_rows": bool(source_manifest), "discovery_metrics": discovery},
         "source_results": results,
         "source_manifest": source_manifest,
     }
