@@ -38,7 +38,7 @@ def main() -> int:
         raise SystemExit("intake did not create a workspace")
     workspace = workspaces[-1]
     manifest = json.loads((workspace / "assets.json").read_text(encoding="utf-8"))
-    source_manifest = manifest.get("source_manifest") or []
+    source_manifest = manifest.get("asset_manifest") or manifest.get("source_manifest") or []
     asset_files = sorted(p for p in (workspace / "assets").rglob("*") if p.is_file() and p.suffix.lower() in VIDEO_EXTENSIONS)
 
     # Fixed, explicit sample after full discovery/download. This is not an intake cap.
@@ -83,7 +83,7 @@ def main() -> int:
     for entry in source_manifest:
         local_paths = {str((workspace / p).resolve()) for p in entry.get("local_paths") or []}
         entry["deep_analysis"] = "sampled" if local_paths & sample_paths else "not_sampled"
-        matching = [r for r in results if r["local_path"] in entry.get("local_paths", [])]
+        matching = [r for r in results if r["local_path"] == entry.get("local_path") or r["local_path"] in entry.get("local_paths", [])]
         if matching:
             entry["segments"] = matching[0]["segments"]
             entry["candidate_count"] = matching[0]["candidate_count"]

@@ -13,7 +13,13 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from core.fetch import DEFAULT_HEADERS, FetchError, fetch_bytes
-from core.google_drive import configured as google_drive_configured, download_file_oauth, download_folder_oauth
+from core.google_drive import (
+    configured as google_drive_configured,
+    discover_folder_oauth,
+    download_asset_oauth,
+    download_file_oauth,
+    download_folder_oauth,
+)
 from core.google_sheets import GoogleSheetError, discover_sheet_assets, fetch_sheet_rows, is_google_sheet_url
 from core.job_workspace import create_workspace, now_iso, read_json, sha256_file, write_json
 from core.candidate_identity import normalize_source_asset_id
@@ -104,7 +110,7 @@ def download_direct(url: str, destination: str) -> tuple[str, str | None]:
 
 
 def _media_files(root: str) -> list[Path]:
-    return [p for p in Path(root).rglob("*") if p.is_file() and p.suffix.lower() in DIRECT_EXTENSIONS]
+    return [p for p in Path(root).rglob("*") if p.is_file() and not p.name.startswith(".") and not p.name.endswith(".part") and p.suffix.lower() in DIRECT_EXTENSIONS]
 
 
 def _source_id(url: str) -> str:
@@ -171,6 +177,7 @@ def main() -> None:
     tracker_records = 0
     unresolved_references: list[str] = []
     source_manifest: list[dict] = []
+    asset_manifest: list[dict] = []
 
     references = (plan.get("production") or {}).get("asset_urls") or []
     for url in references:
@@ -294,26 +301,62 @@ def main() -> None:
             manual_lines += [f"- {url} — download disabled", ""]
             continue
 
-        if "/folders/" in url and "drive.google.com" in host:
-            target = os.path.join(ws["assets"], label)
-            status, error = download_drive(url, target, folder=True)
-            folder_files = _media_files(target) if status == "downloaded" else []
-            if folder_files:
-                video_count += len([p for p in folder_files if p.suffix.lower() in VIDEO_EXTENSIONS])
-                records.extend(_record(p, ws["path"], url, "google_drive_folder", metadata=metadata, source_id=source_id) for p in folder_files)
-                source_entry.update({
-                    "accessible": True,
-                    "downloaded": True,
-                    "status": "downloaded",
-                    "local_path": os.path.relpath(folder_files[0], ws["path"]),
-                    "local_paths": [os.path.relpath(p, ws["path"]) for p in folder_files],
-                    "mime_type": "video/*",
-                    "size_bytes": sum(p.stat().st_size for p in folder_files),
-                })
-            else:
-                reason = error or "no media files"
-                source_entry.update({"status": "inaccessible", "error_code": "drive_download_failed", "error_message": reason})
-                records.append(_record(Path(target), ws["path"], url, "google_drive_folder", "failed", reason, metadata, source_id))
+        if "/folders/" in url and "drive.google.com" in host and google_drive_configured():
+            status, error, children = discover_folder_oauth(url)
+            source_entry.update({"status": status, "accessible": status == "discovered", "child_count": len(children)})
+            source_manifest.append(source_entry)
+            if error:
+                source_entry.update({"status": "inaccessible", "error_code": "drive_discovery_failed", "error_message": error})
+                continue
+            media_children = []
+            for child in children:
+                name = str(child.get("name") or "")
+                mime = str(child.get("mimeType") or "")
+                is_media = mime.startswith("video/") or mime.startswith("audio/") or Path(name).suffix.lower() in DIRECT_EXTENSIONS
+                can_download = child.get("capabilities", {}).get("canDownload", True) is not False
+                child_id = str(child.get("id") or child.get("shortcut_id") or "")
+                child_entry = {
+                    "asset_id": child_id,
+                    "source_id": source_id,
+                    "source_type": "google_drive_asset",
+                    "source_reference": url,
+                    "source_url": f"https://drive.google.com/file/d/{child_id}/view" if child_id else url,
+                    "name": name,
+                    "mime_type": mime,
+                    "size_bytes": int(child.get("size") or 0),
+                    "modified_time": child.get("modifiedTime"),
+                    "discovered": True,
+                    "accessible": bool(can_download),
+                    "downloaded": False,
+                    "local_path": None,
+                    "status": "READY_FOR_DOWNLOAD" if is_media and can_download else "SKIPPED_NON_MEDIA" if not is_media else "INACCESSIBLE",
+                    "error_code": None if is_media and can_download else "non_media" if not is_media else "access_denied",
+                    "error_message": None if is_media and can_download else "not a supported media asset" if not is_media else "Drive asset cannot be downloaded",
+                }
+                asset_manifest.append(child_entry)
+                source_manifest.append(child_entry)
+                if is_media and can_download and child_id:
+                    media_children.append((child, child_entry))
+            download_limit = max(0, int(os.getenv("CLIPPER_DOWNLOAD_MAX_ASSETS", "12")))
+            download_budget = max(0, int(os.getenv("CLIPPER_DOWNLOAD_MAX_BYTES", str(2 * 1024 * 1024 * 1024))))
+            downloaded_bytes = 0
+            for child, child_entry in media_children[:download_limit or None]:
+                size = int(child.get("size") or 0)
+                if downloaded_bytes + size > download_budget:
+                    child_entry.update({"status": "DEFERRED_RESOURCE_BUDGET", "error_code": "download_bytes_budget", "error_message": "download byte budget reached"})
+                    continue
+                destination = os.path.join(ws["assets"], f"asset-{len([x for x in asset_manifest if x.get('local_path')]) + 1:03d}{Path(str(child.get('name') or 'asset.mp4')).suffix.lower() or '.mp4'}")
+                dl_status, dl_error, actual_size = download_asset_oauth(str(child.get("id")), destination, required_size=size)
+                if dl_status == "downloaded" and Path(destination).exists() and Path(destination).stat().st_size > 0:
+                    child_entry.update({"accessible": True, "downloaded": True, "local_path": os.path.relpath(destination, ws["path"]), "status": "downloaded", "error_code": None, "error_message": None, "actual_size_bytes": actual_size})
+                    records.append(_record(Path(destination), ws["path"], url, "google_drive_asset", metadata=child, source_id=child_entry["asset_id"]))
+                    downloaded_bytes += actual_size
+                    video_count += 1 if Path(destination).suffix.lower() in VIDEO_EXTENSIONS else 0
+                else:
+                    child_entry.update({"status": "DEFERRED_DISK_BUDGET" if dl_status == "deferred" else "DOWNLOAD_FAILED", "error_code": dl_error or "download_failed", "error_message": dl_error or "Drive asset download failed"})
+            for child, child_entry in media_children[download_limit:] if download_limit else media_children:
+                if child_entry["status"] == "READY_FOR_DOWNLOAD":
+                    child_entry.update({"status": "DEFERRED_RESOURCE_BUDGET", "error_code": "download_asset_limit", "error_message": "controlled download asset limit reached"})
         else:
             destination = os.path.join(ws["assets"], label + ".mp4")
             if "youtube.com/" in url or "youtu.be/" in url:
@@ -357,18 +400,23 @@ def main() -> None:
     records.append(_record(rules_path, ws["path"], "plan.source_of_truth", "rules_snapshot"))
 
     manifest = {
-        "schema_version": 3,
+        "schema_version": 4,
         "job_id": ws["job_id"],
         "campaign": plan.get("campaign"),
         "rules_snapshot": os.path.relpath(rules_path, ws["path"]),
         "assets": records,
         "source_manifest": source_manifest,
+        "asset_manifest": asset_manifest,
         "discovery": {
             "reference_count": len(references),
             "tracker_rows": tracker_records,
             "discovered_media_sources": len(media_candidates),
             "selected_media_sources": len(selected_candidates),
             "deduplicated_media_sources": len(unique_candidates),
+            "discovered_asset_count": len(asset_manifest),
+            "accessible_asset_count": sum(1 for item in asset_manifest if item.get("accessible")),
+            "downloaded_asset_count": sum(1 for item in asset_manifest if item.get("downloaded")),
+            "deferred_asset_count": sum(1 for item in asset_manifest if str(item.get("status", "")).startswith("DEFERRED")),
             "unresolved_references": unresolved_references,
         },
         "updated_at": now_iso(),

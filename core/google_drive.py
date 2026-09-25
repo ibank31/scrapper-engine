@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -17,6 +18,8 @@ DRIVE_API = "https://www.googleapis.com/drive/v3"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 VIDEO_MIME_PREFIXES = ("video/",)
 MEDIA_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a"}
+FOLDER_MIME = "application/vnd.google-apps.folder"
+SHORTCUT_MIME = "application/vnd.google-apps.shortcut"
 
 
 class GoogleDriveError(RuntimeError):
@@ -122,11 +125,12 @@ class GoogleDriveClient:
             },
         ).json()
 
-    def list_media(self, folder_id: str, page_size: int = 100, max_depth: int = 5) -> list[dict]:
-        files: list[dict] = []
+    def discover_folder(self, folder_id: str, page_size: int = 100, max_depth: int = 5) -> list[dict]:
+        """List descendants with metadata only; never downloads file content."""
+        assets: list[dict] = []
         visited: set[str] = set()
 
-        def walk(current_id: str, depth: int) -> None:
+        def walk(current_id: str, depth: int, reference_id: str) -> None:
             if current_id in visited or depth > max_depth:
                 return
             visited.add(current_id)
@@ -136,7 +140,7 @@ class GoogleDriveClient:
                     "q": f"'{current_id}' in parents and trashed = false",
                     "pageSize": min(1000, page_size),
                     "orderBy": "name",
-                    "fields": "nextPageToken,files(id,name,mimeType,size,capabilities/canDownload,md5Checksum,shortcutDetails(targetId,targetMimeType))",
+                    "fields": "nextPageToken,files(id,name,mimeType,size,modifiedTime,capabilities/canDownload,md5Checksum,parents,shortcutDetails(targetId,targetMimeType))",
                     "supportsAllDrives": "true",
                     "includeItemsFromAllDrives": "true",
                 }
@@ -144,44 +148,57 @@ class GoogleDriveClient:
                     params["pageToken"] = page_token
                 body = self._request("GET", "/files", params=params).json()
                 for item in body.get("files", []):
-                    name = str(item.get("name") or "")
-                    mime = str(item.get("mimeType") or "")
-                    if mime == "application/vnd.google-apps.shortcut":
+                    raw_mime = str(item.get("mimeType") or "")
+                    record = {**item, "source_folder_id": reference_id, "parent_id": current_id, "raw_mime_type": raw_mime}
+                    if raw_mime == SHORTCUT_MIME:
                         shortcut = item.get("shortcutDetails") or {}
                         target_id = str(shortcut.get("targetId") or "")
                         target_mime = str(shortcut.get("targetMimeType") or "")
-                        if target_id and target_mime == "application/vnd.google-apps.folder":
-                            walk(target_id, depth + 1)
-                        elif target_id and (target_mime.startswith(VIDEO_MIME_PREFIXES) or Path(name).suffix.lower() in MEDIA_EXTENSIONS):
-                            files.append({**item, "id": target_id, "mimeType": target_mime, "shortcut_target_id": target_id})
-                    elif mime == "application/vnd.google-apps.folder":
-                        walk(str(item.get("id") or ""), depth + 1)
-                    elif (mime.startswith(VIDEO_MIME_PREFIXES) or Path(name).suffix.lower() in MEDIA_EXTENSIONS) and item.get("capabilities", {}).get("canDownload", True):
-                        files.append(item)
+                        record.update({"id": target_id or item.get("id"), "mimeType": target_mime or raw_mime, "shortcut_id": item.get("id"), "shortcut_target_id": target_id})
+                        if target_id and target_mime == FOLDER_MIME:
+                            walk(target_id, depth + 1, reference_id)
+                            continue
+                    assets.append(record)
+                    if str(record.get("mimeType") or "") == FOLDER_MIME:
+                        walk(str(record.get("id") or ""), depth + 1, reference_id)
                 page_token = body.get("nextPageToken")
                 if not page_token:
                     return
 
-        walk(folder_id, 0)
+        walk(folder_id, 0, folder_id)
+        return assets
+
+    def list_media(self, folder_id: str, page_size: int = 100, max_depth: int = 5) -> list[dict]:
+        files: list[dict] = []
+        for item in self.discover_folder(folder_id, page_size, max_depth):
+            name = str(item.get("name") or "")
+            mime = str(item.get("mimeType") or "")
+            if (mime.startswith(VIDEO_MIME_PREFIXES) or Path(name).suffix.lower() in MEDIA_EXTENSIONS) and item.get("capabilities", {}).get("canDownload", True):
+                files.append(item)
         return files
 
     def download_file(self, file_id: str, destination: str, chunk_size: int = 1024 * 1024) -> int:
         response = self._request("GET", f"/files/{file_id}", params={"alt": "media", "supportsAllDrives": "true"}, stream=True)
         target = Path(destination)
         target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(target.name + ".part")
         total = 0
         try:
-            with target.open("wb") as output:
+            temporary.unlink(missing_ok=True)
+            with temporary.open("wb") as output:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if chunk:
                         output.write(chunk)
                         total += len(chunk)
+            if total <= 0:
+                raise GoogleDriveError(f"File Drive {file_id} kosong")
+            temporary.replace(target)
         except (OSError, requests.RequestException) as exc:
-            target.unlink(missing_ok=True)
+            temporary.unlink(missing_ok=True)
             raise GoogleDriveError(f"Download Drive gagal untuk {file_id}: {str(exc)[:240]}") from exc
-        if total <= 0:
-            target.unlink(missing_ok=True)
-            raise GoogleDriveError(f"File Drive {file_id} kosong")
+        except GoogleDriveError:
+            temporary.unlink(missing_ok=True)
+            raise
         return total
 
     def export_file(self, file_id: str, mime_type: str) -> bytes:
@@ -209,6 +226,35 @@ def download_folder_oauth(folder_url: str, destination: str, max_files: int = 0)
             size = client.download_file(item["id"], str(Path(destination) / safe_name))
             downloaded += size
         return "downloaded", None, len(files[:max(1, max_files)])
+    except GoogleDriveError as exc:
+        return "failed", str(exc)[:300], 0
+    except Exception as exc:
+        return "failed", f"Google Drive integration error: {str(exc)[:240]}", 0
+
+
+def discover_folder_oauth(folder_url: str) -> tuple[str, str | None, list[dict]]:
+    folder_id = extract_drive_id(folder_url)
+    if not folder_id:
+        return "failed", "folder ID Google Drive tidak ditemukan", []
+    try:
+        assets = GoogleDriveClient().discover_folder(folder_id)
+        return "discovered", None, assets
+    except GoogleDriveError as exc:
+        return "failed", str(exc)[:300], []
+    except Exception as exc:
+        return "failed", f"Google Drive integration error: {str(exc)[:240]}", []
+
+
+def download_asset_oauth(file_id: str, destination: str, required_size: int = 0, safety_margin: int = 256 * 1024 * 1024) -> tuple[str, str | None, int]:
+    """Download one known asset only when disk budget permits."""
+    try:
+        client = GoogleDriveClient()
+        free_bytes = shutil.disk_usage(Path(destination).parent).free
+        required = max(0, int(required_size))
+        if required and required + safety_margin > free_bytes:
+            return "deferred", "DEFERRED_DISK_BUDGET", 0
+        size = client.download_file(file_id, destination)
+        return "downloaded", None, size
     except GoogleDriveError as exc:
         return "failed", str(exc)[:300], 0
     except Exception as exc:

@@ -25,6 +25,8 @@ jobs:
       GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
       GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
       GOOGLE_DRIVE_MAX_FILES: "0"
+      CLIPPER_DOWNLOAD_MAX_ASSETS: "3"
+      CLIPPER_DOWNLOAD_MAX_BYTES: "1200000000"
       PYTHONPATH: ${{ github.workspace }}
     steps:
       - name: Checkout requested commit

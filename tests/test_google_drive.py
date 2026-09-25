@@ -66,6 +66,32 @@ class GoogleDriveTests(unittest.TestCase):
             self.assertEqual((status, error), ("downloaded", None))
             self.assertEqual(path.read_bytes(), b"abc")
 
+    def test_discovers_all_children_without_downloading_content(self):
+        responses = [
+            FakeResponse({"access_token": "access"}),
+            FakeResponse({"files": [
+                {"id": "video", "name": "clip.mp4", "mimeType": "video/mp4", "size": "123", "modifiedTime": "2026-01-01T00:00:00Z", "capabilities": {"canDownload": True}},
+                {"id": "doc", "name": "notes.txt", "mimeType": "text/plain", "size": "4", "capabilities": {"canDownload": True}},
+            ]}),
+        ]
+        with patch.dict(os.environ, {"GOOGLE_DRIVE_REFRESH_TOKEN": "refresh", "GOOGLE_OAUTH_CLIENT_ID": "client", "GOOGLE_OAUTH_CLIENT_SECRET": "secret"}), patch("core.google_drive.requests.post", side_effect=responses[:1]), patch("core.google_drive.requests.request", side_effect=responses[1:]) as request:
+            assets = google_drive.GoogleDriveClient().discover_folder("folder")
+        self.assertEqual([item["id"] for item in assets], ["video", "doc"])
+        self.assertEqual(assets[0]["size"], "123")
+        self.assertEqual(request.call_count, 1)
+
+    def test_download_failure_removes_part_file(self):
+        responses = [
+            FakeResponse({"access_token": "access"}),
+            FakeResponse(content=b"", chunks=[]),
+        ]
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"GOOGLE_DRIVE_REFRESH_TOKEN": "refresh", "GOOGLE_OAUTH_CLIENT_ID": "client", "GOOGLE_OAUTH_CLIENT_SECRET": "secret"}), patch("core.google_drive.requests.post", side_effect=responses[:1]), patch("core.google_drive.requests.request", side_effect=responses[1:]):
+            path = Path(tmp) / "clip.mp4"
+            with self.assertRaises(google_drive.GoogleDriveError):
+                google_drive.GoogleDriveClient().download_file("file", str(path))
+            self.assertFalse(path.exists())
+            self.assertFalse(Path(str(path) + ".part").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
