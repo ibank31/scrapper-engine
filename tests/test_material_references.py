@@ -97,6 +97,31 @@ class MaterialReferenceTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "unresolved")
 
+    def test_named_official_reference_accepts_exact_title_from_verified_publisher(self):
+        payload = {
+            "entries": [
+                {
+                    "id": "abc123",
+                    "title": "Dardan - Erinnerung (Official Video)",
+                    "channel": "Hypnotize Entertainment",
+                    "channel_is_verified": True,
+                }
+            ]
+        }
+
+        def fake_runner(*args, **kwargs):
+            return subprocess.CompletedProcess(
+                args=args[0], returncode=0, stdout=json.dumps(payload), stderr=""
+            )
+
+        result = resolve_named_youtube_reference(
+            "Dardan - Erinnerung (Official Video)",
+            campaign_title="Dardan Music Clipping",
+            runner=fake_runner,
+        )
+        self.assertEqual(result["status"], "verified_candidate")
+        self.assertTrue(result["candidate"]["channel_verified"])
+
     def test_named_official_reference_rejects_missing_channel_metadata(self):
         payload = {
             "entries": [
