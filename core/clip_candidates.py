@@ -314,6 +314,97 @@ def select_candidates(transcript: dict[str, Any], min_seconds: float = 20.0, max
     return []
 
 
+def select_candidates_for_bands(
+    transcript: dict[str, Any],
+    bands: list[tuple[float, float]],
+    limit: int = 10,
+    source_path: str | None = None,
+    plan: dict[str, Any] | None = None,
+    media_top_n: int = 24,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Generate one broad candidate pool, then apply editorial bands and media signals.
+
+    This replaces repeated per-band subprocesses and avoids running FFmpeg/OpenCV
+    media probes for every transcript window. The expensive media pass is limited
+    to a bounded shortlist after deterministic text scoring.
+    """
+    valid_bands = [(float(lo), float(hi)) for lo, hi in bands if float(hi) >= float(lo)]
+    if not valid_bands:
+        return [], {"bands": [], "candidate_pool_count": 0, "media_analyzed": 0}
+    broad_min = min(lo for lo, _ in valid_bands)
+    broad_max = max(hi for _, hi in valid_bands)
+    pool_limit = max(50, int(limit) * max(1, len(valid_bands)) * 8)
+    pool = select_candidates(
+        transcript,
+        min_seconds=broad_min,
+        max_seconds=broad_max,
+        limit=pool_limit,
+        source_path=None,
+        plan=plan,
+    )
+    selected: list[dict[str, Any]] = []
+    band_diagnostics: list[dict[str, Any]] = []
+    for band_index, (band_min, band_max) in enumerate(valid_bands, 1):
+        band_pool = [
+            item for item in pool
+            if float(item.get("duration") or 0) >= band_min
+            and float(item.get("duration") or 0) <= band_max
+        ]
+        band_selected: list[dict[str, Any]] = []
+        for candidate in sorted(band_pool, key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0))):
+            if any(not (candidate["end"] <= chosen["start"] or candidate["start"] >= chosen["end"]) for chosen in band_selected):
+                continue
+            band_selected.append(candidate)
+            if len(band_selected) >= int(limit):
+                break
+        selected.extend(band_selected)
+        band_diagnostics.append({
+            "band_index": band_index,
+            "min_seconds": band_min,
+            "max_seconds": band_max,
+            "candidate_count": len(band_selected),
+        })
+
+    deduped: dict[tuple[float, float], dict[str, Any]] = {}
+    for item in selected:
+        key = (round(float(item.get("start") or 0), 3), round(float(item.get("end") or 0), 3))
+        previous = deduped.get(key)
+        if previous is None or float(item.get("score") or 0) > float(previous.get("score") or 0):
+            deduped[key] = item
+    selected = sorted(deduped.values(), key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
+
+    media_count = 0
+    if source_path and selected:
+        quality = source_quality_preflight(source_path, transcript)
+        for index, item in enumerate(selected):
+            if index >= max(0, int(media_top_n)):
+                break
+            item["source_quality"] = quality
+            item["media_signals"] = candidate_signals(source_path, item, transcript)
+            adjustment, signal_reasons = media_score_adjustment(item["media_signals"])
+            item["media_score_adjustment"] = adjustment
+            item["score"] = round(max(0.0, min(1.0, float(item.get("score") or 0) + adjustment)), 4)
+            item["reasons"] = list(item.get("reasons") or []) + signal_reasons
+            media_count += 1
+        selected.sort(key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
+
+    for rank, item in enumerate(selected, 1):
+        item["rank"] = rank
+    if not selected and source_path and plan is not None:
+        selected = _visual_fallback_candidates(
+            transcript, broad_min, broad_max, max(1, int(limit)), source_path, plan
+        )
+        for rank, item in enumerate(selected, 1):
+            item["rank"] = rank
+    return selected, {
+        "bands": band_diagnostics,
+        "candidate_pool_count": len(pool),
+        "candidate_count": len(selected),
+        "media_analyzed": media_count,
+        "media_budget": max(0, int(media_top_n)),
+    }
+
+
 def _candidate_tokens(candidate: dict[str, Any]) -> set[str]:
     return set(re.findall(r"[a-z0-9$%]+", str(candidate.get("text") or "").lower()))
 
@@ -348,4 +439,4 @@ def select_distinct_candidates(items: list[dict[str, Any]], limit: int) -> list[
     return selected
 
 
-__all__ = ["segment_transcript", "select_candidates", "candidates_are_near_duplicates", "select_distinct_candidates"]
+__all__ = ["segment_transcript", "select_candidates", "select_candidates_for_bands", "candidates_are_near_duplicates", "select_distinct_candidates"]
