@@ -27,7 +27,7 @@ from core.relevance import check_candidate
 from core.candidate_identity import deduplicate_source_records
 from core.output_selection import select_required_output_pair
 from core.output_gate import evaluate_output_pair
-from core.asset_gate import manifest_video_paths
+from core.asset_gate import manifest_has_invalid_media, manifest_video_paths
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
 from core.semantic_ranker import rank_global_candidates
@@ -271,7 +271,8 @@ def main() -> None:
         # The manifest is authoritative for new runs. Raw filesystem fallback
         # is permitted only for legacy manifests without media_validation.
         sources = manifest_video_paths(workspace, intake_manifest, extensions=VIDEO_EXTENSIONS)
-        if intake.returncode != 0 and not sources:
+        has_media_failures = manifest_has_invalid_media(intake_manifest)
+        if intake.returncode != 0 and not sources and not has_media_failures:
             manifest_path = workspace / "assets.json"
             try:
                 intake_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
