@@ -113,32 +113,41 @@ def _reference_urls(url: str) -> list[str]:
 
 
 def download_youtube(url: str, destination: str, required_size: int = 0, safety_margin: int | None = None) -> tuple[str, str | None]:
+    """Download at most the first five minutes into an isolated temporary directory."""
+    destination_path = Path(destination)
+    temp_dir = destination_path.parent / ".youtube-tmp" / destination_path.stem
     try:
         guard, reason = _download_guard(destination, required_size, safety_margin)
         if guard != "ready":
             return "deferred", reason
-        destination_path = Path(destination)
-        part_path = Path(str(destination_path) + ".part")
         destination_path.unlink(missing_ok=True)
-        part_path.unlink(missing_ok=True)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        for leftover in temp_dir.glob("*"):
+            if leftover.is_file():
+                leftover.unlink(missing_ok=True)
         command = [
             sys.executable, "-m", "yt_dlp", "--no-playlist", "--retries", "5",
             "--fragment-retries", "5", "--extractor-retries", "3",
             "--retry-sleep", "http:linear=2::2", "--socket-timeout", "30",
             "--max-filesize", "800M", "--download-sections", "*0-300",
             "--force-keyframes-at-cuts", "-f", "bv*[height<=1080]+ba/b[height<=1080]",
-            "--merge-output-format", "mp4", "-o", str(part_path), url,
+            "--merge-output-format", "mp4", "-o", str(temp_dir / "source.%(ext)s"), url,
         ]
         subprocess.run(command, check=True, text=True, timeout=900)
-        if part_path.exists() and part_path.stat().st_size > 0:
-            part_path.replace(destination_path)
+        rendered = temp_dir / "source.mp4"
+        if rendered.exists() and rendered.stat().st_size > 0:
+            rendered.replace(destination_path)
+            shutil.rmtree(temp_dir, ignore_errors=True)
             return "downloaded", None
+        shutil.rmtree(temp_dir, ignore_errors=True)
         return "failed", "yt-dlp produced no complete file"
     except subprocess.CalledProcessError as exc:
-        Path(str(destination) + ".part").unlink(missing_ok=True)
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        destination_path.unlink(missing_ok=True)
         return "failed", f"yt-dlp exit {exc.returncode}; YouTube may require a supported JS runtime or the video may be unavailable"
     except Exception as exc:
-        Path(str(destination) + ".part").unlink(missing_ok=True)
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        destination_path.unlink(missing_ok=True)
         return "failed", str(exc)[:300]
 
 
