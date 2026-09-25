@@ -120,7 +120,7 @@ class GoogleDriveClient:
             "GET",
             f"/files/{file_id}",
             params={
-                "fields": "id,name,mimeType,size,capabilities/canDownload,md5Checksum,shortcutDetails(targetId,targetMimeType)",
+                "fields": "id,name,mimeType,size,modifiedTime,capabilities/canDownload,md5Checksum,videoMediaMetadata(width,height,durationMillis),shortcutDetails(targetId,targetMimeType)",
                 "supportsAllDrives": "true",
             },
         ).json()
@@ -140,7 +140,7 @@ class GoogleDriveClient:
                     "q": f"'{current_id}' in parents and trashed = false",
                     "pageSize": min(1000, page_size),
                     "orderBy": "name",
-                    "fields": "nextPageToken,files(id,name,mimeType,size,modifiedTime,capabilities/canDownload,md5Checksum,parents,shortcutDetails(targetId,targetMimeType))",
+                    "fields": "nextPageToken,files(id,name,mimeType,size,modifiedTime,capabilities/canDownload,md5Checksum,parents,videoMediaMetadata(width,height,durationMillis),shortcutDetails(targetId,targetMimeType))",
                     "supportsAllDrives": "true",
                     "includeItemsFromAllDrives": "true",
                 }
@@ -245,14 +245,26 @@ def discover_folder_oauth(folder_url: str) -> tuple[str, str | None, list[dict]]
         return "failed", f"Google Drive integration error: {str(exc)[:240]}", []
 
 
-def download_asset_oauth(file_id: str, destination: str, required_size: int = 0, safety_margin: int = 256 * 1024 * 1024) -> tuple[str, str | None, int]:
+def _disk_budget_status(destination: str, required_size: int = 0, safety_margin: int = 1024 * 1024 * 1024) -> tuple[str, str | None]:
+    """Return whether a download fits the current runner disk budget."""
+    free_bytes = shutil.disk_usage(Path(destination).parent).free
+    required = max(0, int(required_size))
+    if required <= 0:
+        required = max(512 * 1024 * 1024, int(os.getenv("CLIPPER_UNKNOWN_DOWNLOAD_RESERVE", str(800 * 1024 * 1024))))
+    required = int(required * 1.10)
+    margin = max(0, int(safety_margin))
+    if free_bytes < required + margin:
+        return "deferred", "DEFERRED_DISK_BUDGET"
+    return "ready", None
+
+
+def download_asset_oauth(file_id: str, destination: str, required_size: int = 0, safety_margin: int = 1024 * 1024 * 1024) -> tuple[str, str | None, int]:
     """Download one known asset only when disk budget permits."""
     try:
+        status, reason = _disk_budget_status(destination, required_size, safety_margin)
+        if status != "ready":
+            return "deferred", reason, 0
         client = GoogleDriveClient()
-        free_bytes = shutil.disk_usage(Path(destination).parent).free
-        required = max(0, int(required_size))
-        if required and required + safety_margin > free_bytes:
-            return "deferred", "DEFERRED_DISK_BUDGET", 0
         size = client.download_file(file_id, destination)
         return "downloaded", None, size
     except GoogleDriveError as exc:
@@ -278,10 +290,15 @@ def download_file_oauth(file_url: str, destination: str) -> tuple[str, str | Non
             if not target_id:
                 return "failed", "Drive shortcut tidak memiliki target yang dapat diunduh"
             file_id = target_id
+            metadata = client.get_file_metadata(file_id)
+            mime = str(metadata.get("mimeType") or "")
         if mime == "application/vnd.google-apps.folder":
             return "failed", "referensi Drive menunjuk ke folder; gunakan referensi folder"
         if metadata.get("capabilities", {}).get("canDownload", True) is False:
             return "failed", "file Drive tidak dapat diunduh oleh akun OAuth"
+        status, reason = _disk_budget_status(destination, int(metadata.get("size") or 0), int(os.getenv("CLIPPER_DISK_SAFETY_MARGIN", str(1024 * 1024 * 1024))))
+        if status != "ready":
+            return "deferred", reason
         client.download_file(file_id, destination)
         return "downloaded", None
     except GoogleDriveError as exc:
