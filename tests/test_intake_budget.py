@@ -32,6 +32,18 @@ class IntakeBudgetTests(unittest.TestCase):
         status, reason = intake._download_guard("/tmp/asset.mp4", required_size=100_000_000, safety_margin=1_000_000_000)
         self.assertEqual((status, reason), ("deferred", "DEFERRED_DISK_BUDGET"))
 
+
+    def test_download_direct_rejects_response_above_remaining_budget(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = str(Path(tmp) / "asset.mp4")
+            with patch("modules.reward_campaign.intake._download_guard", return_value=("ready", None)), patch(
+                "modules.reward_campaign.intake.fetch_bytes", return_value=b"0123456789"
+            ):
+                status, error = intake.download_direct("https://example.test/video.mp4", destination, max_bytes=5)
+            self.assertEqual((status, error), ("deferred", "DEFERRED_DOWNLOAD_BYTE_BUDGET"))
+            self.assertFalse(Path(destination).exists())
+            self.assertFalse(Path(destination + ".part").exists())
+
     def test_youtube_download_is_atomic_and_removes_part(self):
         with tempfile.TemporaryDirectory() as tmp:
             destination = str(Path(tmp) / "asset.mp4")
