@@ -11,6 +11,8 @@ on:
         required: false
         default: "3"
         type: string
+  pull_request:
+    branches: [main]
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -18,7 +20,7 @@ jobs:
     permissions:
       contents: read
     env:
-      CAMPAIGN_ID: ${{ inputs.campaign_id }}
+      CAMPAIGN_ID: ${{ inputs.campaign_id || '14f743b2-c5ca-4f3e-8c0d-3010c485005d' }}
       CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
       CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
       GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
@@ -56,7 +58,7 @@ jobs:
           PROBE_OUT: ${{ github.workspace }}/controlled-e2e-report.json
         run: |
           set -o pipefail
-          python /tmp/controlled_intake_probe.py --plan /tmp/plan.json --workspace "$RUNNER_TEMP/intake" --sample-size "${{ inputs.sample_size }}" --model small | tee controlled-e2e-metrics.json
+          python /tmp/controlled_intake_probe.py --plan /tmp/plan.json --workspace "$RUNNER_TEMP/intake" --sample-size "${{ inputs.sample_size || '3' }}" --model small | tee controlled-e2e-metrics.json
       - name: Upload source-level evidence
         uses: actions/upload-artifact@v4
         with:
