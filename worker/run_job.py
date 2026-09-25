@@ -391,6 +391,11 @@ def main() -> None:
                     continue
                 all_candidates.append({"candidate": dict(local_item), "source": str(source), "transcript": str(transcript_dir / "transcript.json"), "relevance": relevance})
             update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Memproses bahan {source_index}/{len(sources)} · kandidat lokal selesai")
+            early_stop_target = max(0, int(os.environ.get("CLIPPER_EARLY_STOP_CANDIDATES", "15")))
+            early_stop_min_sources = max(1, int(os.environ.get("CLIPPER_EARLY_STOP_MIN_SOURCES", "3")))
+            if early_stop_target and source_index >= early_stop_min_sources and candidate_stats["raw_candidates"] >= early_stop_target:
+                update(args.api_base, args.job_id, args.worker_token, "processing", min(75, 24 + int(48 * source_index / max(1, len(sources)))), f"Funnel cukup · {candidate_stats['raw_candidates']} kandidat dari {source_index} sumber, melewati sumber berikutnya")
+                break
         # Global semantic pass: deterministic candidate generation happens per source,
         # but the semantic model is loaded once and sees only the strongest global shortlist.
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "semantic_ranking", "started", {
