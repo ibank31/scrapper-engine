@@ -269,6 +269,14 @@ def main() -> None:
             intake_manifest = {}
         manifest_sources = []
         for item in intake_manifest.get("asset_manifest", []):
+            if item.get("asset_kind") != "video":
+                continue
+            # New intake manifests only expose media that passed the cheap
+            # container/stream validation gate. Legacy manifests without that
+            # field remain eligible for the worker's defensive ffprobe.
+            media_validation = item.get("media_validation")
+            if media_validation is not None and media_validation.get("status") != "pass":
+                continue
             if not item.get("downloaded"):
                 continue
             local_path = str(item.get("local_path") or "")
@@ -322,15 +330,55 @@ def main() -> None:
             elif not record.get("duplicate_of") and not record.get("excluded_before_transcription"):
                 record["excluded_before_transcription"] = True
         (workspace / "source-preflight.json").write_text(json.dumps({"schema_version": 1, "sources": preflight_records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"source_count": len(preflight_records), "usable_sources": len(usable_sources), "discovered_asset_count": (intake_manifest.get("discovery") or {}).get("discovered_asset_count", 0), "downloaded_asset_count": (intake_manifest.get("discovery") or {}).get("downloaded_asset_count", 0), "deferred_asset_count": (intake_manifest.get("discovery") or {}).get("deferred_asset_count", 0), "downloaded_bytes": (intake_manifest.get("discovery") or {}).get("downloaded_bytes", 0)})
+        intake_discovery = intake_manifest.get("discovery") or {}
+        stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {
+            "source_count": len(preflight_records),
+            "usable_sources": len(usable_sources),
+            "discovered_asset_count": intake_discovery.get("discovered_asset_count", 0),
+            "discovered_media_asset_count": intake_discovery.get("discovered_media_asset_count", 0),
+            "ready_for_processing_asset_count": intake_discovery.get("ready_for_processing_asset_count", 0),
+            "invalid_media_asset_count": intake_discovery.get("invalid_media_asset_count", 0),
+            "downloaded_asset_count": intake_discovery.get("downloaded_asset_count", 0),
+            "deferred_asset_count": intake_discovery.get("deferred_asset_count", 0),
+            "downloaded_bytes": intake_discovery.get("downloaded_bytes", 0),
+        })
         sources = usable_sources
         if not sources:
-            reasons = [
-                ",".join(str(k) for k, v in (record.get("quality") or {}).items() if k in {"available", "has_video", "has_audio", "duration_seconds"})
-                for record in preflight_records
-                if record.get("excluded_before_transcription")
-            ]
-            raise RuntimeError(f"semua source gagal preflight: video/audio/durasi tidak layak; sources={len(preflight_records)}; details={' | '.join(reasons[:3])}")
+            rejected = []
+            for record in preflight_records:
+                if record.get("duplicate_of"):
+                    continue
+                quality = record.get("quality") or {}
+                rejected.append({
+                    "source": Path(str(record.get("source") or "source")).name,
+                    "available": quality.get("available"),
+                    "has_video": quality.get("has_video"),
+                    "has_audio": quality.get("has_audio"),
+                    "duration_seconds": quality.get("duration_seconds"),
+                    "reason": record.get("excluded_before_transcription") and "media_preflight_failed" or "not_selected",
+                })
+            detail = json.dumps(rejected[:8], ensure_ascii=False, separators=(",", ":"))
+            update(
+                args.api_base,
+                args.job_id,
+                args.worker_token,
+                "blocked",
+                100,
+                "Tidak ada video yang lolos media preflight",
+                f"source_media_invalid: {detail[:900]}",
+            )
+            stage_event(
+                args.api_base,
+                args.job_id,
+                args.worker_token,
+                run_id,
+                "asset_preflight",
+                "blocked",
+                {"source_count": len(preflight_records), "usable_sources": 0, "rejected_sources": rejected[:8]},
+                "source_media_invalid",
+                detail,
+            )
+            return
         if campaign_min_duration:
             long_enough = [
                 record for record in preflight_records

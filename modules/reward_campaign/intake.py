@@ -24,6 +24,8 @@ from core.google_drive import (
 from core.google_sheets import GoogleSheetError, discover_sheet_assets, fetch_sheet_rows, is_google_sheet_url
 from core.job_workspace import create_workspace, now_iso, read_json, sha256_file, write_json
 from core.candidate_identity import normalize_source_asset_id
+from core.material_references import extract_document_references, is_symbolic_reference, resolve_named_youtube_reference
+from core.media_validation import validate_video_file
 
 DIRECT_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a", ".png", ".jpg", ".jpeg", ".webp", ".srt", ".ass"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
@@ -311,11 +313,22 @@ def main() -> None:
     source_metadata: dict[str, dict] = {}
     source_priority: dict[str, tuple] = {}
     tracker_records = 0
-    unresolved_references: list[str] = []
+    unresolved_references: list[dict] = []
+    reference_manifest: list[dict] = []
     source_manifest: list[dict] = []
     asset_manifest: list[dict] = []
 
     references = (plan.get("production") or {}).get("asset_urls") or []
+    explicit_reference_values = [str(value).strip() for value in references if str(value).strip()]
+    for raw_reference in explicit_reference_values:
+        if is_symbolic_reference(raw_reference):
+            unresolved_references.append({
+                "reference": raw_reference,
+                "kind": "SYMBOLIC_ASSET_REFERENCE",
+                "role": "PRIMARY_SOURCE_CANDIDATE",
+                "status": "UNRESOLVED",
+                "reason": "symbolic_asset_reference_requires_campaign_asset_mapping",
+            })
     for url in references:
         discovered.append(url)
         if is_google_sheet_url(url):
@@ -358,7 +371,47 @@ def main() -> None:
             status = "downloaded" if text else "failed"
             records.append(_record(Path(materials, name), ws["path"], url, "google_doc", status, error))
             if text:
-                discovered.extend(u for u in URL_RE.findall(text) if u.rstrip(".,;") not in discovered)
+                extracted = extract_document_references(text)
+                reference_manifest.extend([
+                    {**item, "origin": url, "reference_kind": "EXPLICIT_URL"}
+                    for item in extracted.get("urls", [])
+                ])
+                for item in extracted.get("urls", []):
+                    candidate_url = item["url"]
+                    if item.get("role") == "REFERENCE_ONLY":
+                        continue
+                    if candidate_url not in discovered:
+                        discovered.append(candidate_url)
+                campaign = plan.get("campaign") or {}
+                named_limit = max(0, _env_int("CLIPPER_NAMED_REFERENCE_MAX", 3))
+                for named in extracted.get("named_media", [])[:named_limit]:
+                    resolution = resolve_named_youtube_reference(
+                        named.get("value", ""),
+                        campaign_title=str(campaign.get("title") or ""),
+                        brand=str(campaign.get("brand") or ""),
+                    )
+                    reference_entry = {
+                        **named,
+                        "origin": url,
+                        "reference_kind": "NAMED_MEDIA",
+                        "resolution": resolution,
+                    }
+                    reference_manifest.append(reference_entry)
+                    if resolution.get("status") == "verified_candidate":
+                        candidate_url = str((resolution.get("candidate") or {}).get("url") or "")
+                        if candidate_url and candidate_url not in discovered:
+                            discovered.append(candidate_url)
+                    else:
+                        unresolved_references.append({
+                            "reference": named.get("value"),
+                            "kind": "NAMED_MEDIA",
+                            "role": named.get("role"),
+                            "origin": url,
+                            "line_number": named.get("line_number"),
+                            "status": "UNRESOLVED",
+                            "reason": resolution.get("reason") or "unresolved_named_media_reference",
+                            "best_candidate": resolution.get("best_candidate"),
+                        })
 
     media_candidates: dict[str, dict] = {}
     for url in discovered:
@@ -375,6 +428,11 @@ def main() -> None:
     for url, metadata in source_metadata.items():
         if url in media_candidates:
             media_candidates[url]["metadata"] = metadata
+
+    for item in reference_manifest:
+        candidate_url = str(item.get("url") or "")
+        if candidate_url and candidate_url in media_candidates:
+            media_candidates[candidate_url]["reference_role"] = item.get("role") or "AMBIGUOUS_REFERENCE"
 
     # YouTube channel/playlist references are source collections, not downloadable videos.
     # Expand them into individual video URLs during metadata-only discovery.
@@ -445,6 +503,7 @@ def main() -> None:
         source_type = _source_type(url, host)
         source_entry = {
             "source_id": source_id,
+            "reference_role": candidate.get("reference_role") or "PRIMARY_SOURCE",
             "source_type": source_type,
             "source_reference": url,
             "source_url": url,
@@ -462,6 +521,7 @@ def main() -> None:
             "deferred_asset_count": 0,
             "failed_asset_count": 0,
             "status": "discovered",
+            "media_validation": None,
             "error_code": None,
             "error_message": None,
         }
@@ -540,6 +600,7 @@ def main() -> None:
                     seen_asset_ids.add(child_id)
                 asset_entry = {
                     "asset_id": child_id,
+                    "reference_role": candidate.get("reference_role") or "PRIMARY_SOURCE",
                     "source_id": source_id,
                     "source_type": "google_drive_asset",
                     "source_reference": url,
@@ -576,6 +637,7 @@ def main() -> None:
             is_video = is_youtube or is_drive or Path(urlparse(url).path).suffix.lower() in VIDEO_EXTENSIONS
             asset_entry = {
                 "asset_id": source_id,
+                "reference_role": candidate.get("reference_role") or "PRIMARY_SOURCE",
                 "source_id": source_id,
                 "source_type": source_type,
                 "source_reference": url,
@@ -680,25 +742,42 @@ def main() -> None:
 
         if dl_status == "downloaded" and Path(destination).exists() and Path(destination).stat().st_size > 0:
             rel = os.path.relpath(destination, ws["path"])
+            media_validation = validate_video_file(destination)
             asset_entry.update({
                 "accessible": True,
                 "downloaded": True,
-                "status": "downloaded",
+                "status": "READY_FOR_PROCESSING" if media_validation.get("status") == "pass" else "INVALID_MEDIA",
                 "local_path": rel,
                 "size_bytes": Path(destination).stat().st_size,
                 "actual_size_bytes": actual_size,
+                "media_validation": media_validation,
             })
-            source_entry.update({
-                "accessible": True,
-                "downloaded": True,
-                "downloaded_asset_count": int(source_entry.get("downloaded_asset_count") or 0) + 1,
-            })
-            source_entry["local_paths"].append(rel)
-            records.append(_record(Path(destination), ws["path"], str(item.get("url") or source_entry["source_reference"]), entry["kind"], metadata=item, source_id=asset_entry["asset_id"]))
+            if media_validation.get("status") == "pass":
+                source_entry.update({
+                    "accessible": True,
+                    "downloaded": True,
+                    "downloaded_asset_count": int(source_entry.get("downloaded_asset_count") or 0) + 1,
+                })
+                source_entry["local_paths"].append(rel)
+                if str(asset_entry.get("asset_kind")) == "video":
+                    video_count += 1
+            else:
+                asset_entry["error_code"] = "invalid_media"
+                asset_entry["error_message"] = "; ".join(media_validation.get("issues") or ["downloaded file is not a usable video"])
+                source_entry["failed_asset_count"] += 1
+                failed_assets += 1
+                manual_lines += [f"- {source_entry['source_reference']} / {asset_entry.get('name') or asset_entry['asset_id']} — {asset_entry['error_message']}", ""]
+            records.append(_record(
+                Path(destination), ws["path"],
+                str(item.get("url") or source_entry["source_reference"]),
+                entry["kind"],
+                "downloaded" if media_validation.get("status") == "pass" else "failed",
+                asset_entry.get("error_message"),
+                item,
+                asset_entry["asset_id"],
+            ))
             downloaded_bytes += actual_size
             downloaded_assets += 1
-            if str(asset_entry.get("asset_kind")) == "video":
-                video_count += 1
             continue
         if dl_status == "deferred":
             budget_error = dl_error == "DEFERRED_DOWNLOAD_BYTE_BUDGET"
@@ -731,7 +810,9 @@ def main() -> None:
     discovered_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video")
     accessible_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video" and item.get("accessible"))
     deferred_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video" and str(item.get("status", "")).startswith("DEFERRED"))
-    failed_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video" and item.get("status") == "DOWNLOAD_FAILED")
+    failed_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video" and item.get("status") in {"DOWNLOAD_FAILED", "INVALID_MEDIA"})
+    invalid_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video" and item.get("status") == "INVALID_MEDIA")
+    ready_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video" and item.get("status") == "READY_FOR_PROCESSING")
     rules = plan.get("source_of_truth") or {}
     rules_path = Path(materials, "RULES_SNAPSHOT.md")
     requirements = rules.get("requirements") or []
@@ -753,6 +834,7 @@ def main() -> None:
         "assets": records,
         "source_manifest": source_manifest,
         "asset_manifest": asset_manifest,
+        "reference_manifest": reference_manifest,
         "discovery": {
             "reference_count": len(references),
             "tracker_rows": tracker_records,
@@ -765,6 +847,8 @@ def main() -> None:
             "accessible_media_asset_count": accessible_media_asset_count,
             "downloaded_asset_count": downloaded_assets,
             "downloaded_media_asset_count": video_count,
+            "ready_for_processing_asset_count": ready_media_asset_count,
+            "invalid_media_asset_count": invalid_media_asset_count,
             "deferred_asset_count": deferred_assets,
             "deferred_media_asset_count": deferred_media_asset_count,
             "failed_asset_count": failed_assets,
@@ -772,6 +856,7 @@ def main() -> None:
             "download_limits": {"max_assets": download_limit, "max_bytes": download_budget, "disk_safety_margin": disk_margin},
             "downloaded_bytes": downloaded_bytes,
             "unresolved_references": unresolved_references,
+            "reference_manifest_count": len(reference_manifest),
         },
         "updated_at": now_iso(),
     }
