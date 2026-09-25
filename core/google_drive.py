@@ -111,6 +111,17 @@ class GoogleDriveClient:
                     time.sleep(min(8, 2 ** attempt))
         raise GoogleDriveError(f"Google Drive request gagal: {str(last_error)[:300]}")
 
+    def get_file_metadata(self, file_id: str) -> dict:
+        """Return safe metadata used to resolve Drive files and shortcuts."""
+        return self._request(
+            "GET",
+            f"/files/{file_id}",
+            params={
+                "fields": "id,name,mimeType,size,capabilities/canDownload,md5Checksum,shortcutDetails(targetId,targetMimeType)",
+                "supportsAllDrives": "true",
+            },
+        ).json()
+
     def list_media(self, folder_id: str, page_size: int = 100, max_depth: int = 5) -> list[dict]:
         files: list[dict] = []
         visited: set[str] = set()
@@ -209,7 +220,23 @@ def download_file_oauth(file_url: str, destination: str) -> tuple[str, str | Non
     if not file_id:
         return "failed", "file ID Google Drive tidak ditemukan"
     try:
-        GoogleDriveClient().download_file(file_id, destination)
+        client = GoogleDriveClient()
+        metadata = client.get_file_metadata(file_id)
+        mime = str(metadata.get("mimeType") or "")
+        if mime == "application/vnd.google-apps.shortcut":
+            shortcut = metadata.get("shortcutDetails") or {}
+            target_id = str(shortcut.get("targetId") or "")
+            target_mime = str(shortcut.get("targetMimeType") or "")
+            if target_mime == "application/vnd.google-apps.folder":
+                return "failed", "Drive shortcut menunjuk ke folder; gunakan referensi folder"
+            if not target_id:
+                return "failed", "Drive shortcut tidak memiliki target yang dapat diunduh"
+            file_id = target_id
+        if mime == "application/vnd.google-apps.folder":
+            return "failed", "referensi Drive menunjuk ke folder; gunakan referensi folder"
+        if metadata.get("capabilities", {}).get("canDownload", True) is False:
+            return "failed", "file Drive tidak dapat diunduh oleh akun OAuth"
+        client.download_file(file_id, destination)
         return "downloaded", None
     except GoogleDriveError as exc:
         return "failed", str(exc)[:300]

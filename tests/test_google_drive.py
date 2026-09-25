@@ -54,6 +54,18 @@ class GoogleDriveTests(unittest.TestCase):
             self.assertEqual(size, 3)
             self.assertEqual(path.read_bytes(), b"abc")
 
+    def test_download_file_resolves_shortcut_target(self):
+        responses = [
+            FakeResponse({"access_token": "access"}),
+            FakeResponse({"id": "shortcut", "mimeType": "application/vnd.google-apps.shortcut", "shortcutDetails": {"targetId": "target", "targetMimeType": "video/mp4"}}),
+            FakeResponse(content=b"abc", chunks=[b"abc"]),
+        ]
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"GOOGLE_DRIVE_REFRESH_TOKEN": "refresh", "GOOGLE_OAUTH_CLIENT_ID": "client", "GOOGLE_OAUTH_CLIENT_SECRET": "secret"}), patch("core.google_drive.requests.post", side_effect=responses[:1]), patch("core.google_drive.requests.request", side_effect=responses[1:]):
+            path = Path(tmp) / "clip.mp4"
+            status, error = google_drive.download_file_oauth("https://drive.google.com/file/d/shortcut/view", str(path))
+            self.assertEqual((status, error), ("downloaded", None))
+            self.assertEqual(path.read_bytes(), b"abc")
+
 
 if __name__ == "__main__":
     unittest.main()

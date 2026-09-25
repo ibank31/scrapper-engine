@@ -107,6 +107,21 @@ def _media_files(root: str) -> list[Path]:
     return [p for p in Path(root).rglob("*") if p.is_file() and p.suffix.lower() in DIRECT_EXTENSIONS]
 
 
+def _source_id(url: str) -> str:
+    return normalize_source_asset_id(url) or f"source-{abs(hash(url))}"
+
+
+def _source_type(url: str, host: str | None = None) -> str:
+    host = host or urlparse(url).netloc.lower()
+    if "youtube.com/" in url or "youtu.be/" in url:
+        return "youtube"
+    if "drive.google.com" in host:
+        return "google_drive_folder" if "/folders/" in url else "google_drive"
+    if "vimeo.com/" in url:
+        return "vimeo"
+    return "direct_media"
+
+
 def _record(
     path: Path,
     workspace: str,
@@ -115,9 +130,12 @@ def _record(
     status: str = "downloaded",
     error: str | None = None,
     metadata: dict | None = None,
+    source_id: str | None = None,
 ) -> dict:
     item = {
+        "source_id": source_id or _source_id(url),
         "url": url,
+        "source_reference": url,
         "source_type": source_type,
         "created_at": now_iso(),
         "status": status,
@@ -152,6 +170,7 @@ def main() -> None:
     source_priority: dict[str, tuple] = {}
     tracker_records = 0
     unresolved_references: list[str] = []
+    source_manifest: list[dict] = []
 
     references = (plan.get("production") or {}).get("asset_urls") or []
     for url in references:
@@ -250,8 +269,28 @@ def main() -> None:
         metadata = candidate.get("metadata")
         host = urlparse(url).netloc.lower()
         label = f"source-{index:02d}"
+        source_id = candidate.get("source_asset_id") or _source_id(url)
+        source_entry = {
+            "source_id": source_id,
+            "source_type": _source_type(url, host),
+            "source_reference": url,
+            "source_url": url,
+            "discovered": True,
+            "accessible": False,
+            "downloaded": False,
+            "local_path": None,
+            "local_paths": [],
+            "mime_type": None,
+            "size_bytes": None,
+            "duration": None,
+            "status": "discovered",
+            "error_code": None,
+            "error_message": None,
+        }
         if args.no_download:
-            records.append(_record(Path(ws["assets"], label + ".mp4"), ws["path"], url, "source", "needs_manual_download", "download disabled by flag", metadata))
+            source_entry.update({"status": "deferred", "error_code": "download_disabled", "error_message": "download disabled by flag"})
+            source_manifest.append(source_entry)
+            records.append(_record(Path(ws["assets"], label + ".mp4"), ws["path"], url, "source", "needs_manual_download", "download disabled by flag", metadata, source_id))
             manual_lines += [f"- {url} — download disabled", ""]
             continue
 
@@ -261,9 +300,20 @@ def main() -> None:
             folder_files = _media_files(target) if status == "downloaded" else []
             if folder_files:
                 video_count += len([p for p in folder_files if p.suffix.lower() in VIDEO_EXTENSIONS])
-                records.extend(_record(p, ws["path"], url, "google_drive_folder", metadata=metadata) for p in folder_files)
+                records.extend(_record(p, ws["path"], url, "google_drive_folder", metadata=metadata, source_id=source_id) for p in folder_files)
+                source_entry.update({
+                    "accessible": True,
+                    "downloaded": True,
+                    "status": "downloaded",
+                    "local_path": os.path.relpath(folder_files[0], ws["path"]),
+                    "local_paths": [os.path.relpath(p, ws["path"]) for p in folder_files],
+                    "mime_type": "video/*",
+                    "size_bytes": sum(p.stat().st_size for p in folder_files),
+                })
             else:
-                records.append(_record(Path(target), ws["path"], url, "google_drive_folder", "failed", error or "no media files", metadata))
+                reason = error or "no media files"
+                source_entry.update({"status": "inaccessible", "error_code": "drive_download_failed", "error_message": reason})
+                records.append(_record(Path(target), ws["path"], url, "google_drive_folder", "failed", reason, metadata, source_id))
         else:
             destination = os.path.join(ws["assets"], label + ".mp4")
             if "youtube.com/" in url or "youtu.be/" in url:
@@ -275,11 +325,23 @@ def main() -> None:
             else:
                 status, error = download_direct(url, destination)
                 source_type = "direct_media"
-            records.append(_record(Path(destination), ws["path"], url, source_type, status, error, metadata))
+            records.append(_record(Path(destination), ws["path"], url, source_type, status, error, metadata, source_id))
             if status == "downloaded":
                 video_count += 1
+                path = Path(destination)
+                source_entry.update({
+                    "accessible": True,
+                    "downloaded": True,
+                    "status": "downloaded",
+                    "local_path": os.path.relpath(path, ws["path"]),
+                    "local_paths": [os.path.relpath(path, ws["path"])],
+                    "mime_type": "video/*" if path.suffix.lower() in VIDEO_EXTENSIONS else None,
+                    "size_bytes": path.stat().st_size,
+                })
             else:
+                source_entry.update({"status": "inaccessible", "error_code": "download_failed", "error_message": error or "download failed"})
                 manual_lines += [f"- {url} — {error}", ""]
+        source_manifest.append(source_entry)
 
     rules = plan.get("source_of_truth") or {}
     rules_path = Path(materials, "RULES_SNAPSHOT.md")
@@ -300,6 +362,7 @@ def main() -> None:
         "campaign": plan.get("campaign"),
         "rules_snapshot": os.path.relpath(rules_path, ws["path"]),
         "assets": records,
+        "source_manifest": source_manifest,
         "discovery": {
             "reference_count": len(references),
             "tracker_rows": tracker_records,
