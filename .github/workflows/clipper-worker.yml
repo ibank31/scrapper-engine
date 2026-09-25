@@ -95,6 +95,8 @@ jobs:
           CLIPPER_MAX_VIDEO_SOURCES: "6"
           CLIPPER_FFMPEG_PRESET: medium
           CLIPPER_FFMPEG_CRF: "19"
+          CLIPPER_MEDIA_TOP_N: "24"
+          CLIPPER_SEMANTIC_TOP_N: "15"
           CLIPPER_SEMANTIC_MODEL: /home/runner/.cache/clipper-semantic/qwen2.5-1.5b-instruct-q4_k_m.gguf
           CLIPPER_SEMANTIC_ENABLED: "auto"
           CLIPPER_SEMANTIC_THREADS: "4"
