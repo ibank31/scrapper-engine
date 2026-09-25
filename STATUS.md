@@ -1,6 +1,6 @@
 # Scrapper Engine Status
 
-**Updated:** 24 September 2026 — Phase 5 local acceptance complete; controlled pilot not executed
+**Updated:** 25 September 2026 — performance hardening implemented; controlled pilot pending
 **Branch:** `main`
 
 ## Current milestone
@@ -31,6 +31,17 @@ Campaign asset intake now resolves Google Sheets trackers before source download
 
 The next integration hardening keeps stage contracts explicit: a cheap asset-duration gate runs before Whisper when a campaign has a minimum duration; selector artifacts include transcript span, unit count, bounds, pause budget, and an empty-result reason; short transcript pauses up to three seconds may be bridged without crossing long silence; and semantic ranking is skipped when selection returns no candidates. This prevents avoidable Qwen calls and makes a blocked job explain which stage produced zero output.
 
+## Performance hardening — implemented
+
+The production funnel now avoids three major repeat costs:
+
+- Duration bands are generated in one candidate pass instead of launching `select_clips` once per band. The worker sends all active bands together through `--bands-json`.
+- Expensive silence/scene/visual media analysis is deferred until after deterministic candidate scoring and bounded to `CLIPPER_MEDIA_TOP_N` (production: 24 candidates/source).
+- Semantic Qwen ranking is global rather than per source. The worker collects source candidates, then loads the local semantic model once for a bounded global shortlist (`CLIPPER_SEMANTIC_TOP_N`, production: 15). The deterministic local policy gate remains authoritative.
+- Face tracking during render is limited to the selected candidate window instead of scanning the entire source video.
+- Selector diagnostics now expose the single-pass funnel and media-analysis count.
+
+This intentionally does not enable Whisper parallelism yet. Model concurrency needs a measured CPU/RAM benchmark on the actual GitHub runner before changing the production default; otherwise the optimization could increase memory pressure instead of reducing wall-clock time.
 ## Rules and quality behavior
 
 - `plan.json` and `source_of_truth` are authoritative.
