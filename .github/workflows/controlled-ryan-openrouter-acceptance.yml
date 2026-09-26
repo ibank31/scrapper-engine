@@ -56,13 +56,16 @@ jobs:
           api = os.environ["CLIPPER_API_URL"].rstrip("/")
           campaign_id = "926e1b7f-1030-4333-a557-f99d9f891437"
           request = urllib.request.Request(
-              f"{api}/api/campaigns/{campaign_id}",
+              f"{api}/api/campaign-intelligence",
               headers={"x-github-token": os.environ["GITHUB_TOKEN"]},
           )
           with urllib.request.urlopen(request, timeout=60) as response:
               payload = json.load(response)
-          campaign = payload["campaign"]
-          ai = campaign["ai_rules"]
+          campaign = next(
+              item for item in payload["campaigns"]
+              if item["id"] == campaign_id
+          )
+          ai = json.loads(campaign["ai_rules_json"])
 
           assert ai["schema_version"] == 2
           assert ai["source_hash"]
