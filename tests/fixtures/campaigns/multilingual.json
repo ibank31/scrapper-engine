@@ -1,0 +1,21 @@
+{
+  "id": "fixture-multilingual",
+  "title": "Bilingual Creator Campaign",
+  "brand": "Fixture Global",
+  "description": "Short-form educational clips for Indonesian and English audiences.",
+  "platforms": ["youtube", "instagram"],
+  "requirements": [
+    {"text": "Use Indonesian or English depending on the selected audience.", "isMandatory": true}
+  ],
+  "docs_text": "Durasi video: 20-40 detik. Gunakan CTA: Pelajari selengkapnya. English CTA may use: Learn more.",
+  "source_of_truth": {
+    "docs_text": "Instagram hashtag wajib: #FixtureGlobal. YouTube description must include #FixtureGlobal."
+  },
+  "expected_evidence": [
+    {"rule_path": "rules.duration", "quote": "Durasi video: 20-40 detik.", "mandatory": true},
+    {"rule_path": "rules.cta_text", "quote": "Gunakan CTA: Pelajari selengkapnya.", "mandatory": true},
+    {"rule_path": "rules.cta_text", "quote": "English CTA may use: Learn more.", "mandatory": false},
+    {"rule_path": "rules.hashtags", "quote": "Instagram hashtag wajib: #FixtureGlobal.", "mandatory": true},
+    {"rule_path": "rules.hashtags", "quote": "YouTube description must include #FixtureGlobal.", "mandatory": true}
+  ]
+}
