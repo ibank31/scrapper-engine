@@ -1,0 +1,24 @@
+{
+  "id": "fixture-document-only",
+  "title": "Document Only Launch",
+  "brand": "Fixture Labs",
+  "description": "Create short clips from approved founder interviews.",
+  "platforms": ["tiktok", "instagram"],
+  "requirements": [
+    {"text": "Use vertical 9:16 video.", "isMandatory": true}
+  ],
+  "docs_text": "Clip Length: 15-30 seconds. CTA: Apply at https://example.test/apply. Use hashtag #FixtureLaunch. Do not show competitor logos.",
+  "source_of_truth": {
+    "docs_text": "Instagram handle: @fixturelabs. TikTok handle: @fixturelabsmedia.",
+    "description": "Only approved founder interviews are allowed."
+  },
+  "expected_evidence": [
+    {"rule_path": "rules.min_duration_seconds", "quote": "Clip Length: 15-30 seconds.", "mandatory": true},
+    {"rule_path": "rules.cta_text", "quote": "CTA: Apply at https://example.test/apply.", "mandatory": true},
+    {"rule_path": "rules.hashtags", "quote": "Use hashtag #FixtureLaunch.", "mandatory": true},
+    {"rule_path": "rules.prohibited_content", "quote": "Do not show competitor logos.", "mandatory": true},
+    {"rule_path": "rules.handles", "quote": "Instagram handle: @fixturelabs.", "mandatory": true},
+    {"rule_path": "rules.handles", "quote": "TikTok handle: @fixturelabsmedia.", "mandatory": true},
+    {"rule_path": "rules.source_policy", "quote": "Only approved founder interviews are allowed.", "mandatory": true}
+  ]
+}

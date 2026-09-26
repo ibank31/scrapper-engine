@@ -149,6 +149,36 @@ def _cache_is_current(previous: dict[str, Any] | None, rules_hash: str) -> bool:
     return True
 
 
+def _target_campaign_ids(value: str | None = None) -> set[str]:
+    raw = value if value is not None else os.getenv("CLIPPER_CAMPAIGN_IDS", "")
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
+def _campaigns_needing_ai(
+    campaigns: list[dict[str, Any]],
+    existing: dict[str, dict[str, Any]],
+    *,
+    force_ai: bool,
+    target_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Return only campaigns eligible for AI analysis in this run.
+
+    When targeted migration is requested, non-target campaigns are never sent to
+    the model, even when their cache is stale. This keeps migration bounded and
+    prevents a one-campaign repair from silently becoming a corpus migration.
+    """
+    candidates: list[dict[str, Any]] = []
+    for campaign in campaigns:
+        cid = str(campaign.get("id") or "")
+        if not cid or (target_ids and cid not in target_ids):
+            continue
+        rh = rules_fingerprint(campaign)
+        previous = existing.get(cid)
+        if force_ai or not _cache_is_current(previous, rh):
+            candidates.append(campaign)
+    return candidates
+
+
 def _apply_ai(campaign: dict[str, Any], ai: dict[str, Any] | None, previous: dict[str, Any] | None, rh: str) -> None:
     if ai:
         campaign["ai_rules"] = ai
@@ -157,7 +187,7 @@ def _apply_ai(campaign: dict[str, Any], ai: dict[str, Any] | None, previous: dic
         campaign["rules_hash"] = rh
         campaign["ai_fit_score"] = (ai.get("campaign_fit") or {}).get("score")
         return
-    if previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json"):
+    if previous and _cache_is_current(previous, rh):
         try:
             cached = json.loads(previous["ai_rules_json"]) if isinstance(previous["ai_rules_json"], str) else previous["ai_rules_json"]
             campaign["ai_rules"] = cached
@@ -249,19 +279,19 @@ def main() -> None:
 
     existing = _fetch_existing(api, token)
     force_ai = os.getenv("CLIPPER_FORCE_AI", "0").strip().lower() in {"1", "true", "yes"}
-    candidates: list[dict[str, Any]] = []
-    hashes: dict[str, str] = {}
+    target_ids = _target_campaign_ids()
+    hashes: dict[str, str] = {
+        str(c.get("id") or ""): rules_fingerprint(c)
+        for c in campaigns
+        if c.get("id")
+    }
+    candidates = _campaigns_needing_ai(campaigns, existing, force_ai=force_ai, target_ids=target_ids)
     for c in campaigns:
         cid = str(c.get("id") or "")
-        if not cid:
+        if not cid or cid in {str(item.get("id") or "") for item in candidates}:
             continue
-        rh = rules_fingerprint(c)
-        hashes[cid] = rh
         previous = existing.get(cid)
-        if not force_ai and _cache_is_current(previous, rh):
-            _apply_ai(c, None, previous, rh)
-        else:
-            candidates.append(c)
+        _apply_ai(c, None, previous, hashes.get(cid, ""))
 
     print(f"AI analysis needed: {len(candidates)} / {len(campaigns)}")
     ai_results: dict[str, dict[str, Any]] = {}
@@ -298,11 +328,6 @@ def main() -> None:
     campaigns.sort(key=readiness_sort_key)
     print("Readiness:", readiness_counts)
 
-    target_ids = {
-        item.strip()
-        for item in os.getenv("CLIPPER_CAMPAIGN_IDS", "").split(",")
-        if item.strip()
-    }
     sync_campaigns = [c for c in campaigns if str(c.get("id") or "") in target_ids] if target_ids else campaigns
     if target_ids:
         print(f"Targeted campaign sync: {len(sync_campaigns)} / {len(target_ids)} requested")

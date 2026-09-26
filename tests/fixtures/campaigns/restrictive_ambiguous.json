@@ -1,0 +1,24 @@
+{
+  "id": "fixture-restrictive-ambiguous",
+  "title": "Restrictive Product Campaign",
+  "brand": "Fixture Secure",
+  "description": "Security education campaign.",
+  "platforms": ["youtube"],
+  "requirements": [
+    {"text": "Never claim the product guarantees complete safety.", "isMandatory": true},
+    {"text": "Use English voiceover.", "isMandatory": false}
+  ],
+  "docs_text": "Prohibited: medical guarantees. Preferred tone: educational. If a claim is unclear, flag it for manual review.",
+  "source_of_truth": {
+    "docs_text": "Required disclosure: Educational content only.",
+    "description": "Ambiguous claims require manual review."
+  },
+  "expected_evidence": [
+    {"rule_path": "rules.prohibited_content", "quote": "Never claim the product guarantees complete safety.", "mandatory": true},
+    {"rule_path": "rules.prohibited_content", "quote": "Prohibited: medical guarantees.", "mandatory": true},
+    {"rule_path": "rules.tone", "quote": "Preferred tone: educational.", "mandatory": false},
+    {"rule_path": "rules.ambiguity", "quote": "If a claim is unclear, flag it for manual review.", "mandatory": true},
+    {"rule_path": "rules.disclosure", "quote": "Required disclosure: Educational content only.", "mandatory": true},
+    {"rule_path": "rules.ambiguity", "quote": "Ambiguous claims require manual review.", "mandatory": true}
+  ]
+}
