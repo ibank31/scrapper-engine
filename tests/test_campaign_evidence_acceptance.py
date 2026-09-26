@@ -56,6 +56,25 @@ class CampaignEvidenceAcceptanceTests(unittest.TestCase):
                 self.assertTrue(mandatory_quotes.issubset(verified_quotes))
                 self.assertTrue(all(item["evidence_id"].startswith("evidence-v1:") for item in result["verified"]))
 
+    def test_campaign_corpus_covers_distinct_rule_shapes(self):
+        campaigns = {campaign["id"]: campaign for _, campaign in load_fixtures()}
+        self.assertGreaterEqual(len(campaigns), 6)
+        for fixture_id in (
+            "fixture-document-only",
+            "fixture-platform-specific",
+            "fixture-restrictive-ambiguous",
+            "fixture-conflicting-sources",
+            "fixture-multilingual",
+            "fixture-material-heavy",
+        ):
+            self.assertIn(fixture_id, campaigns)
+
+        self.assertTrue(any(item["rule_path"].startswith("posting.") for item in campaigns["fixture-platform-specific"]["expected_evidence"]))
+        self.assertTrue(any("ambiguity" in item["rule_path"] for item in campaigns["fixture-restrictive-ambiguous"]["expected_evidence"]))
+        self.assertTrue(any("asset" in item["rule_path"] for item in campaigns["fixture-material-heavy"]["expected_evidence"]))
+        self.assertTrue(any("duration" in item["rule_path"] for item in campaigns["fixture-conflicting-sources"]["expected_evidence"]))
+        self.assertTrue(any("CTA" in item["quote"] for item in campaigns["fixture-multilingual"]["expected_evidence"]))
+
     def test_document_only_change_changes_source_fingerprint(self):
         campaign = next(
             campaign for _, campaign in load_fixtures()
