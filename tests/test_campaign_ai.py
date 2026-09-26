@@ -68,10 +68,15 @@ class CampaignAITests(unittest.TestCase):
             result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
 
         self.assertEqual(result["c-free-lock"]["confidence"], 0.8)
+        request_payload = post.call_args.kwargs["json"]
+        self.assertEqual(request_payload["model"], "openrouter/free")
+        self.assertEqual(request_payload["response_format"]["type"], "json_schema")
+        self.assertTrue(request_payload["response_format"]["json_schema"]["strict"])
         self.assertEqual(
-            post.call_args.kwargs["json"]["model"],
-            "openrouter/free",
+            request_payload["response_format"]["json_schema"]["schema"],
+            campaign_ai.GEMINI_RESPONSE_SCHEMA,
         )
+        self.assertTrue(request_payload["provider"]["require_parameters"])
 
     def test_ai_router_falls_back_to_openrouter_when_gemini_fails(self):
         campaign = {"id": "c-router", "title": "Router test"}
