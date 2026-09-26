@@ -21,7 +21,7 @@ def _norm_text(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
-def source_documents(campaign: dict[str, Any]) -> list[dict[str, str]]:
+def source_documents(campaign: dict[str, Any]) -> list[dict[str, Any]]:
     """Return deterministic source documents from the campaign payload."""
     docs: list[dict[str, Any]] = []
 
