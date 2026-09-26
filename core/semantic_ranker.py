@@ -267,7 +267,9 @@ def semantic_model_decision(candidates: list[dict[str, Any]], plan: dict[str, An
     # Audience classification is optional evidence. The two required tiers
     # are distribution slots, so unknown/ambiguous audience classification must
     # never force semantic work or block output selection.
-    if len(prepared) > 1 and (float(prepared[0].get("score") or 0) - float(prepared[1].get("score") or 0)) < 0.08:
+    top_score = float(prepared[0].get("score") or 0)
+    score_gap = top_score - float(prepared[1].get("score") or 0) if len(prepared) > 1 else 1.0
+    if len(prepared) > 1 and score_gap < 0.08 and top_score < 0.85:
         return True, "close_output_ranking"
 
     return False, "deterministic_confident"
