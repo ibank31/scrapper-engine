@@ -906,6 +906,11 @@ def main() -> None:
         "job_id": ws["job_id"],
         "campaign": plan.get("campaign"),
         "rules_snapshot": os.path.relpath(rules_path, ws["path"]),
+        "material_acquisition": {
+            "policy": material_policy,
+            "policy_validation_errors": material_policy_errors,
+            "status": "needs_review" if material_policy_errors else "planned",
+        },
         "assets": records,
         "source_manifest": source_manifest,
         "asset_manifest": asset_manifest,
