@@ -407,7 +407,7 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
                     continue
                 cid = str(raw.get("campaign_id") or "")
                 if cid:
-                    results[cid] = normalize_ai_result(raw, cid)
+                    results[cid] = normalize_ai_result(raw, cid, by_id[cid])
             for campaign in batch:
                 cid = str(campaign.get("id") or "")
                 if cid not in results:

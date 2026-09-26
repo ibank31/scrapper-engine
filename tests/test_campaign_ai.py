@@ -8,6 +8,7 @@ from unittest.mock import patch
 from core import campaign_ai
 from core.campaign_ai import normalize_ai_result, rules_fingerprint
 from core.campaign_evidence import build_evidence_ledger, source_fingerprint, verify_ai_evidence
+from worker.sync_campaigns import _cache_is_current
 
 
 def valid_payload(campaign_ids=("c-1",)):
@@ -54,6 +55,42 @@ class CampaignAITests(unittest.TestCase):
         generation = post.call_args.kwargs["json"]["generationConfig"]
         self.assertEqual(generation["responseMimeType"], "application/json")
         self.assertEqual(generation["responseSchema"], campaign_ai.GEMINI_RESPONSE_SCHEMA)
+
+    def test_live_analyze_binds_campaign_source_for_evidence_contract(self):
+        campaign = {"id": "c-evidence", "title": "Demo", "description": "Use aspect ratio 9:16", "platforms": ["tiktok"]}
+        body = {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": json.dumps(valid_payload(("c-evidence",)))}]}}]}
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-secret"}, clear=False), patch(
+            "core.campaign_ai.requests.post", return_value=FakeResponse(body)
+        ):
+            result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
+        self.assertEqual(result["c-evidence"]["source_hash"], source_fingerprint(campaign))
+        self.assertEqual(result["c-evidence"]["evidence_contract"]["coverage"], 1.0)
+        self.assertEqual(len(result["c-evidence"]["evidence_contract"]["verified"]), 1)
+
+    def test_legacy_campaign_ai_cache_is_stale_without_evidence_contract(self):
+        campaign_hash = "same-rules-hash"
+        legacy = {
+            "rules_hash": campaign_hash,
+            "ai_rules_json": json.dumps({
+                "schema_version": 1,
+                "rules": {"material_policy": {"schema_version": 1}},
+            }),
+        }
+        self.assertFalse(_cache_is_current(legacy, campaign_hash))
+
+    def test_current_campaign_ai_cache_requires_evidence_contract(self):
+        campaign_hash = "same-rules-hash"
+        current = {
+            "rules_hash": campaign_hash,
+            "ai_rules_json": json.dumps({
+                "schema_version": 2,
+                "source_hash": "source-hash",
+                "source_ledger": {"schema_version": 1},
+                "evidence_contract": {"schema_version": 1, "verified": [], "unverified": []},
+                "rules": {"material_policy": {}},
+            }),
+        }
+        self.assertTrue(_cache_is_current(current, campaign_hash))
 
     def test_json_fence_is_accepted(self):
         text = "```json\n" + json.dumps(valid_payload()) + "\n```"
