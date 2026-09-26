@@ -247,6 +247,9 @@ def semantic_model_decision(candidates: list[dict[str, Any]], plan: dict[str, An
     )
     top_window = prepared[:max(6, min(len(prepared), int(semantic_limit)))]
     for item in top_window:
+        relevance_status = str(item.get("_relevance_status") or "").lower()
+        if relevance_status in {"uncertain", "blocked"}:
+            return True, "ambiguous_campaign_relevance"
         reasons = " ".join(str(x) for x in (item.get("reasons") or [])).lower()
         if any(signal in reasons for signal in review_signals):
             return True, "ambiguous_candidate_signals"
