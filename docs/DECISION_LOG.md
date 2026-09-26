@@ -46,3 +46,12 @@ CA-01 introduces campaign_brain as the authoritative canonical intelligence repr
 Reason: downstream clipping stages still depend on the flat rule shape. Replacing it in place would couple Campaign Brain work to unrelated execution regressions.
 
 Invariants: supported rules require verified source evidence; unknown values are not manufactured as false; platform/language variants are preserved; conflicts are preserved but not resolved until CA-03.
+
+
+## 2026-09-26 — CA-01 production acceptance exposed brain identity defect
+
+The first bounded CA-01 production re-analysis persisted a canonical brain successfully, but acceptance failed because brain_id was emitted with a duplicated version marker.
+
+The same run also exposed that cta_text evidence can be sourced from the cta_required evidence statement. The canonicalizer must treat those fields as compatible and must use the normalized, source-reconciled CTA value.
+
+Decision: fix the generic canonicalizer, strengthen regression tests, and rerun the same bounded production proof. Do not manually repair the production D1 row.
