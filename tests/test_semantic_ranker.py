@@ -95,84 +95,88 @@ class SemanticRankerTest(unittest.TestCase):
 
 
     def test_global_gate_skips_semantic_ai_for_clear_pair(self):
-        plan = {
-            "ai_rules": {"confidence": 0.95},
-            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
-        }
-        candidates = [
-            {
-                "candidate_id": "t1-a",
-                "tier": "tier_1",
-                "source_asset_id": "source-a",
-                "source_hash": "hash-a",
-                "transcript_hash": "tx-a",
-                "start": 0,
-                "end": 32,
-                "duration": 32,
-                "score": 0.92,
-                "text": "Here is the clearest business lesson with a complete payoff.",
-                "reasons": ["clear opening beat", "complete ending", "payoff or takeaway"],
-            },
-            {
-                "candidate_id": "t2-b",
-                "tier": "tier_2",
-                "source_asset_id": "source-b",
-                "source_hash": "hash-b",
-                "transcript_hash": "tx-b",
-                "start": 40,
-                "end": 72,
-                "duration": 32,
-                "score": 0.90,
-                "text": "The strongest secondary audience example with a complete payoff.",
-                "reasons": ["clear opening beat", "complete ending", "payoff or takeaway"],
-            },
-        ]
-        self.assertEqual(semantic_model_decision(candidates, plan, 15), (False, "deterministic_confident"))
-        with mock.patch("core.semantic_ranker._model_rank", side_effect=AssertionError("semantic model should be skipped")):
-            ranked, runtime = rank_global_candidates(candidates, plan, 15)
-        self.assertEqual(runtime["decision"], "semantic_skipped")
-        self.assertEqual(runtime["decision_reason"], "deterministic_confident")
-        self.assertEqual(len(ranked), 2)
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}):
+            plan = {
+                "ai_rules": {"confidence": 0.95},
+                "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+            }
+            candidates = [
+                {
+                    "candidate_id": "t1-a",
+                    "tier": "tier_1",
+                    "source_asset_id": "source-a",
+                    "source_hash": "hash-a",
+                    "transcript_hash": "tx-a",
+                    "start": 0,
+                    "end": 32,
+                    "duration": 32,
+                    "score": 0.92,
+                    "text": "Here is the clearest business lesson with a complete payoff.",
+                    "reasons": ["clear opening beat", "complete ending", "payoff or takeaway"],
+                },
+                {
+                    "candidate_id": "t2-b",
+                    "tier": "tier_2",
+                    "source_asset_id": "source-b",
+                    "source_hash": "hash-b",
+                    "transcript_hash": "tx-b",
+                    "start": 40,
+                    "end": 72,
+                    "duration": 32,
+                    "score": 0.90,
+                    "text": "The strongest secondary audience example with a complete payoff.",
+                    "reasons": ["clear opening beat", "complete ending", "payoff or takeaway"],
+                },
+            ]
+            self.assertEqual(semantic_model_decision(candidates, plan, 15), (False, "deterministic_confident"))
+            with mock.patch("core.semantic_ranker._model_rank", side_effect=AssertionError("semantic model should be skipped")):
+                ranked, runtime = rank_global_candidates(candidates, plan, 15)
+            self.assertEqual(runtime["decision"], "semantic_skipped")
+            self.assertEqual(runtime["decision_reason"], "deterministic_confident")
+            self.assertEqual(len(ranked), 2)
 
     def test_global_gate_keeps_semantic_ai_for_ambiguous_pair(self):
-        plan = {
-            "ai_rules": {"confidence": 0.95},
-            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
-        }
-        candidates = [
-            {"candidate_id": "t1-a", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.74, "text": "Business point A."},
-            {"candidate_id": "t1-b", "tier": "tier_1", "source_asset_id": "b", "start": 35, "end": 65, "duration": 30, "score": 0.70, "text": "Business point B."},
-            {"candidate_id": "t2-a", "tier": "tier_2", "source_asset_id": "c", "start": 70, "end": 100, "duration": 30, "score": 0.76, "text": "Secondary point A."},
-            {"candidate_id": "t2-b", "tier": "tier_2", "source_asset_id": "d", "start": 105, "end": 135, "duration": 30, "score": 0.71, "text": "Secondary point B."},
-        ]
-        self.assertEqual(semantic_model_decision(candidates, plan, 15), (True, "tier_1_close_ranking"))
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}):
+            plan = {
+                "ai_rules": {"confidence": 0.95},
+                "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+            }
+            candidates = [
+                {"candidate_id": "t1-a", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.74, "text": "Business point A."},
+                {"candidate_id": "t1-b", "tier": "tier_1", "source_asset_id": "b", "start": 35, "end": 65, "duration": 30, "score": 0.70, "text": "Business point B."},
+                {"candidate_id": "t2-a", "tier": "tier_2", "source_asset_id": "c", "start": 70, "end": 100, "duration": 30, "score": 0.76, "text": "Secondary point A."},
+                {"candidate_id": "t2-b", "tier": "tier_2", "source_asset_id": "d", "start": 105, "end": 135, "duration": 30, "score": 0.71, "text": "Secondary point B."},
+            ]
+            self.assertEqual(semantic_model_decision(candidates, plan, 15), (True, "tier_1_close_ranking"))
 
     def test_global_gate_keeps_semantic_ai_for_uncertain_relevance(self):
-        plan = {
-            "ai_rules": {"confidence": 0.95},
-            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
-        }
-        candidates = [
-            {"candidate_id": "t1", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.95, "text": "Clear complete point.", "_relevance_status": "uncertain"},
-            {"candidate_id": "t2", "tier": "tier_2", "source_asset_id": "b", "start": 40, "end": 70, "duration": 30, "score": 0.94, "text": "Another clear complete point."},
-        ]
-        self.assertEqual(
-            semantic_model_decision(candidates, plan, 15),
-            (True, "ambiguous_campaign_relevance"),
-        )
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}):
+            plan = {
+                "ai_rules": {"confidence": 0.95},
+                "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+            }
+            candidates = [
+                {"candidate_id": "t1", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.95, "text": "Clear complete point.", "_relevance_status": "uncertain"},
+                {"candidate_id": "t2", "tier": "tier_2", "source_asset_id": "b", "start": 40, "end": 70, "duration": 30, "score": 0.94, "text": "Another clear complete point."},
+            ]
+            self.assertEqual(
+                semantic_model_decision(candidates, plan, 15),
+                (True, "ambiguous_campaign_relevance"),
+            )
 
     def test_global_gate_requires_semantic_ai_when_campaign_confidence_is_missing(self):
-        plan = {
-            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
-        }
-        candidates = [
-            {"candidate_id": "t1", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.95, "text": "Clear complete point."},
-            {"candidate_id": "t2", "tier": "tier_2", "source_asset_id": "b", "start": 40, "end": 70, "duration": 30, "score": 0.94, "text": "Another clear complete point."},
-        ]
-        self.assertEqual(
-            semantic_model_decision(candidates, plan, 15),
-            (True, "campaign_confidence_missing"),
-        )
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}):
+            plan = {
+                "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+            }
+            candidates = [
+                {"candidate_id": "t1", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.95, "text": "Clear complete point."},
+                {"candidate_id": "t2", "tier": "tier_2", "source_asset_id": "b", "start": 40, "end": 70, "duration": 30, "score": 0.94, "text": "Another clear complete point."},
+            ]
+            self.assertEqual(
+                semantic_model_decision(candidates, plan, 15),
+                (True, "campaign_confidence_missing"),
+            )
 
 
 if __name__ == "__main__":
