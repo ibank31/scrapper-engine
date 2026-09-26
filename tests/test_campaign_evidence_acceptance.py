@@ -51,7 +51,9 @@ class CampaignEvidenceAcceptanceTests(unittest.TestCase):
                 self.assertEqual(len(result["unverified"]), 0)
                 self.assertEqual(result["coverage"], 1.0)
                 self.assertEqual(len(result["verified"]), len(campaign["expected_evidence"]))
-                self.assertEqual(len(mandatory), sum(1 for item in campaign["expected_evidence"] if item.get("mandatory")))
+                mandatory_quotes = {item["quote"] for item in mandatory}
+                verified_quotes = {item["quote"] for item in result["verified"]}
+                self.assertTrue(mandatory_quotes.issubset(verified_quotes))
                 self.assertTrue(all(item["evidence_id"].startswith("evidence-v1:") for item in result["verified"]))
 
     def test_document_only_change_changes_source_fingerprint(self):
