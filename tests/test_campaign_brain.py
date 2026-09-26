@@ -164,7 +164,7 @@ class CampaignBrainTests(unittest.TestCase):
         self.assertEqual(brain["rules"], [])
 
     def test_platform_scope_is_recovered_from_source_quote_for_flat_rule(self):
-        campaign = {"id": "flat-platform-scope"}
+        campaign = {"id": "flat-platform-scope", "description": "Instagram: caption must include #FixtureTag."}
         item = {
             "campaign_fit": {"score": 0.9, "label": "high", "reason": "fixture"},
             "rules": {"hashtags": ["#FixtureTag"]},
