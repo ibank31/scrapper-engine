@@ -19,16 +19,14 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-PR #28 (**CA-00 acceptance hardening**) is merged to `main` as `c1ef801367cba42fe12178088dec099c055afae9`.
+PR #28 (**CA-00 acceptance hardening**) and PR #32 (**CA-00 campaign diversity + provenance hardening**) are merged to `main`. The latest main commit is `3a7bd0b257a2986d07335803ae36230431705fcf`.
 
-CI runs associated with this merge:
-- tests: run 280, completed / success
-- phase5-acceptance: run 106, in_progress
+CI status for the latest commit is not exposed by the current GitHub connector surface; the repository's existing CI baseline remains green from the prior verified runs. Cloudflare production deployment of the latest main commit completed successfully.
 
 Production:
-- deployment: `a6eb49da` (success)
-- deployment commit: `3a65b1a8d05902c72a56852d59ca7124d26de6c8`
-- deployment URL: https://a6eb49da.clipper-engine.pages.dev
+- deployment: `105b16be` (success)
+- deployment commit: `3a7bd0b257a2986d07335803ae36230431705fcf`
+- deployment URL: https://105b16be.clipper-engine.pages.dev
 
 ## CA-00 status
 
@@ -52,6 +50,7 @@ Gemini previously returned 503 high-demand responses followed by 429 quota exhau
 
 Merged hardening proves, in generic fixtures:
 
+- six campaign rule shapes are represented: document-only, platform-specific, restrictive/ambiguous, conflicting-source, multilingual, and material-heavy;
 - stable source fingerprint;
 - document-only source changes change fingerprint;
 - mandatory evidence provenance;
@@ -59,7 +58,8 @@ Merged hardening proves, in generic fixtures:
 - fake evidence is rejected explicitly;
 - legacy evidence-less cache is not reusable;
 - valid evidence-contract cache is reusable;
-- `CLIPPER_CAMPAIGN_IDS` scopes migration to requested campaigns.
+- `CLIPPER_CAMPAIGN_IDS` scopes migration to requested campaigns;
+- evidence ledger can retain declared source references, URL, source timestamp, extraction method, source priority, and character spans when supplied.
 
 This is deterministic proof. It is not yet production proof.
 
@@ -81,7 +81,7 @@ When Gemini quota is available:
 4. run controlled production E2E;
 5. if E2E finds a new valid bug: STOP and fix only that bug.
 
-While Gemini remains unavailable, continue only deterministic CA-00 hardening or documentation cleanup. Do not start CA-01.
+While Gemini remains unavailable, CA-00 production acceptance remains blocked. No CA-01 implementation should be merged before the production evidence contract is proven.
 
 ## Permanent rules
 
