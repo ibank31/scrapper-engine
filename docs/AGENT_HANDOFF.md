@@ -3,7 +3,9 @@
 **Updated:** 26 September 2026  
 **Repository:** `ibank31/scrapper-engine`  
 **Branch:** `main`  
-**Last implementation baseline:** `465b2b6cf1d955e2c193aedba82a35937fa5a389`
+**Last verified functional baseline:** `465b2b6cf1d955e2c193aedba82a35937fa5a389`
+
+Repository scope cleanup follows this baseline; documentation/deletion commits after it are non-functional.
 
 ## Mission
 
