@@ -161,6 +161,19 @@ class SemanticRankerTest(unittest.TestCase):
             (True, "ambiguous_campaign_relevance"),
         )
 
+    def test_global_gate_requires_semantic_ai_when_campaign_confidence_is_missing(self):
+        plan = {
+            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+        }
+        candidates = [
+            {"candidate_id": "t1", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.95, "text": "Clear complete point."},
+            {"candidate_id": "t2", "tier": "tier_2", "source_asset_id": "b", "start": 40, "end": 70, "duration": 30, "score": 0.94, "text": "Another clear complete point."},
+        ]
+        self.assertEqual(
+            semantic_model_decision(candidates, plan, 15),
+            (True, "campaign_confidence_missing"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
