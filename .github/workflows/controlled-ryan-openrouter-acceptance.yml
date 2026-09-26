@@ -35,7 +35,6 @@ jobs:
         env:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
-          GITHUB_TOKEN: ${{ github.token }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
@@ -45,7 +44,7 @@ jobs:
       - name: Verify persisted acceptance contract
         env:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
-          GITHUB_TOKEN: ${{ github.token }}
+          CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -55,9 +54,13 @@ jobs:
 
           api = os.environ["CLIPPER_API_URL"].rstrip("/")
           campaign_id = "926e1b7f-1030-4333-a557-f99d9f891437"
+          worker_token = os.environ["CLIPPER_WORKER_TOKEN"]
           request = urllib.request.Request(
               f"{api}/api/campaign-intelligence",
-              headers={"x-github-token": os.environ["GITHUB_TOKEN"]},
+              headers={
+                  "authorization": f"Bearer {worker_token}",
+                  "x-worker-token": worker_token,
+              },
           )
           with urllib.request.urlopen(request, timeout=60) as response:
               payload = json.load(response)

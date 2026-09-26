@@ -32,15 +32,12 @@ DOC_ID_RE = re.compile(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", re.I)
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
-def _headers(token: str, github_token: str | None = None) -> dict[str, str]:
-    headers = {
+def _headers(token: str) -> dict[str, str]:
+    return {
         "content-type": "application/json",
         "authorization": f"Bearer {token}",
         "x-worker-token": token,
     }
-    if github_token:
-        headers["x-github-token"] = github_token
-    return headers
 
 def _fetch_detail(campaign: dict[str, Any]) -> tuple[str, dict[str, Any] | None, str | None]:
     cid = str(campaign.get("id") or "")
@@ -103,9 +100,9 @@ def _hydrate(campaign: dict[str, Any]) -> dict[str, Any]:
         campaign.setdefault("payouts", [])
     return campaign
 
-def _fetch_existing(api: str, token: str, github_token: str | None = None) -> dict[str, dict[str, Any]]:
+def _fetch_existing(api: str, token: str) -> dict[str, dict[str, Any]]:
     try:
-        response = requests.get(api + "/api/campaign-intelligence", headers=_headers(token, github_token), timeout=60)
+        response = requests.get(api + "/api/campaign-intelligence", headers=_headers(token), timeout=60)
         response.raise_for_status()
         rows = response.json().get("campaigns", [])
         return {str(row.get("id")): row for row in rows if row.get("id")}
@@ -254,7 +251,6 @@ def _auto_queue(api: str, token: str, campaigns: list[dict[str, Any]]) -> None:
 def main() -> None:
     api = os.environ["CLIPPER_API_URL"].rstrip("/")
     token = os.environ["CLIPPER_WORKER_TOKEN"]
-    github_token = os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_ACTIONS_TOKEN")
 
     subprocess.run([sys.executable, "run.py", "reward_campaign"], cwd=ROOT, check=True)
     data_path = ROOT / "data/reward_campaign/campaigns.json"
@@ -281,7 +277,7 @@ def main() -> None:
     inactive = [c for c in campaigns if str(c.get("status") or "active").lower() != "active"]
     campaigns = hydrated + inactive
 
-    existing = _fetch_existing(api, token, github_token)
+    existing = _fetch_existing(api, token)
     force_ai = os.getenv("CLIPPER_FORCE_AI", "0").strip().lower() in {"1", "true", "yes"}
     target_ids = _target_campaign_ids()
     hashes: dict[str, str] = {
@@ -340,7 +336,7 @@ def main() -> None:
     data["campaigns"] = campaigns
     data_path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    response = requests.post(api + "/api/campaigns/sync", headers=_headers(token, github_token), json={"campaigns": sync_campaigns}, timeout=180)
+    response = requests.post(api + "/api/campaigns/sync", headers=_headers(token), json={"campaigns": sync_campaigns}, timeout=180)
     response.raise_for_status()
     print("Synced campaigns:", response.json())
 
