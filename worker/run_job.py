@@ -323,7 +323,7 @@ def main() -> None:
         intake = run(
             [sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root],
             check=False,
-            timeout=stage_timeout("intake", 1200),
+            timeout=stage_timeout("asset_intake", 1200),
             stage="asset_intake",
         )
         workspace = next(Path(workspace_root).glob("*/"), None)
