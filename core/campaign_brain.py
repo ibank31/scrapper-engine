@@ -136,12 +136,12 @@ def _scope(path: str, annotation: dict[str, Any] | None, quotes: list[str]) -> d
     # Platform scope may live only in the source quote, especially for flat
     # handle/hashtag rules such as “Instagram handle: ...”.
     for platform in (name for name in PLATFORMS if len(name) > 1):
-        if re.search(rf"\\b{re.escape(platform)}\\b", quote_text):
+        if re.search(rf"\b{re.escape(platform)}\\b", quote_text):
             platforms.append(platform)
     for label, code in LANGUAGES.items():
-        if re.search(rf"\\b{re.escape(label)}\\b", quote_text):
+        if re.search(rf"\b{re.escape(label)}\\b", quote_text):
             languages.append(code)
-    if not languages and re.search(r"\\b(gunakan|durasi|detik|wajib|bahasa)\\b", quote_text):
+    if not languages and re.search(r"\b(gunakan|durasi|detik|wajib|bahasa)\\b", quote_text):
         languages.append("id")
     return {
         "platforms": list(dict.fromkeys(platforms)),
@@ -398,9 +398,9 @@ def evaluate_rule_preservation(campaign: dict[str, Any], brain: dict[str, Any]) 
         path = _norm(item.get("rule_path")).lower()
         quote = _norm(item.get("quote")).lower()
         rule = bound_rule(item)
-        match = re.search(r"\\b(" + "|".join(sorted(map(re.escape, PLATFORMS))) + r")\\b", path)
+        match = re.search(r"\b(" + "|".join(sorted(map(re.escape, PLATFORMS))) + r")\\b", path)
         if not match:
-            match = re.search(r"\\b(" + "|".join(sorted(name for name in PLATFORMS if len(name) > 1)) + r")\\b", quote)
+            match = re.search(r"\b(" + "|".join(sorted(name for name in PLATFORMS if len(name) > 1)) + r")\\b", quote)
         if not match:
             continue
         platform = match.group(1)
