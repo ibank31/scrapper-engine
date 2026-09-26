@@ -55,6 +55,21 @@ def _similarity(query: str, title: str) -> float:
     return round(max(sequence, overlap * 0.9), 4)
 
 
+def _channel_match_score(channel: str, reference: str, campaign_title: str = "", brand: str = "") -> float:
+    """Score publisher identity without treating arbitrary search results as official."""
+    channel_tokens = set(_normalized_tokens(channel))
+    evidence_tokens = set(_normalized_tokens(" ".join((reference, campaign_title, brand))))
+    if not channel_tokens or not evidence_tokens:
+        return 0.0
+    coverage = len(channel_tokens & evidence_tokens) / len(channel_tokens)
+    substring = 1.0 if any(
+        token in evidence_tokens or token in " ".join(_normalized_tokens(reference))
+        for token in channel_tokens
+        if len(token) >= 4
+    ) else 0.0
+    return round(max(_similarity(reference, channel), coverage, substring), 4)
+
+
 def classify_context(text: str, *, explicit_source: bool = False) -> str:
     """Classify a URL/named reference without treating examples as footage."""
     context = " ".join(str(text or "").lower().split())
@@ -193,7 +208,7 @@ def resolve_named_youtube_reference(
         channel = str(entry.get("channel") or entry.get("uploader") or "").strip()
         channel_verified = bool(entry.get("channel_is_verified") or entry.get("uploader_is_verified"))
         similarity = _similarity(value, title)
-        channel_similarity = _similarity(campaign_evidence, channel) if channel else 0.0
+        channel_similarity = _channel_match_score(channel, value, campaign_title, brand) if channel else 0.0
         official_hint = "official" in title.lower() or "official" in channel.lower()
         candidates.append({
             "url": url,
