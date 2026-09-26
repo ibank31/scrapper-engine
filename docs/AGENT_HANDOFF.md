@@ -3,7 +3,7 @@
 **Updated:** 26 September 2026  
 **Repository:** `ibank31/scrapper-engine`  
 **Branch:** `main`  
-**Last implementation baseline:** `c1ef801367cba42fe12178088dec099c055afae9`
+**Last implementation baseline:** `3a7bd0b257a2986d07335803ae36230431705fcf`
 
 ## Mission
 
@@ -28,7 +28,10 @@ Human review is basic QC. The machine is responsible for understanding campaign 
 - legacy AI-cache invalidation;
 - Bearer campaign-sync authentication;
 - targeted migration support;
-- generic CA-00 acceptance fixtures and cache/migration regression tests.
+- generic CA-00 acceptance fixtures and cache/migration regression tests;
+- six-shape campaign diversity corpus;
+- evidence provenance metadata: declared URLs, timestamps when supplied, extraction method, source priority, and character spans;
+- bounded `campaign_ids` input exposed in `campaign-sync-ai`.
 
 PR #28 is merged as `c1ef801367cba42fe12178088dec099c055afae9`.
 
@@ -42,7 +45,7 @@ Production D1 was checked directly for Ryan Zofay after the merge. The stored in
 
 Do not manually rewrite the row.
 
-The remaining proof requires a real generic re-analysis that stores the new evidence contract. Gemini quota has previously exhausted after 503/429 responses, so corpus-wide migration is forbidden.
+The remaining proof requires real generic re-analysis that stores the new evidence contract. Gemini quota is currently exhausted after 503/429 responses, so corpus-wide migration is forbidden.
 
 ## Exact next action
 
@@ -67,7 +70,7 @@ Required evidence:
 - verified evidence for critical/mandatory rules;
 - no silent loss of CTA, handles, hashtags, duration.
 
-If Gemini remains unavailable, stay inside CA-00 with deterministic work. Do not begin CA-01.
+Until Gemini quota resets, do not begin CA-01 implementation. The deterministic CA-00 hardening is now merged; the remaining gate is production evidence-contract proof.
 
 ## Verification baseline
 
