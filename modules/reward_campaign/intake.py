@@ -351,7 +351,7 @@ def main() -> None:
             generated_policy_references[symbolic] = str(required.get("asset_id") or "")
     explicit_reference_values = [str(value).strip() for value in references if str(value).strip()]
     for raw_reference in explicit_reference_values:
-        if raw_reference in generated_policy_references and is_symbolic_reference(raw_reference):
+        if raw_reference in generated_policy_references:
             resolution = resolve_named_youtube_reference(
                 raw_reference,
                 campaign_title=str(campaign_context.get("title") or ""),
