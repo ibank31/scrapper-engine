@@ -40,7 +40,7 @@ class RewardIntakeHardeningTests(unittest.TestCase):
             "production": {"asset_urls": ["https://docs.google.com/document/d/test-document/edit"]},
             "source_of_truth": {"description": "", "requirements": []},
         }
-        fixture_text = "Music video: Dardan - Erinnerung (Official Video)\\nGenius lyrics: https://genius.com/example"
+        fixture_text = "Music video: Dardan - Erinnerung (Official Video)\nGenius lyrics: https://genius.com/example"
         resolved = {
             "status": "verified_candidate",
             "candidate": {
