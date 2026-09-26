@@ -1,0 +1,130 @@
+name: openrouter-live-smoke
+
+on:
+  push:
+    paths:
+      - ".github/workflows/openrouter-live-smoke.yml"
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Publish pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -d '{"state":"pending","context":"openrouter-live-smoke","description":"Live Gemini fallback smoke test is running"}' >/dev/null
+
+      - name: Checkout engine
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install requests
+        run: python -m pip install --upgrade pip requests
+
+      - name: Live OpenRouter fallback smoke test
+        id: smoke
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: "paid-model-must-be-ignored"
+          OPENROUTER_MAX_RETRIES: "1"
+        run: |
+          python - <<'PY'
+          from unittest.mock import patch
+          from core import campaign_ai
+
+          assert campaign_ai.OPENROUTER_MODEL == "openrouter/free", (
+              f"OpenRouter model is not hard-locked: {campaign_ai.OPENROUTER_MODEL}"
+          )
+
+          campaign = {
+              "id": "live-openrouter-smoke-001",
+              "title": "Live OpenRouter Smoke Campaign",
+              "brand": "Scrapper Engine",
+              "category": "technology",
+              "type": "clipping",
+              "platforms": ["tiktok"],
+              "description": "A deterministic live integration fixture for provider fallback.",
+              "requirements": [
+                  "Use only official campaign footage.",
+                  "Vertical 9:16 video.",
+                  "Add the CTA: Visit the official campaign page."
+              ],
+              "resources": [],
+              "payouts": [],
+              "docs_text": (
+                  "Source of truth: Use only official campaign footage. "
+                  "Video format: 9:16. "
+                  "CTA: Visit the official campaign page."
+              ),
+              "source_urls": ["https://example.com/campaign-rules"],
+              "source_of_truth": {},
+          }
+
+          def forced_gemini_failure(self, prompt, timeout=120):
+              raise campaign_ai.GeminiApiError("forced live smoke failure; OpenRouter must take over")
+
+          with patch.object(campaign_ai.GeminiProvider, "generate", forced_gemini_failure):
+              result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
+
+          item = result.get(campaign["id"])
+          if not item:
+              raise SystemExit("FAIL: campaign result missing")
+
+          if item.get("campaign_id") != campaign["id"]:
+              raise SystemExit("FAIL: campaign_id mismatch")
+          if not isinstance(item.get("campaign_fit"), dict):
+              raise SystemExit("FAIL: campaign_fit missing")
+          if not isinstance(item.get("rules"), dict):
+              raise SystemExit("FAIL: rules missing")
+
+          contract = item.get("evidence_contract") or {}
+          verified = contract.get("verified") or []
+          unverified = contract.get("unverified") or []
+
+          print("LIVE_SMOKE_STATUS=PASS")
+          print("FALLBACK_EXPECTED=gemini->openrouter/free")
+          print("RESULT_CAMPAIGN_ID="+str(item["campaign_id"]))
+          print("FIT_LABEL="+str(item["campaign_fit"].get("label")))
+          print("CONFIDENCE="+str(item.get("confidence")))
+          print("VERIFIED_EVIDENCE="+str(len(verified)))
+          print("UNVERIFIED_EVIDENCE="+str(len(unverified)))
+          print("EVIDENCE_COVERAGE="+str(contract.get("coverage")))
+          print("RULES_KEYS="+str(len(item.get("rules", {}))))
+          PY
+
+      - name: Publish final status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$SMOKE_OUTCOME" = "success" ]; then
+            STATE=success
+            DESC="OpenRouter free fallback live smoke passed"
+          else
+            STATE=failure
+            DESC="OpenRouter free fallback live smoke failed"
+          fi
+          curl --fail-with-body -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -d "{\"state\":\"$STATE\",\"context\":\"openrouter-live-smoke\",\"description\":\"$DESC\"}" >/dev/null
