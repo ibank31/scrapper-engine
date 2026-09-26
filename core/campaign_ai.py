@@ -491,6 +491,8 @@ Record CRITICAL ambiguity only when an unknown could change asset selection, edi
 Decide campaign_fit using this operator profile:
 """ + json.dumps(profile, ensure_ascii=False) + """
 Return one object matching the supplied response schema. Include one campaign result for every input campaign.
+The provider may not receive native schema enforcement, so follow this JSON Schema exactly:
+""" + json.dumps(GEMINI_RESPONSE_SCHEMA, ensure_ascii=False) + """
 Campaigns:
 """ + json.dumps([_campaign_prompt_payload(x) for x in batch], ensure_ascii=False)
 
