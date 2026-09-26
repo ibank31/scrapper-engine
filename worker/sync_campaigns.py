@@ -157,7 +157,7 @@ def _apply_ai(campaign: dict[str, Any], ai: dict[str, Any] | None, previous: dic
         campaign["rules_hash"] = rh
         campaign["ai_fit_score"] = (ai.get("campaign_fit") or {}).get("score")
         return
-    if previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json"):
+    if previous and _cache_is_current(previous, rh):
         try:
             cached = json.loads(previous["ai_rules_json"]) if isinstance(previous["ai_rules_json"], str) else previous["ai_rules_json"]
             campaign["ai_rules"] = cached
@@ -249,6 +249,11 @@ def main() -> None:
 
     existing = _fetch_existing(api, token)
     force_ai = os.getenv("CLIPPER_FORCE_AI", "0").strip().lower() in {"1", "true", "yes"}
+    target_ids = {
+        item.strip()
+        for item in os.getenv("CLIPPER_CAMPAIGN_IDS", "").split(",")
+        if item.strip()
+    }
     candidates: list[dict[str, Any]] = []
     hashes: dict[str, str] = {}
     for c in campaigns:
@@ -258,6 +263,13 @@ def main() -> None:
         rh = rules_fingerprint(c)
         hashes[cid] = rh
         previous = existing.get(cid)
+        targeted = not target_ids or cid in target_ids
+        if not targeted:
+            if not force_ai and _cache_is_current(previous, rh):
+                _apply_ai(c, None, previous, rh)
+            else:
+                _apply_ai(c, None, previous, rh)
+            continue
         if not force_ai and _cache_is_current(previous, rh):
             _apply_ai(c, None, previous, rh)
         else:
@@ -298,11 +310,6 @@ def main() -> None:
     campaigns.sort(key=readiness_sort_key)
     print("Readiness:", readiness_counts)
 
-    target_ids = {
-        item.strip()
-        for item in os.getenv("CLIPPER_CAMPAIGN_IDS", "").split(",")
-        if item.strip()
-    }
     sync_campaigns = [c for c in campaigns if str(c.get("id") or "") in target_ids] if target_ids else campaigns
     if target_ids:
         print(f"Targeted campaign sync: {len(sync_campaigns)} / {len(target_ids)} requested")
