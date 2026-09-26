@@ -340,7 +340,8 @@ def build_campaign_brain(
         },
     }
     stable = {k: v for k, v in brain.items() if k not in {"brain_id", "confidence"}}
-    brain["brain_id"] = _hash_id(BRAIN_ID_PREFIX[:-1], stable)
+    raw = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    brain["brain_id"] = BRAIN_ID_PREFIX + hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return brain
 
 
