@@ -1,0 +1,63 @@
+name: controlled-source-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      reference:
+        description: "Named source reference"
+        required: false
+        type: string
+        default: "Dardan - Erinnerung (Official Video)"
+      campaign_title:
+        description: "Campaign title context"
+        required: false
+        type: string
+        default: "Dardan Music Clipping"
+      brand:
+        description: "Campaign brand context"
+        required: false
+        type: string
+        default: "Clipping Outlaws"
+
+permissions:
+  contents: read
+
+jobs:
+  source-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout engine
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Setup Deno for YouTube extraction
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.3.0
+
+      - name: Install Python dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Resolve and acquire controlled source
+        run: >-
+          python scripts/controlled_source_smoke.py
+          --reference "${{ inputs.reference }}"
+          --campaign-title "${{ inputs.campaign_title }}"
+          --brand "${{ inputs.brand }}"
+          | tee controlled-source-result.json
+
+      - name: Upload smoke result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: controlled-source-smoke-result
+          path: controlled-source-result.json
