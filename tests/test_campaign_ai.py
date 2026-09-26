@@ -323,6 +323,30 @@ class CampaignAITests(unittest.TestCase):
         self.assertEqual(result["unverified"][0]["reason"], "quote_not_found_in_current_sources")
         self.assertTrue(result["verified"][0]["evidence_id"].startswith("evidence-v1:"))
 
+    def test_ai_evidence_recovers_atomic_values_when_provider_concatenates_quotes(self):
+        campaign = {
+            "id": "evidence-repair",
+            "docs_text": "Topics: Business and entrepreneurship; Leadership; Personal growth",
+        }
+        evidence = [{
+            "rule_path": "topic_terms",
+            "quote": "* Business and entrepreneurship* Leadership* Personal growth",
+        }]
+        rules = {
+            "topic_terms": [
+                "Business and entrepreneurship",
+                "Leadership",
+                "Personal growth",
+            ]
+        }
+        result = verify_ai_evidence(campaign, evidence, rules=rules)
+        self.assertEqual(result["coverage"], 1.0)
+        self.assertFalse(result["unverified"])
+        self.assertEqual(
+            {item["quote"] for item in result["verified"]},
+            {"Business and entrepreneurship", "Leadership", "Personal growth"},
+        )
+
     def test_normalize_ai_result_attaches_verified_evidence_and_source_hash(self):
         campaign = {
             "id": "ryan-regression",
