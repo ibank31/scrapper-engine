@@ -477,7 +477,7 @@ function renderReviews() {
       '<div class="review-contract"><strong>' + escapeHtml(tierLabel) + '</strong>' + (r.candidate_id ? '<span>Potongan teridentifikasi</span>' : '<span>Identitas potongan belum tersedia</span>') + (distinctness.distinct ? '<span>Berbeda dari video sebelahnya</span>' : '') + (subtitle.mode ? '<span>' + escapeHtml(subtitleNames[subtitle.mode] || "Status subtitle tersimpan") + '</span>' : '') + (sound.status ? '<span>' + escapeHtml(soundNames[sound.status] || "Status audio tersimpan") + '</span>' : '') + '</div>' +
       operationLine +
       '<p>Putar sampai selesai, cek apakah potongannya jelas, lalu pilih keputusan di bawah.</p>' +
-      (r.rules_summary_id ? '<div class="rules-summary"><strong>Yang perlu Anda cek</strong><p>' + escapeHtml(r.rules_summary_id) + '</p></div>' : '') +
+      (r.rules_summary_id ? '<div class="rules-summary"><strong>Referensi aturan</strong><p>Aturan campaign terhubung ke hasil pemeriksaan mesin. Detail yang perlu diperiksa ditampilkan pada panel bukti di bawah.</p></div>' : '') +
       '<div class="review-validation"><span>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap diedit</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
       '<details class="review-detail"><summary>⌄ Mengapa video ini lolos?</summary><div class="review-detail-grid">' +
