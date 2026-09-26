@@ -1073,7 +1073,7 @@ NOW
  +-- CA-14 Economic Learning
 ~~~
 
-**Prioritas pertama: CA-00 sampai CA-04.**
+**Current priority: CA-00 acceptance hardening, then CA-01.**
 
 Tidak ada gunanya membuat clipping semakin pintar jika Campaign Agent masih dapat kehilangan aturan campaign.
 
@@ -1081,14 +1081,15 @@ Tidak ada gunanya membuat clipping semakin pintar jika Campaign Agent masih dapa
 
 # 17. First implementation slice
 
-**CA-00-A — Evidence Ledger + Ryan Zofay regression**
+**CA-00-A — Evidence Ledger + regression corpus**
 
 Scope:
 
 - evidence representation;
 - document hashing;
 - rule evidence references;
-- Ryan Zofay fixture;
+- generic campaign regression fixtures;
+- Ryan Zofay regression case;
 - tests CTA/hashtags/handles/duration;
 - no Buffer;
 - no model replacement.

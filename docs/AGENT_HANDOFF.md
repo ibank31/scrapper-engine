@@ -1,65 +1,139 @@
 # Scrapper Engine — Active Agent Handoff
 
-**Updated:** 25 September 2026
-**Repository:** `ibank31/scrapper-engine`
+**Updated:** 26 September 2026  
+**Repository:** `ibank31/scrapper-engine`  
 **Branch:** `main`
-**Phase:** Phase 5 local acceptance complete; controlled pilot not executed
 
-## Current product contract
+## Mission
 
-The user selects a campaign in Worker Pages. The worker snapshots rules, gathers official assets, transcribes sources, classifies candidates for explicit audience tiers, selects one distinct Tier 1 and one distinct Tier 2 output, renders and validates the pair, and publishes previews to review. Reviewers edit captions only through immutable validated revisions. After approval, the user runs server-side Buffer preflight and sends the approved artifact to the next Buffer queue slot. Buffer operations are tracked per preview/channel, protected from duplicate creation, reconciled, and retained until terminal. The user submits manually to Whop; Whop submission remains outside the engine.
+Build a **campaign-agnostic Campaign Agent + Clipping Agent**.
 
-## Phase 5 completion status
+Never create special production logic for Ryan Zofay or another named campaign. Campaign differences belong in source evidence and normalized rules.
 
-Phase 1 through Phase 4 remain complete. Phase 5 acceptance work is complete locally through P5-B and the P5-C evidence contract:
+The human reviewer is basic quality control. The machine should understand campaign rules, material requirements, platform requirements, compliance, and posting-package details.
 
-- **P5-A — Known-good fixture:** `scripts/run_known_good_fixture.py` creates a synthetic legal 38-second 9:16 MP4, generated word-timestamp transcript, campaign plan with explicit 15–30 second rules, two audience-tier expectations, distinct candidate pair, rendered subtitle artifacts, technical/editorial validation, and pending review manifest. It performs the complete intake → transcript → candidate → selection → render → validation → review-manifest trace.
-- **P5-B — Staging readiness:** `core/staging_matrix.py` and `scripts/run_staging_failure_matrix.py` cover approval failure, caption failure, unsupported field, duplicate click, timeout, partial result, cleanup dependency, and stale worker. The matrix is local-mock only and hard-fails when provider mutation is enabled.
-- **P5-C — Controlled pilot evidence:** `core/pilot_evidence.py` defines the required job/run/rules/source/operation/provider/due-time/terminal/rollback evidence and requires human confirmation immediately before mutation. The contract is ready, but no controlled pilot was executed.
+## Source of truth
 
-## Verification baseline
+Read in this order:
 
-```bash
-python3 -m unittest discover -s tests -q   # 142 tests, OK
-python3 scripts/run_known_good_fixture.py --out /tmp/scrapper-known-good-trace
-python3 scripts/run_staging_failure_matrix.py --out /tmp/phase5-failure-matrix.json
-python3 -m py_compile core/*.py modules/*/*.py worker/*.py scripts/*.py tests/*.py
-python3 -m compileall -q core modules worker
-python3 -m pip check
-node --check cloudflare/api.js
-node --check cloudflare/caption_compliance.js
-node --check web/app.js
-git diff --check
+1. `STATUS.md`
+2. `docs/CAMPAIGN_AGENT_ROADMAP.md`
+3. `docs/DECISION_LOG.md`
+4. subsystem docs when changing that subsystem
+
+Historical reports are archived and are not current contracts.
+
+## Current milestone
+
+**CA-00 Evidence Contract**
+
+Implementation is merged. Production acceptance is still open.
+
+Implemented:
+
+- source document extraction;
+- deterministic source fingerprint;
+- evidence ledger;
+- stable evidence IDs;
+- AI quote verification;
+- evidence contract;
+- legacy AI-cache invalidation;
+- live AI normalization source binding.
+
+## Production findings
+
+Legacy campaign rows without the current evidence contract are stale.
+
+Do not manually rewrite D1. Re-analysis must use the generic campaign intelligence pipeline.
+
+A full legacy migration hit Gemini 503 high-demand responses followed by 429 quota exhaustion. Do not repeatedly retry the entire corpus. Use `CLIPPER_CAMPAIGN_IDS` for targeted migration when quota is available.
+
+Campaign sync now sends Bearer authentication and retains the worker-token header for compatibility.
+
+## Architecture
+
+```
+SOURCE
+  ↓
+EVIDENCE
+  ↓
+CAMPAIGN BRAIN
+  ↓
+CRITIC
+  ↓
+RULE RECONCILIATION
+  ↓
+PRODUCTION CONTRACT
+  ↓
+MATERIAL INTELLIGENCE
+  ↓
+CLIP STRATEGY
+  ↓
+RENDER
+  ↓
+COMPLIANCE
+  ↓
+HUMAN QC
+  ↓
+BUFFER
 ```
 
-The existing subtitle tests still emit two unrelated `ResourceWarning` messages for unclosed fixture reads; they do not fail the suite. Gemini mock/retry diagnostics are expected in campaign-AI tests and do not indicate a production request.
+AI is reasoning. Code is enforcement.
 
-## 25 September 2026 — progressive intake hardening
+## Known regression
 
-The Drive/YouTube intake path was hardened after a controlled run exhausted the GitHub runner disk while attempting to download an entire Drive folder. The current implementation is metadata-first: Drive folders are enumerated completely before download, per-asset manifest rows are retained, assets are cheaply ranked from metadata, distinct top-level sources receive fair download opportunities, and download count/byte/disk budgets are enforced.
+Ryan Zofay historically lost CTA, platform-specific handles, and hashtags during normalization.
 
-Current worker defaults are 8 downloaded assets, 2 GiB cumulative download budget, 1 GiB disk safety margin, and 6 sources for deep transcription/selection. Discovery is not capped by the deep-analysis limit. Drive downloads and YouTube/direct downloads use guarded temporary files where applicable; disk/quota limits produce deferred states rather than filling the runner.
+This is a regression fixture, not a special case.
 
-The worker consumes only manifest-confirmed completed video files for preflight/deep analysis, and deletes non-selected raw source files after final pair selection to reduce render-stage disk pressure. `source_manifest` now represents top-level references, while `asset_manifest` represents individual assets.
+## Latest commits
 
-The repository test workflow was executed through temporary PR #7 against this implementation. Result: **154 tests passed**, semantic fixture evaluation passed, and both Cloudflare/Worker Pages JavaScript syntax checks passed. The PR was closed after verification. The live controlled Backyard Breaks intake probe is still not executed from this agent because the GitHub connector exposes workflow read/re-run operations but not workflow_dispatch; therefore no claim is made that the production Drive folder has returned an exact 65-asset runtime count yet.
+- evidence contract: `26225e0ddec35799a74645186a62a02fb960ee84`
+- cache invalidation: `de5f3413455b641b468b5975957abdecf315136a`
+- sync auth/targeted migration: `4b85b6f9c1621f4aae82b6e76370d96802eaf34d`
 
-## Safety boundary
+## Next bounded slice
 
-No production Cloudflare deployment, D1 migration, Buffer mutation, provider smoke test, staging-provider mutation, or Whop mutation was performed. The new workflow is non-production and sets provider mutation off. The controlled pilot remains blocked until a dedicated low-volume account, staging evidence, exact rollback procedure, and explicit human confirmation immediately before the first provider mutation are available.
+**CA-00 acceptance hardening.**
 
-Do not enable broad automation in the same task as the first pilot. Stop after pilot evidence is complete.
+Add generic fixtures for explicit rules, document-only rules, platform handles, hashtags, CTA, duration, prohibited content, and ambiguity.
 
-## Relevant entry points
+Measure critical and mandatory rule preservation.
 
-- `docs/IMPLEMENTATION_ROADMAP.md` — authoritative roadmap and acceptance gates.
-- `docs/PHASE_5_COMPLETION_2026-09-24.md` — Phase 5 report.
-- `scripts/run_known_good_fixture.py` — local legal end-to-end trace.
-- `scripts/run_staging_failure_matrix.py` — provider-off failure matrix.
-- `core/pilot_evidence.py` — controlled-pilot evidence gate.
-- `.github/workflows/phase5-acceptance.yml` — non-production CI workflow.
-- `STATUS.md` — current milestone and verification state.
+Do not move to CA-01 until evidence coverage is measurable.
 
-## Archived handoff
+## Verification protocol
 
-The superseded Phase 4 handoff is preserved at [`docs/archive/2026-09-24/AGENT_HANDOFF-PHASE4-2026-09-24.md`](archive/2026-09-24/AGENT_HANDOFF-PHASE4-2026-09-24.md).
+1. targeted tests;
+2. full deterministic regression;
+3. semantic fixture;
+4. Node syntax checks;
+5. diff check;
+6. controlled E2E only when the changed contract requires it;
+7. production verification only after CI passes.
+
+If E2E finds a valid bug:
+
+**STOP → preserve evidence → fix only that bug → retest.**
+
+## Do not
+
+- hard-code campaign behavior;
+- invent campaign rules;
+- treat AI uncertainty as confidence;
+- mutate D1 manually to make tests pass;
+- rerun the full corpus when targeted migration is enough;
+- spend premium AI calls on deterministic extraction;
+- claim unverified provider/native capabilities;
+- treat a green local suite as production proof.
+
+## Human review contract
+
+The UI should answer:
+
+- Is the clip compliant?
+- Is it relevant?
+- Is anything uncertain?
+- What does the reviewer actually need to check?
+
+Raw internal labels are not enough.
