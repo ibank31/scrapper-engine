@@ -214,6 +214,20 @@ def assess_readiness(campaign: Mapping[str, Any]) -> dict[str, Any]:
     except (TypeError, ValueError):
         budget_left = 0.0
     status_raw = str(campaign.get("status") or "active").lower()
+    material_status = str(campaign.get("material_acquisition_status") or "").lower()
+
+    # Material acquisition is a hard production dependency. A campaign can
+    # look attractive from metadata while still lacking an authorized source.
+    if material_status in {"unresolved", "manual_required", "needs_review"}:
+        return _result(
+            kind,
+            STATUS_BELUM,
+            "Material campaign belum terverifikasi; perlu resolusi sumber/manual review sebelum queue.",
+            ease=0.25,
+            safety=0.2,
+            materials=materials,
+            strict=strict,
+        )
 
     # --- hard skip ---
     if kind in {"ugc", "slideshow"}:

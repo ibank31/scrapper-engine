@@ -109,6 +109,20 @@ class CampaignReadinessTests(unittest.TestCase):
         self.assertTrue(r["readiness_label"])
         self.assertNotEqual(r["readiness_label"], r["readiness_status"])
 
+    def test_unresolved_material_blocks_ready_status(self):
+        r = assess_readiness(
+            {
+                "title": "Official Clipping",
+                "description": "Clip from campaign material",
+                "status": "active",
+                "budget_left": 20000,
+                "resources": [{"url": "https://www.youtube.com/watch?v=abc123"}],
+                "material_acquisition_status": "unresolved",
+            }
+        )
+        self.assertEqual(r["readiness_status"], STATUS_BELUM)
+        self.assertIn("Material campaign belum terverifikasi", r["readiness_reason"])
+
 
 if __name__ == "__main__":
     unittest.main()
