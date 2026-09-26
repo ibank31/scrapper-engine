@@ -151,10 +151,11 @@ class CampaignAITests(unittest.TestCase):
         self.assertEqual(result["c-evidence"]["evidence_contract"]["coverage"], 1.0)
         self.assertEqual(len(result["c-evidence"]["evidence_contract"]["verified"]), 1)
 
-    def test_campaign_sync_uses_api_bearer_auth_header(self):
-        headers = _headers("worker-secret")
+    def test_campaign_sync_uses_api_bearer_and_github_auth_headers(self):
+        headers = _headers("worker-secret", "github-ephemeral")
         self.assertEqual(headers["authorization"], "Bearer worker-secret")
         self.assertEqual(headers["x-worker-token"], "worker-secret")
+        self.assertEqual(headers["x-github-token"], "github-ephemeral")
 
     def test_legacy_campaign_ai_cache_is_stale_without_evidence_contract(self):
         campaign_hash = "same-rules-hash"
