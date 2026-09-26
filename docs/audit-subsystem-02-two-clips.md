@@ -100,7 +100,7 @@ The production frontend loads all previews returned by the API and labels them o
 
 ### Phase 0 — Specify and instrument before changing selection
 
-Write the acceptance contract in the campaign plan: required output count, tier allocation, duration bounds, and a measurable distinctness threshold. Add a campaign-level status vocabulary such as `insufficient_candidates`, `duplicate_pair`, `tier_allocation_failed`, `render_incomplete`, and `ready_two_clips`. Add stage metrics for selected, rendered, validated, distinct, and tier-compliant counts. Preserve the existing no-Buffer-post audit boundary while implementing and testing these checks.
+Write the acceptance contract in the campaign plan: required output count, distribution-slot allocation, duration bounds, and a measurable distinctness threshold. Add a campaign-level status vocabulary such as `insufficient_candidates`, `duplicate_pair`, `tier_allocation_failed`, `render_incomplete`, and `ready_two_clips`. Add stage metrics for selected, rendered, validated, distinct, and slot-compliant counts. Preserve the existing no-Buffer-post audit boundary while implementing and testing these checks.
 
 ### Phase 1 — Enforce the minimum invariant at the worker boundary
 
