@@ -12,6 +12,8 @@ import json
 import re
 from typing import Any
 
+SOURCE_PRIORITY = {"source_of_truth": 100, "documents": 90, "requirement": 80, "description": 70}
+
 SCHEMA_VERSION = 1
 
 
@@ -21,15 +23,21 @@ def _norm_text(value: Any) -> str:
 
 def source_documents(campaign: dict[str, Any]) -> list[dict[str, str]]:
     """Return deterministic source documents from the campaign payload."""
-    docs: list[dict[str, str]] = []
+    docs: list[dict[str, Any]] = []
 
     def add(source_type: str, text: Any, location: str = "") -> None:
         normalized = _norm_text(text)
         if normalized:
+            meta = campaign.get("source_metadata", {})
+            meta = meta.get(location, {}) if isinstance(meta, dict) and isinstance(meta.get(location, {}), dict) else {}
             docs.append({
                 "source_type": source_type,
                 "location": location,
                 "text": normalized,
+                "source_url": str(meta.get("source_url") or "") or None,
+                "source_timestamp": str(meta.get("source_timestamp") or "") or None,
+                "extraction_method": str(meta.get("extraction_method") or "structured_text_normalization"),
+                "source_priority": int(meta.get("source_priority", SOURCE_PRIORITY.get(source_type, 0))),
             })
 
     add("description", campaign.get("description"))
@@ -46,6 +54,21 @@ def source_documents(campaign: dict[str, Any]) -> list[dict[str, str]]:
         add("source_of_truth", source_of_truth.get("description"), "description")
 
     return docs
+
+
+def _source_references(campaign: dict[str, Any]) -> list[dict[str, Any]]:
+    values = campaign.get("source_urls") or campaign.get("asset_urls") or []
+    refs = []
+    for index, value in enumerate(values):
+        if isinstance(value, dict):
+            url = str(value.get("url") or "").strip()
+            timestamp = str(value.get("fetched_at") or value.get("timestamp") or "").strip() or None
+        else:
+            url = str(value or "").strip()
+            timestamp = None
+        if url:
+            refs.append({"source_id": f"source-url-{index + 1}", "url": url, "timestamp": timestamp})
+    return refs
 
 
 def source_fingerprint(campaign: dict[str, Any]) -> str:
@@ -90,12 +113,18 @@ def build_evidence_ledger(campaign: dict[str, Any]) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "campaign_id": cid,
         "source_hash": source_hash,
+        "source_references": _source_references(campaign),
         "documents": [
             {
                 "source_type": doc["source_type"],
                 "location": doc["location"],
                 "text_hash": hashlib.sha256(doc["text"].encode("utf-8")).hexdigest(),
                 "text_length": len(doc["text"]),
+                "source_url": doc["source_url"],
+                "source_timestamp": doc["source_timestamp"],
+                "extraction_method": doc["extraction_method"],
+                "source_priority": doc["source_priority"],
+                "span": {"start": 0, "end": len(doc["text"])},
             }
             for doc in documents
         ],
@@ -126,6 +155,11 @@ def verify_quote(
                 "location": doc["location"],
                 "quote": normalized_quote,
                 "source_hash": ledger_hash,
+                "source_url": doc["source_url"],
+                "source_timestamp": doc["source_timestamp"],
+                "extraction_method": doc["extraction_method"],
+                "source_priority": doc["source_priority"],
+                "span": {"start": doc["text"].lower().find(normalized_quote.lower()), "end": doc["text"].lower().find(normalized_quote.lower()) + len(normalized_quote)},
                 "evidence_id": evidence_id(
                     campaign_id=str(campaign.get("id") or ""),
                     source_hash=ledger_hash,
