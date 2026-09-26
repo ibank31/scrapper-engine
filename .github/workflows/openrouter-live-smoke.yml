@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/openrouter-live-smoke.yml"
+      - "core/campaign_ai.py"
 
 permissions:
   contents: read
