@@ -37,3 +37,12 @@ Decision: do not repeatedly retry the entire corpus. Future routing must be boun
 Superseded phase reports and audits are archived rather than deleted from Git history.
 
 Reason: historical evidence is useful, but current agents must not mistake it for the active contract.
+
+
+## 2026-09-26 — Canonical Campaign Brain before downstream migration
+
+CA-01 introduces campaign_brain as the authoritative canonical intelligence representation while retaining ai_rules.rules as a compatibility projection.
+
+Reason: downstream clipping stages still depend on the flat rule shape. Replacing it in place would couple Campaign Brain work to unrelated execution regressions.
+
+Invariants: supported rules require verified source evidence; unknown values are not manufactured as false; platform/language variants are preserved; conflicts are preserved but not resolved until CA-03.

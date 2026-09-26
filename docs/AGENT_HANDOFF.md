@@ -9,7 +9,7 @@ Repository scope cleanup follows this baseline; documentation/deletion commits a
 
 ## Mission
 
-Build a **campaign-agnostic AI Clipping Agent**. Campaign discovery, evidence, material acquisition, clip selection, rendering, compliance, review, and publishing gates all exist to serve clipping.
+Build a **campaign-agnostic Campaign Agent**. Clipping is the first execution vertical. Campaign discovery, evidence, material acquisition, strategy, execution, compliance, review, publishing, and outcome learning are reusable layers.
 
 Ryan Zofay is a regression fixture, never a special production case. Campaign differences belong in source evidence and normalized rules.
 
@@ -47,11 +47,11 @@ Production D1 was checked directly for Ryan Zofay after the merge. The stored in
 
 Do not manually rewrite the row.
 
-The remaining proof requires real generic re-analysis that stores the new evidence contract. Gemini quota is currently exhausted after 503/429 responses, so corpus-wide migration is forbidden.
+The remaining production proof is a bounded re-analysis that stores CA-01 brain data. Corpus-wide migration remains forbidden while one targeted campaign is sufficient.
 
 ## Exact next action
 
-Begin CA-01 as one bounded slice. Do not reopen CA-00 except for a regression proven by a failing fixture or production acceptance test.
+Implement CA-01A/B/C as one bounded milestone: canonical brain, deterministic preservation gate, persistence/compatibility. Do not reopen CA-00 except for a regression proven by a failing fixture or production acceptance test.
 
 CA-00 acceptance evidence:
 

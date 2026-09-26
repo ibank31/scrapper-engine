@@ -1,8 +1,8 @@
 
-# Campaign Agent Evolution Roadmap v2
+# Campaign Agent Evolution Roadmap v3
 
 **Repository:** ibank31/scrapper-engine  
-**Target:** menjadikan Scrapper Engine sebagai **AI Clipping Agent terbaik untuk campaign-driven clipping**: memahami campaign, mengumpulkan evidence/material, menyusun kontrak produksi, memilih clip, merender, memverifikasi compliance, menyiapkan review, dan mengelola publishing secara aman.  
+**Target:** menjadikan Scrapper Engine sebagai **Campaign Agent** yang memahami campaign end-to-end. Clipping adalah vertical pertama dan proving ground, bukan batas produk: campaign intelligence, material intelligence, strategy, execution, compliance, review, publishing, outcome, dan learning dibangun sebagai fondasi reusable.  
 **Strategi biaya:** free-first. Tidak ada kenaikan biaya AI sebelum ada bukti kualitas atau pendapatan yang membenarkan biaya tersebut.
 
 > Dokumen ini adalah roadmap evolution/intelligence aktif. Roadmap hardening lama `docs/IMPLEMENTATION_ROADMAP.md` telah diarsipkan di `docs/archive/2026-09-26/superseded/IMPLEMENTATION_ROADMAP.md` dan tidak lagi menjadi source of truth aktif. Jika referensi historis dan kontrak aktif bersinggungan, kontrak keselamatan dan gate yang lebih ketat selalu menang.
@@ -158,7 +158,7 @@ Namun E2E juga menemukan kegagalan intelligence:
 
 Kasus Ryan Zofay menunjukkan source memiliki CTA, hashtag, dan handle platform-specific, tetapi AI-normalized rules kehilangan sebagian informasi tersebut.
 
-Ini menjadi baseline failure CA-00 dan wajib menjadi golden regression fixture permanen.
+Ini menjadi golden regression fixture permanen. CA-00 sudah ditutup setelah controlled production acceptance PASS; rule-loss tetap menjadi regression evidence untuk CA-01.
 
 ---
 
@@ -1054,79 +1054,89 @@ Setelah merge, branch yang tidak diperlukan lagi dihapus.
 
 # 16. Urutan kerja aktual
 
-Jangan mengerjakan CA-00 sampai CA-14 sekaligus.
+Jangan mengerjakan seluruh roadmap sekaligus. Campaign Agent adalah product boundary; clipping adalah vertical eksekusi pertama yang harus dibuktikan production-grade sebelum ekspansi.
 
 ~~~text
-NOW
+PRODUCT
+ |
+ +-- Campaign Discovery / Intake
+ +-- Campaign Intelligence / Campaign Brain
+ +-- Critic / Reconciliation
+ +-- Execution verticals (Clipping first)
+ +-- Compliance / Review / Publishing
+ +-- Outcome / Memory / Learning
+~~~
+
+~~~text
+IMPLEMENTATION ORDER
  |
  +-- CA-00 Evidence Contract
- |
  +-- CA-01 Campaign Brain
- |
  +-- CA-02 Campaign Critic
- |
  +-- CA-03 Rule Reconciliation
- |
  +-- CA-04 Production Contract
- |
  +-- CA-05 Material Intelligence
- |
  +-- CA-06 Clip Strategy
- |
  +-- CA-07 Posting Compiler
- |
  +-- CA-08 Compliance Gate
- |
  +-- CA-09 Human Review
- |
  +-- CA-10 Memory
- |
  +-- CA-11 Self Evaluation
- |
  +-- CA-12 AI Router
- |
  +-- CA-13 Cost Governor
- |
  +-- CA-14 Economic Learning
 ~~~
 
 **Current priority: CA-01 — Canonical Campaign Brain. CA-00 acceptance sudah PASS dan ditutup.**
 
-Tidak ada gunanya membuat clipping semakin pintar jika Campaign Agent masih dapat kehilangan aturan campaign.
+# 17. CA-01 implementation contract
 
----
+## CA-01A — Canonical Brain Schema
 
-# 17. First implementation slice
+Create a canonical Campaign Brain with:
 
-**CA-00-A — Evidence Ledger + regression corpus**
+- campaign identity, objective, reward, and platform set;
+- structured rule records;
+- domain;
+- explicit platform/language/audience scope;
+- priority;
+- requirement level: mandatory / optional / unknown;
+- interpretation type: explicit / inferred / conflicting / ambiguous / unsupported / manual_required;
+- direct rule -> evidence IDs;
+- source references;
+- preserved variants and unresolved conflicts;
+- deterministic brain identity.
 
-Scope:
+## CA-01B — Deterministic Rule Preservation Gate
 
-- evidence representation;
-- document hashing;
-- rule evidence references;
-- generic campaign regression fixtures;
-- Ryan Zofay regression case;
-- tests CTA/hashtags/handles/duration;
-- no Buffer;
-- no model replacement.
+Use the existing six-shape fixture corpus. Do not add a second corpus.
 
-Acceptance:
+Acceptance metrics:
 
 ~~~text
-[PASS] stable source fingerprint
-[PASS] document-only rule retained
-[PASS] CTA retained
-[PASS] hashtag retained
-[PASS] platform handle retained
-[PASS] provenance attached
-[PASS] zero silent rule loss
-[PASS] existing regression suite
+critical rule preservation = 100%
+mandatory rule preservation = 100%
+silent rule loss = 0
+false mandatory assignment = 0
+supported rule without evidence = 0
+platform scope preservation = 100%
 ~~~
 
-Setelah CA-00-A lulus, lanjut CA-00-B. Jangan melompat langsung ke Campaign Critic.
+Production campaigns without a deterministic manifest are reported as not_evaluable, never as PASS.
 
----
+## CA-01C — Persistence + Compatibility
+
+Persist campaign_brain alongside the existing ai_rules.rules projection.
+
+The existing downstream consumers remain unchanged in CA-01.
+
+AI cache is reusable only when the canonical brain exists and its source hash matches the persisted intelligence source hash.
+
+## Explicit exclusions
+
+CA-01 does not include critic/reconciliation, production-contract compilation, Buffer mutation, rendering/subtitle changes, platform media generation, or job snapshot redesign.
+
+**Gate:** CA-01 closes only after deterministic corpus acceptance and a successful bounded production re-analysis proves the brain can persist without breaking the clipping pipeline.
 
 # 18. Long-term operating loop
 

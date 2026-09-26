@@ -13,6 +13,7 @@ from typing import Any, Iterable
 
 import requests
 
+from core.campaign_brain import build_campaign_brain
 from core.campaign_evidence import build_evidence_ledger, source_documents, source_fingerprint, verify_ai_evidence, verify_quote
 
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
@@ -240,6 +241,28 @@ GEMINI_RESPONSE_SCHEMA: dict[str, Any] = {
                             "topic_terms", "allowed_content", "prohibited_content", "asset_sources", "posting_rules", "account_rules",
                         ],
                     },
+                    "rule_annotations": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "rule_path": {"type": "string"},
+                                "value": {},
+                                "requirement_level": {"type": "string", "enum": ["mandatory", "optional", "unknown"]},
+                                "interpretation_type": {"type": "string", "enum": ["explicit", "inferred", "conflicting", "ambiguous", "unsupported", "manual_required"]},
+                                "scope": {
+                                    "type": "object",
+                                    "properties": {
+                                        "platforms": {"type": "array", "items": {"type": "string"}},
+                                        "languages": {"type": "array", "items": {"type": "string"}},
+                                        "audiences": {"type": "array", "items": {"type": "string"}},
+                                    },
+                                },
+                                "priority": {"type": "integer"},
+                            },
+                            "required": ["rule_path", "value", "requirement_level", "interpretation_type", "scope"],
+                        },
+                    },
                     "ambiguities": {"type": "array", "items": {"type": "string"}},
                     "evidence": {
                         "type": "array",
@@ -251,7 +274,7 @@ GEMINI_RESPONSE_SCHEMA: dict[str, Any] = {
                     },
                     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                 },
-                "required": ["campaign_id", "campaign_fit", "rules", "ambiguities", "evidence", "confidence"],
+                "required": ["campaign_id", "campaign_fit", "rules", "rule_annotations", "ambiguities", "evidence", "confidence"],
             },
         },
     },
@@ -516,13 +539,25 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
         fit_score = max(0.0, min(1.0, fit_score))
     confidence = max(0.0, min(1.0, _num(item.get("confidence"), 0.0) or 0.0))
     evidence = item.get("evidence") if isinstance(item.get("evidence"), list) else []
-    evidence_contract = verify_ai_evidence(campaign, evidence, rules=rules) if campaign is not None else {"schema_version": 1, "source_hash": None, "verified": [], "unverified": evidence, "coverage": 0.0}
+    rule_annotations = item.get("rule_annotations") if isinstance(item.get("rule_annotations"), list) else []
+    evidence_contract = verify_ai_evidence(campaign, evidence, rules=rules) if campaign is not None else {"schema_version": 1, "source_hash": None, "verified": evidence, "unverified": [], "coverage": 1.0 if evidence else 0.0}
     ambiguities = [str(x) for x in (item.get("ambiguities") or [])]
     if evidence_contract["unverified"]:
         ambiguities.append("CRITICAL: %d AI evidence quote(s) could not be verified against current campaign sources." % len(evidence_contract["unverified"]))
+    brain = build_campaign_brain(
+        campaign or {"id": campaign_id},
+        rules=rules,
+        rule_annotations=rule_annotations,
+        evidence_contract=evidence_contract,
+        ambiguities=ambiguities,
+        confidence=confidence,
+        campaign_fit=fit,
+        ai_available=not (confidence == 0.0 and fit_score is None and str(fit.get("reason") or "") == "AI analysis unavailable"),
+    )
     return {
         "schema_version": 2, "campaign_id": campaign_id,
         "campaign_fit": {"score": fit_score, "label": str(fit.get("label") or "unknown"), "reason": str(fit.get("reason") or "")},
+        "campaign_brain": brain,
         "rules": {
             "source_policy": str(rules.get("source_policy") or "campaign_defined"), "platforms": list(rules.get("platforms") or []),
             "aspect_ratio": rules.get("aspect_ratio"), "min_duration_seconds": _int_or_none(rules.get("min_duration_seconds")),
@@ -565,6 +600,7 @@ def _prompt(batch: Iterable[dict[str, Any]]) -> str:
     return """You are the campaign-intelligence layer of a clipping production engine.
 Read each campaign independently. Extract only what is supported by supplied text. Never invent a rule.
 Every evidence quote MUST be copied verbatim from the supplied campaign text and must be sufficient to support the stated rule. Do not cite general knowledge. Never concatenate multiple source lines or list items into one evidence quote. For list-valued rules, emit one evidence object per source-backed item and use a short exact contiguous quote for each. For CTA fields, copy the exact source CTA text; never replace a real handle, placeholder, or token with generic values such as @[handle].
+For every supported rule, emit a rule_annotations entry with exact rule_path, canonical value, requirement_level (mandatory, optional, or unknown), interpretation_type, and scope for platforms/languages/audiences. Preserve distinct source variants as separate annotations. Never mark a rule mandatory without source support. Never turn an unmentioned boolean into false in campaign_brain.
 Identify every explicit production or posting rule that can affect clip validity.
 Build a campaign-specific material acquisition plan. Do not assume every campaign uses the same acquisition method. For every required material, identify intent, quantity, preferred/fallback sources, allowed/forbidden source types, discovery methods, identity fields, verification requirements, and evidence. Never treat an example/reference link as production footage unless the campaign explicitly says so. If acquisition is unclear, choose manual_required or unresolved rather than inventing a source.
 Record CRITICAL ambiguity only when an unknown could change asset selection, edit/render decisions, or posting compliance.
@@ -615,7 +651,8 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
             for campaign in batch:
                 cid = str(campaign.get("id") or "")
                 if cid not in results:
-                    results[cid] = _fallback_result(campaign)
+                    fallback = _fallback_result(campaign)
+                    results[cid] = normalize_ai_result(fallback, cid, campaign)
         except (GeminiApiError, GeminiJsonError, AIRoutingError) as exc:
             reason = str(exc)
             print(
@@ -626,9 +663,10 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
             for campaign in batch:
                 cid = str(campaign.get("id") or "")
                 if cid:
-                    results[cid] = _fallback_result(
+                    fallback = _fallback_result(
                         campaign, f"Gemini batch {batch_no} failed: {reason}"
                     )
+                    results[cid] = normalize_ai_result(fallback, cid, campaign)
     return results
 
 

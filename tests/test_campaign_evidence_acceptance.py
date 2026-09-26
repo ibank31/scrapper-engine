@@ -22,6 +22,13 @@ def current_cache(campaign_id="cached"):
             "schema_version": 2,
             "source_hash": "source-hash",
             "source_ledger": {"schema_version": 1},
+            "campaign_brain": {
+                "schema_version": 1,
+                "brain_id": "brain-v1:test",
+                "source_hash": "source-hash",
+                "rules": [],
+                "evidence": {"schema_version": 1},
+            },
             "evidence_contract": {
                 "schema_version": 1,
                 "verified": [],
