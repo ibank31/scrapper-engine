@@ -143,14 +143,15 @@ def _is_fallback_eligible(exc: Exception) -> bool:
     return isinstance(exc, (GeminiApiError, GeminiJsonError, AIProviderError))
 
 
-def _route_generate(prompt: str, timeout: int = 120) -> tuple[str, str]:
-    """Run the configured provider chain. Gemini remains the reference provider."""
+def _route_generate(prompt: str, timeout: int = 120) -> tuple[dict[str, Any], str]:
+    """Run providers in order and only return a response that parses as campaign JSON."""
     failures: list[str] = []
     for provider in _configured_ai_providers():
         try:
             text = provider.generate(prompt, timeout=timeout)
+            parsed = _json_from_text(text)
             print(f"AI router: provider={provider.name} status=success")
-            return text, provider.name
+            return parsed, provider.name
         except Exception as exc:
             if not _is_fallback_eligible(exc):
                 raise
@@ -520,8 +521,7 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
         batch = campaigns[start:start + batch_size]
         batch_no = start // batch_size + 1
         try:
-            raw_text, provider_name = _route_generate(_prompt(batch))
-            parsed = _json_from_text(raw_text)
+            parsed, provider_name = _route_generate(_prompt(batch))
             items = parsed["campaigns"]
             by_id = {str(campaign.get("id") or ""): campaign for campaign in batch}
             for raw in items:
