@@ -16,6 +16,11 @@ on:
         required: false
         type: string
         default: ""
+      campaign_ids:
+        description: "Optional comma-separated campaign IDs for bounded AI migration"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: campaign-sync-ai
@@ -73,4 +78,5 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLIPPER_AI_BATCH_SIZE: "2"
           CLIPPER_FORCE_AI: ${{ inputs.force_ai || false }}
+          CLIPPER_CAMPAIGN_IDS: ${{ inputs.campaign_ids || '' }}
         run: python worker/sync_campaigns.py
