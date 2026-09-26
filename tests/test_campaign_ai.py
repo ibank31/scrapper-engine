@@ -185,6 +185,30 @@ class CampaignAITests(unittest.TestCase):
         self.assertEqual(headers["x-worker-token"], "worker-secret")
         self.assertEqual(headers["x-github-token"], "github-ephemeral")
 
+    def test_normalize_strips_editorial_quote_delimiters_from_source_backed_cta(self):
+        campaign = {
+            "id": "cta-quoted-source",
+            "description": "All pieces of content should have “Follow and meet Alex for more @.....”",
+        }
+        item = {
+            "campaign_fit": {"score": 1, "label": "high", "reason": "matches"},
+            "rules": {
+                "cta_required": True,
+                "cta_text": "“Follow and meet Alex for more @.....”",
+                "handles": ["@alex"],
+                "hashtags": [],
+            },
+            "evidence": [{
+                "rule_path": "rules.cta_text",
+                "quote": "All pieces of content should have “Follow and meet Alex for more @.....”",
+            }],
+            "confidence": 0.9,
+        }
+        result = normalize_ai_result(item, "cta-quoted-source", campaign)
+        self.assertEqual(result["rules"]["cta_text"], "Follow and meet Alex for more @.....")
+        cta_rule = next(rule for rule in result["campaign_brain"]["rules"] if rule["source_rule_path"] == "rules.cta_text")
+        self.assertEqual(cta_rule["value"], "Follow and meet Alex for more @.....")
+
     def test_normalize_recovers_source_backed_cta_from_placeholder(self):
         campaign = {
             "id": "cta-source",
