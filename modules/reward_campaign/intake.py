@@ -661,8 +661,14 @@ def main() -> None:
                     mime = str(child.get("mimeType") or "")
                     is_video = mime.startswith("video/") or Path(name).suffix.lower() in VIDEO_EXTENSIONS
                     can_download = child.get("capabilities", {}).get("canDownload", True) is not False
+                    child_policy_asset_id, child_policy_reason = match_candidate(
+                        material_policy,
+                        {"source_type": "google_drive_asset", "source_url": f"https://drive.google.com/file/d/{child_id}/view" if child_id else url, "reference_role": candidate.get("reference_role")},
+                    )
                     asset_manifest.append({
                         "asset_id": child_id,
+                        "policy_asset_id": child_policy_asset_id,
+                        "policy_match": child_policy_reason,
                         "source_id": source_id,
                         "source_type": "google_drive_asset",
                         "source_reference": url,
@@ -715,8 +721,14 @@ def main() -> None:
                 duplicate = child_id in seen_asset_ids if child_id else False
                 if child_id:
                     seen_asset_ids.add(child_id)
+                child_policy_asset_id, child_policy_reason = match_candidate(
+                    material_policy,
+                    {"source_type": "google_drive_asset", "source_url": f"https://drive.google.com/file/d/{child_id}/view" if child_id else url, "reference_role": candidate.get("reference_role")},
+                )
                 asset_entry = {
                     "asset_id": child_id,
+                    "policy_asset_id": child_policy_asset_id,
+                    "policy_match": child_policy_reason,
                     "reference_role": candidate.get("reference_role") or "PRIMARY_SOURCE",
                     "source_id": source_id,
                     "source_type": "google_drive_asset",
