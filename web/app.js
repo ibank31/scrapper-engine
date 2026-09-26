@@ -108,9 +108,9 @@ function renderCampaignDetail(c) {
     '<section class="detail-section"><h3>Analisis mesin</h3>' + campaignAiSummary(c) + '</section><div class="detail-actions"><button class="primary-button" id="startJob">Mulai proses campaign <span>→</span></button></div></div>';
 }
 function renderJobDetails(job) {
-  const rows = Array.isArray(job.stages) ? job.stages : []; if (!rows.length) return '<details class="job-detail"><summary>⌄ Detail proses</summary><p class="detail-empty">Belum ada stage event yang diterima.</p></details>';
+  const rows = Array.isArray(job.stages) ? job.stages : []; if (!rows.length) return '<details class="job-detail" data-detail-key="job:' + escapeHtml(job.id) + '"><summary>⌄ Detail proses</summary><p class="detail-empty">Belum ada stage event yang diterima.</p></details>';
   const latest = new Map(); for (const row of rows) latest.set(String(row.stage || ''), row);
-  return '<details class="job-detail"><summary>⌄ Detail proses</summary><div class="stage-details">' + Array.from(latest.values()).map((row) => {
+  return '<details class="job-detail" data-detail-key="job:' + escapeHtml(job.id) + '"><summary>⌄ Detail proses</summary><div class="stage-details">' + Array.from(latest.values()).map((row) => {
     const metrics = parseObject(row.metrics_json, row.metrics || {}); const pairs = detailPairs(metrics, ['duration_seconds','candidate_count','selected','semantic_required','semantic_skipped','reason','cache_hit','ai_calls','source_count','usable_sources']);
     return '<div class="stage-detail-row"><div><strong>' + escapeHtml(stageNames[row.stage] || row.stage) + '</strong><span>' + escapeHtml(String(row.status || '').replace(/_/g, ' ')) + '</span></div>' + (pairs ? '<div class="stage-metrics">' + pairs + '</div>' : '') + (row.error_code || row.error_detail ? '<p class="stage-error">' + escapeHtml(row.error_code || '') + (row.error_detail ? ' · ' + escapeHtml(row.error_detail) : '') + '</p>' : '') + '<small>' + escapeHtml(row.ended_at ? 'Selesai ' + humanDate(row.ended_at) : row.started_at ? 'Mulai ' + humanDate(row.started_at) : 'Waktu belum tersedia') + '</small></div>';
   }).join('') + '</div></details>';
@@ -232,6 +232,12 @@ function simulateJob(job) {
   tick();
 }
 function statusText(status) { return statusNames[status] || String(status || "UNKNOWN").toUpperCase(); }
+function rememberOpenDetails(selector) {
+  return new Set([...document.querySelectorAll(selector + "[open]")].map((node) => node.dataset.detailKey).filter(Boolean));
+}
+function restoreOpenDetails(selector, keys) {
+  document.querySelectorAll(selector).forEach((node) => { if (keys.has(node.dataset.detailKey)) node.open = true; });
+}
 function formatAge(iso) {
   if (!iso) return "belum ada update";
   const age = Math.max(0, Date.now() - new Date(iso).getTime());
@@ -307,6 +313,7 @@ async function cancelJob(job) {
   }
 }
 function renderJobs() {
+  const openDetails = rememberOpenDetails(".job-detail");
   const active = state.jobs.filter((j) => j.status === "queued" || j.status === "processing").length;
   const processing = state.jobs.filter((j) => j.status === "processing").length;
   const queued = state.jobs.filter((j) => j.status === "queued").length;
@@ -328,10 +335,11 @@ function renderJobs() {
         '<div class="job-output-contract">' + escapeHtml(outputContractSummary(j)) + '</div>' +
         renderStageTrack(j) + renderJobDetails(j) +
         '<div class="job-progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><span class="progress-number">' + progress + '%</span></div>' +
-        '<div class="job-meta"><span>Pembaruan ' + formatAge(j.updated_at) + '</span>' + (stale ? '<span class="stale-warning">⚠ Belum ada pembaruan cukup lama</span>' : "") + '</div>' +
+        '<div class="job-meta"><span class="job-updated-age" data-updated-at="' + escapeHtml(j.updated_at || "") + '">Pembaruan ' + formatAge(j.updated_at) + '</span>' + (stale ? '<span class="stale-warning">⚠ Belum ada pembaruan cukup lama</span>' : "") + '</div>' +
         ((j.status === "queued" || j.status === "processing") ? '<button class="stop-button" data-stop-id="' + escapeHtml(j.id) + '" type="button">Stop proses</button>' : "") +
       '</div></article>';
   }).join("") || '<div class="empty-state">Belum ada job. Pilih campaign untuk memulai.</div>';
+  restoreOpenDetails(".job-detail", openDetails);
   document.querySelectorAll(".stop-button").forEach((button) => button.addEventListener("click", () => {
     const job = state.jobs.find((item) => item.id === button.dataset.stopId);
     cancelJob(job);
@@ -452,6 +460,7 @@ function startPolling() {
   }, 5000);
 }
 function renderReviews() {
+  const openDetails = rememberOpenDetails(".review-detail");
   $("#reviewGrid").innerHTML = state.reviews.map((r) => {
     const src = r.video_url || r.download_url;
     let validation = {};
@@ -480,7 +489,7 @@ function renderReviews() {
       (r.rules_summary_id ? '<div class="rules-summary"><strong>Referensi aturan</strong><p>Aturan campaign terhubung ke hasil pemeriksaan mesin. Detail yang perlu diperiksa ditampilkan pada panel bukti di bawah.</p></div>' : '') +
       '<div class="review-validation"><span>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap diedit</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
-      '<details class="review-detail"><summary>⌄ Mengapa video ini lolos?</summary><div class="review-detail-grid">' +
+      '<details class="review-detail" data-detail-key="review:' + escapeHtml(r.id || r.title || "") + '"><summary>⌄ Mengapa video ini lolos?</summary><div class="review-detail-grid">' +
         '<div><small>Audiens</small><strong>' + escapeHtml(tierLabel) + '</strong></div>' +
         '<div><small>Validasi</small><strong>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</strong></div>' +
         '<div><small>Distinctness</small><strong>' + escapeHtml(distinctness.distinct == null ? "Belum diketahui" : distinctness.distinct ? "Berbeda dari kandidat lain" : "Perlu diperiksa") + '</strong></div>' +
@@ -492,6 +501,7 @@ function renderReviews() {
       (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Unduh video <span>↓</span></a>' + ((status === "pending_review" || status === "changes_requested") ? '<button class="secondary-button caption-edit-button" type="button">Edit caption</button>' : '') + (status === "approved_for_manual_post" ? '<button class="primary-button buffer-upload-button" type="button">Masukkan ke Buffer <span>↗</span></button>' : '') : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
   }).join("") || '<div class="empty-state">Belum ada preview siap review.</div>';
+  restoreOpenDetails(".review-detail", openDetails);
   document.querySelectorAll("video.review-video").forEach((video) => {
     video.addEventListener("error", () => video.closest(".review-card")?.classList.add("video-load-error"), { once: true });
   });
@@ -527,4 +537,8 @@ document.querySelectorAll("[data-close]").forEach((x) => x.addEventListener("cli
 $("#workerStatus").textContent = cfg.DEMO_MODE ? "mode demo" : "pembaruan otomatis aktif";
 loadCampaigns();
 loadJobs();
-setInterval(() => { if (state.jobs.length) renderJobs(); }, 1000);
+setInterval(() => {
+  document.querySelectorAll(".job-updated-age").forEach((node) => {
+    node.textContent = "Pembaruan " + formatAge(node.dataset.updatedAt);
+  });
+}, 1000);
