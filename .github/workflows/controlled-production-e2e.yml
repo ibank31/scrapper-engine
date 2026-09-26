@@ -1,0 +1,70 @@
+name: controlled-production-e2e
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/e2e/trigger"
+
+concurrency:
+  group: controlled-production-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Run website-equivalent production flow
+        env:
+          API: ${{ secrets.CLIPPER_API_URL }}
+          TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
+          CAMPAIGN_ID: "926e1b7f-1030-4333-a557-f99d9f891437"
+        run: |
+          set -euo pipefail
+
+          auth=(-H "content-type: application/json" -H "authorization: Bearer $TOKEN")
+
+          echo "1/4 CREATE JOB"
+          create="$(curl -fsS --retry 2 --connect-timeout 15 --max-time 60 "${API}/api/campaigns/${CAMPAIGN_ID}/jobs" "${auth[@]}" -d "{\"campaign_id\":\"${CAMPAIGN_ID}\"}")"
+          echo "${create}" | python -m json.tool
+
+          job_id="$(echo "${create}" | python -c 'import json,sys; print(json.load(sys.stdin)["job"]["id"])')"
+          echo "JOB_ID=${job_id}"
+
+          echo "2/4 DISPATCH WORKER"
+          dispatch="$(curl -fsS --retry 2 --connect-timeout 15 --max-time 60 "${API}/api/jobs/${job_id}/run" "${auth[@]}" -d "{\"campaign_id\":\"${CAMPAIGN_ID}\"}")"
+          echo "${dispatch}" | python -m json.tool
+
+          echo "3/4 WAIT FOR TERMINAL JOB"
+          for i in $(seq 1 110); do
+            sleep 30
+            job="$(curl -fsS --retry 2 --connect-timeout 15 --max-time 60 "${API}/api/jobs/${job_id}" "${auth[@]}")"
+            status="$(echo "${job}" | python -c 'import json,sys; print(json.load(sys.stdin)["job"]["status"])')"
+            progress="$(echo "${job}" | python -c 'import json,sys; print(json.load(sys.stdin)["job"].get("progress",0))')"
+            message="$(echo "${job}" | python -c 'import json,sys; print(json.load(sys.stdin)["job"].get("message") or "")')"
+            echo "[poll $i] status=${status} progress=${progress} message=${message}"
+
+            case "${status}" in
+              review|blocked|error|cancelled)
+                break
+                ;;
+            esac
+          done
+
+          echo "4/4 COLLECT EVIDENCE"
+          curl -fsS --retry 2 --connect-timeout 15 --max-time 60 "${API}/api/jobs/${job_id}" "${auth[@]}" | python -m json.tool | tee job.json
+          curl -fsS --retry 2 --connect-timeout 15 --max-time 60 "${API}/api/jobs/${job_id}/stages" "${auth[@]}" | python -m json.tool | tee stages.json
+          curl -fsS --retry 2 --connect-timeout 15 --max-time 60 "${API}/api/jobs/${job_id}/previews" "${auth[@]}" | python -m json.tool | tee previews.json
+
+          final_status="$(python -c 'import json; print(json.load(open("job.json"))["job"]["status"])')"
+          echo "FINAL_STATUS=${final_status}"
+
+          if [ "${final_status}" != "review" ]; then
+            echo "E2E did not reach REVIEW"
+            exit 1
+          fi
+
+          echo "E2E reached REVIEW successfully. Buffer was not invoked."
