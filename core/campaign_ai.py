@@ -18,7 +18,10 @@ from core.campaign_evidence import build_evidence_ledger, source_fingerprint, ve
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 OPENROUTER_API_BASE = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
+# Free-first policy: never silently spend on a paid OpenRouter model.
+# Paid routing belongs to the explicit cost-governor milestone.
+OPENROUTER_FREE_MODEL = "openrouter/free"
+OPENROUTER_MODEL = OPENROUTER_FREE_MODEL
 TRANSIENT_GEMINI_STATUSES = {408, 429, 500, 502, 503, 504}
 TRANSIENT_OPENROUTER_STATUSES = {408, 429, 500, 502, 503, 504}
 
