@@ -1,3 +1,4 @@
+# CA-00 acceptance rerun: validate Gemini->OpenRouter fallback and source-backed CTA integrity
 name: controlled-ryan-openrouter-acceptance
 
 on:
