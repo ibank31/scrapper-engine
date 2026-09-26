@@ -26,6 +26,7 @@ from core.job_workspace import create_workspace, now_iso, read_json, sha256_file
 from core.candidate_identity import normalize_source_asset_id
 from core.material_references import extract_document_references, is_symbolic_reference, resolve_named_youtube_reference
 from core.media_validation import validate_video_file
+from core.material_planner import candidate_priority, match_candidate, required_asset_minimums
 
 DIRECT_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a", ".png", ".jpg", ".jpeg", ".webp", ".srt", ".ass"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
@@ -326,10 +327,58 @@ def main() -> None:
     reference_manifest: list[dict] = []
     source_manifest: list[dict] = []
     asset_manifest: list[dict] = []
+    policy_source_bindings: dict[str, str] = {}
 
-    references = (plan.get("production") or {}).get("asset_urls") or []
+    production = plan.get("production") or {}
+    material_policy = production.get("material_policy") if isinstance(production.get("material_policy"), dict) else {}
+    from core.material_acquisition import acquisition_status, material_plan_fingerprint, normalize_material_policy, validate_material_policy
+    material_policy = normalize_material_policy(material_policy)
+    material_policy_errors = validate_material_policy(material_policy)
+    write_json(os.path.join(materials, "MATERIAL_ACQUISITION_PLAN.json"), material_policy)
+
+    references = list(production.get("asset_urls") or [])
+    campaign_context = plan.get("campaign") or {}
+    generated_policy_references: dict[str, str] = {}
+    for required in material_policy.get("required_assets") or []:
+        methods = required.get("discovery_methods") or material_policy.get("discovery_methods") or []
+        identity = required.get("identity") or {}
+        work = identity.get("work") or identity.get("title") or identity.get("name")
+        artist = identity.get("artist") or identity.get("creator") or identity.get("brand")
+        if "named_search" in methods and work:
+            label = "Official Video" if any("official" in str(x).lower() for x in (required.get("intent"), required.get("preferred_sources"))) else "Video"
+            symbolic = f'{label}: {" - ".join(str(x).strip() for x in (artist, work) if str(x).strip())}'
+            references.append(symbolic)
+            generated_policy_references[symbolic] = str(required.get("asset_id") or "")
     explicit_reference_values = [str(value).strip() for value in references if str(value).strip()]
     for raw_reference in explicit_reference_values:
+        if raw_reference in generated_policy_references and is_symbolic_reference(raw_reference):
+            resolution = resolve_named_youtube_reference(
+                raw_reference,
+                campaign_title=str(campaign_context.get("title") or ""),
+                brand=str(campaign_context.get("brand") or ""),
+            )
+            resolved_url = str((resolution.get("candidate") or {}).get("url") or "")
+            reference_manifest.append({
+                "reference": raw_reference,
+                "kind": "POLICY_NAMED_SEARCH",
+                "role": "PRIMARY_SOURCE_CANDIDATE",
+                "reference_kind": "NAMED_MEDIA",
+                "status": resolution.get("status"),
+                "resolution": resolution,
+                "url": resolved_url or None,
+            })
+            if resolved_url:
+                discovered.append(resolved_url)
+                policy_source_bindings[resolved_url] = generated_policy_references[raw_reference]
+            else:
+                unresolved_references.append({
+                    "reference": raw_reference,
+                    "kind": "POLICY_NAMED_SEARCH",
+                    "status": "UNRESOLVED",
+                    "reason": resolution.get("reason") or "unresolved_named_media_reference",
+                    "best_candidate": resolution.get("best_candidate"),
+                })
+            continue
         if is_symbolic_reference(raw_reference):
             unresolved_references.append({
                 "reference": raw_reference,
@@ -510,8 +559,19 @@ def main() -> None:
         label = f"source-{index:02d}"
         source_id = candidate.get("source_asset_id") or _source_id(url)
         source_type = _source_type(url, host)
+        provisional_asset_id = policy_source_bindings.get(url)
+        if provisional_asset_id:
+            policy_match_reason = "policy_named_binding"
+        else:
+            provisional_asset_id, policy_match_reason = match_candidate(
+                material_policy,
+                {"source_type": source_type, "source_url": url, "reference_role": candidate.get("reference_role")},
+            )
         source_entry = {
             "source_id": source_id,
+            "policy_asset_id": provisional_asset_id,
+            "policy_match": policy_match_reason,
+            "policy_priority": candidate_priority(material_policy, provisional_asset_id, {"source_type": source_type, "source_url": url, "reference_role": candidate.get("reference_role")}) if provisional_asset_id else 10_000,
             "reference_role": candidate.get("reference_role") or "PRIMARY_SOURCE",
             "source_type": source_type,
             "source_reference": url,
@@ -553,8 +613,14 @@ def main() -> None:
                     mime = str(child.get("mimeType") or "")
                     is_video = mime.startswith("video/") or Path(name).suffix.lower() in VIDEO_EXTENSIONS
                     can_download = child.get("capabilities", {}).get("canDownload", True) is not False
+                    child_policy_asset_id, child_policy_reason = match_candidate(
+                        material_policy,
+                        {"source_type": "google_drive_asset", "source_url": f"https://drive.google.com/file/d/{child_id}/view" if child_id else url, "reference_role": candidate.get("reference_role")},
+                    )
                     asset_manifest.append({
                         "asset_id": child_id,
+                        "policy_asset_id": child_policy_asset_id,
+                        "policy_match": child_policy_reason,
                         "source_id": source_id,
                         "source_type": "google_drive_asset",
                         "source_reference": url,
@@ -607,8 +673,14 @@ def main() -> None:
                 duplicate = child_id in seen_asset_ids if child_id else False
                 if child_id:
                     seen_asset_ids.add(child_id)
+                child_policy_asset_id, child_policy_reason = match_candidate(
+                    material_policy,
+                    {"source_type": "google_drive_asset", "source_url": f"https://drive.google.com/file/d/{child_id}/view" if child_id else url, "reference_role": candidate.get("reference_role")},
+                )
                 asset_entry = {
                     "asset_id": child_id,
+                    "policy_asset_id": child_policy_asset_id,
+                    "policy_match": child_policy_reason,
                     "reference_role": candidate.get("reference_role") or "PRIMARY_SOURCE",
                     "source_id": source_id,
                     "source_type": "google_drive_asset",
@@ -646,6 +718,8 @@ def main() -> None:
             is_video = is_youtube or is_drive or Path(urlparse(url).path).suffix.lower() in VIDEO_EXTENSIONS
             asset_entry = {
                 "asset_id": source_id,
+                "policy_asset_id": provisional_asset_id,
+                "policy_match": policy_match_reason,
                 "reference_role": candidate.get("reference_role") or "PRIMARY_SOURCE",
                 "source_id": source_id,
                 "source_type": source_type,
@@ -691,6 +765,11 @@ def main() -> None:
     ranked_queue = sorted(
         download_queue,
         key=lambda entry: (
+            candidate_priority(
+                material_policy,
+                str(entry["asset_entry"].get("policy_asset_id") or ""),
+                {"source_type": entry["asset_entry"].get("source_type"), "source_url": entry["asset_entry"].get("source_url"), "reference_role": entry["asset_entry"].get("reference_role")},
+            ),
             _asset_priority({**entry["item"], "url": entry["item"].get("url"), "_base_priority": entry.get("base_priority", 0)}),
             str(entry["asset_entry"].get("asset_id") or ""),
         ),
@@ -816,6 +895,22 @@ def main() -> None:
         elif media_count == 0:
             source_entry["status"] = "no_media"
 
+    minimums = required_asset_minimums(material_policy)
+    policy_results = []
+    for item in asset_manifest:
+        policy_id = item.get("policy_asset_id")
+        if not policy_id:
+            continue
+        policy_results.append({
+            "asset_id": policy_id,
+            "status": "accessible" if item.get("status") == "READY_FOR_PROCESSING" else "manual_required" if item.get("status") in {"INACCESSIBLE", "DOWNLOAD_FAILED"} else "unresolved",
+            "source_url": item.get("source_url"),
+            "provider": item.get("source_type"),
+            "evidence": item.get("media_validation"),
+            "local_path": item.get("local_path"),
+            "sha256": item.get("sha256"),
+        })
+    policy_status = acquisition_status(policy_results, material_policy) if minimums else "needs_review"
     discovered_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video")
     accessible_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video" and item.get("accessible"))
     deferred_media_asset_count = sum(1 for item in asset_manifest if item.get("asset_kind") == "video" and str(item.get("status", "")).startswith("DEFERRED"))
@@ -840,6 +935,14 @@ def main() -> None:
         "job_id": ws["job_id"],
         "campaign": plan.get("campaign"),
         "rules_snapshot": os.path.relpath(rules_path, ws["path"]),
+        "material_acquisition": {
+            "policy": material_policy,
+            "policy_validation_errors": material_policy_errors,
+            "status": "needs_review" if material_policy_errors else policy_status,
+            "required_minimums": minimums,
+            "results": policy_results,
+            "plan_fingerprint": material_plan_fingerprint(material_policy),
+        },
         "assets": records,
         "source_manifest": source_manifest,
         "asset_manifest": asset_manifest,
