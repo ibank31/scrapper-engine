@@ -2,138 +2,103 @@
 
 **Updated:** 26 September 2026  
 **Repository:** `ibank31/scrapper-engine`  
-**Branch:** `main`
+**Branch:** `main`  
+**HEAD:** `c1ef801367cba42fe12178088dec099c055afae9`
 
 ## Mission
 
 Build a **campaign-agnostic Campaign Agent + Clipping Agent**.
 
-Never create special production logic for Ryan Zofay or another named campaign. Campaign differences belong in source evidence and normalized rules.
+Ryan Zofay is a regression fixture, never a special production case. Campaign differences belong in source evidence and normalized rules.
 
-The human reviewer is basic quality control. The machine should understand campaign rules, material requirements, platform requirements, compliance, and posting-package details.
-
-## Source of truth
-
-Read in this order:
-
-1. `STATUS.md`
-2. `docs/CAMPAIGN_AGENT_ROADMAP.md`
-3. `docs/DECISION_LOG.md`
-4. subsystem docs when changing that subsystem
-
-Historical reports are archived and are not current contracts.
+Human review is basic QC. The machine is responsible for understanding campaign rules, material requirements, platform requirements, compliance, and posting-package details.
 
 ## Current milestone
 
-**CA-00 Evidence Contract**
+**CA-00 — Evidence Contract**
 
-Implementation is merged. Production acceptance is still open.
-
-Implemented:
+### Completed and merged
 
 - source document extraction;
 - deterministic source fingerprint;
 - evidence ledger;
 - stable evidence IDs;
 - AI quote verification;
-- evidence contract;
+- evidence-aware AI normalization;
 - legacy AI-cache invalidation;
-- live AI normalization source binding.
+- Bearer campaign-sync authentication;
+- targeted migration support;
+- generic CA-00 acceptance fixtures and cache/migration regression tests.
 
-## Production findings
+PR #28 is merged as `c1ef801367cba42fe12178088dec099c055afae9`.
 
-Legacy campaign rows without the current evidence contract are stale.
+## Production acceptance
 
-Do not manually rewrite D1. Re-analysis must use the generic campaign intelligence pipeline.
+Still **OPEN**.
 
-A full legacy migration hit Gemini 503 high-demand responses followed by 429 quota exhaustion. Do not repeatedly retry the entire corpus. Use `CLIPPER_CAMPAIGN_IDS` for targeted migration when quota is available.
+Production D1 was checked directly for Ryan Zofay after the merge. The stored intelligence remains legacy `schema_version=1`.
 
-Campaign sync now sends Bearer authentication and retains the worker-token header for compatibility.
+Do not manually rewrite the row.
 
-## Architecture
+The remaining proof requires a real generic re-analysis that stores the new evidence contract. Gemini quota has previously exhausted after 503/429 responses, so corpus-wide migration is forbidden.
+
+## Exact next action
+
+When quota is available:
 
 ```
-SOURCE
-  ↓
-EVIDENCE
-  ↓
-CAMPAIGN BRAIN
-  ↓
-CRITIC
-  ↓
-RULE RECONCILIATION
-  ↓
-PRODUCTION CONTRACT
-  ↓
-MATERIAL INTELLIGENCE
-  ↓
-CLIP STRATEGY
-  ↓
-RENDER
-  ↓
-COMPLIANCE
-  ↓
-HUMAN QC
-  ↓
-BUFFER
+CLIPPER_CAMPAIGN_IDS=926e1b7f-1030-4333-a557-f99d9f891437
+        ↓
+targeted campaign-sync-ai
+        ↓
+verify D1 evidence contract
+        ↓
+controlled production E2E
 ```
 
-AI is reasoning. Code is enforcement.
+Required evidence:
 
-## Known regression
+- `schema_version=2`;
+- `source_hash`;
+- `source_ledger`;
+- `evidence_contract`;
+- verified evidence for critical/mandatory rules;
+- no silent loss of CTA, handles, hashtags, duration.
 
-Ryan Zofay historically lost CTA, platform-specific handles, and hashtags during normalization.
+If Gemini remains unavailable, stay inside CA-00 with deterministic work. Do not begin CA-01.
 
-This is a regression fixture, not a special case.
+## Verification baseline
 
-## Latest commits
+Latest merged CI is represented by the post-merge Actions runs for `c1ef801367cba42fe12178088dec099c055afae9`.
 
-- evidence contract: `26225e0ddec35799a74645186a62a02fb960ee84`
-- cache invalidation: `de5f3413455b641b468b5975957abdecf315136a`
-- sync auth/targeted migration: `4b85b6f9c1621f4aae82b6e76370d96802eaf34d`
+Current production deployment is tied to the same `main` commit through Cloudflare Pages.
 
-## Next bounded slice
+A previous controlled E2E reached two rendered/validated review previews without Buffer mutation. Its intelligence failure remains the canonical rule-loss regression.
 
-**CA-00 acceptance hardening.**
+## Operating protocol
 
-Add generic fixtures for explicit rules, document-only rules, platform handles, hashtags, CTA, duration, prohibited content, and ambiguity.
+```
+PLAN → EXECUTE → VERIFY → DOCUMENT → CONTINUE
+```
 
-Measure critical and mandatory rule preservation.
+If E2E finds a new valid bug:
 
-Do not move to CA-01 until evidence coverage is measurable.
-
-## Verification protocol
-
-1. targeted tests;
-2. full deterministic regression;
-3. semantic fixture;
-4. Node syntax checks;
-5. diff check;
-6. controlled E2E only when the changed contract requires it;
-7. production verification only after CI passes.
-
-If E2E finds a valid bug:
-
-**STOP → preserve evidence → fix only that bug → retest.**
+```
+STOP
+preserve evidence
+add regression
+fix root cause
+verify
+document
+repeat E2E
+```
 
 ## Do not
 
-- hard-code campaign behavior;
+- hard-code Ryan Zofay or any campaign;
 - invent campaign rules;
-- treat AI uncertainty as confidence;
-- mutate D1 manually to make tests pass;
-- rerun the full corpus when targeted migration is enough;
-- spend premium AI calls on deterministic extraction;
-- claim unverified provider/native capabilities;
-- treat a green local suite as production proof.
-
-## Human review contract
-
-The UI should answer:
-
-- Is the clip compliant?
-- Is it relevant?
-- Is anything uncertain?
-- What does the reviewer actually need to check?
-
-Raw internal labels are not enough.
+- trust valid JSON as proof of correct intelligence;
+- manually mutate D1 to bypass acceptance;
+- rerun full AI migration when targeted migration is sufficient;
+- spend premium AI calls on deterministic work;
+- treat green CI as production proof.

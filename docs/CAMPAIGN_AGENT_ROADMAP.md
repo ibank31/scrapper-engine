@@ -5,7 +5,7 @@
 **Target:** mengubah Scrapper Engine menjadi AI Campaign Agent + Clipping Agent yang memahami campaign secara menyeluruh, mengubah rules menjadi kontrak produksi yang dapat dieksekusi, memverifikasi hasilnya, dan menyisakan review manusia hanya untuk hal yang benar-benar membutuhkan manusia.  
 **Strategi biaya:** free-first. Tidak ada kenaikan biaya AI sebelum ada bukti kualitas atau pendapatan yang membenarkan biaya tersebut.
 
-> Dokumen ini adalah roadmap evolution/intelligence. docs/IMPLEMENTATION_ROADMAP.md tetap menjadi roadmap hardening pipeline/provider. Jika keduanya bersinggungan, contract keselamatan dan gate yang lebih ketat selalu menang.
+> Dokumen ini adalah roadmap evolution/intelligence aktif. Roadmap hardening lama `docs/IMPLEMENTATION_ROADMAP.md` telah diarsipkan di `docs/archive/2026-09-26/superseded/IMPLEMENTATION_ROADMAP.md` dan tidak lagi menjadi source of truth aktif. Jika referensi historis dan kontrak aktif bersinggungan, kontrak keselamatan dan gate yang lebih ketat selalu menang.
 
 ---
 
