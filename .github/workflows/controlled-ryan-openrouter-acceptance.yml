@@ -35,7 +35,6 @@ jobs:
         env:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
-          GITHUB_TOKEN: ${{ github.token }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
@@ -46,7 +45,6 @@ jobs:
         env:
           CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
           CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -62,7 +60,6 @@ jobs:
               headers={
                   "authorization": f"Bearer {worker_token}",
                   "x-worker-token": worker_token,
-                  "x-github-token": os.environ["GITHUB_TOKEN"],
               },
           )
           with urllib.request.urlopen(request, timeout=60) as response:
