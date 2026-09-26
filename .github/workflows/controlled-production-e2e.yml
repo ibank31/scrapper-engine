@@ -1,6 +1,9 @@
 name: controlled-production-e2e
 
 on:
+  push:
+    paths:
+      - ".github/e2e/trigger"
   workflow_dispatch:
     inputs:
       campaign_id:
@@ -31,8 +34,8 @@ jobs:
         env:
           API: ${{ secrets.CLIPPER_API_URL }}
           TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
-          CAMPAIGN_ID: ${{ inputs.campaign_id }}
-          EXPECTED_STATUS: ${{ inputs.expected_terminal_status }}
+          CAMPAIGN_ID: ${{ inputs.campaign_id || '926e1b7f-1030-4333-a557-f99d9f891437' }}
+          EXPECTED_STATUS: ${{ inputs.expected_terminal_status || 'review' }}
         run: |
           set -euo pipefail
 
