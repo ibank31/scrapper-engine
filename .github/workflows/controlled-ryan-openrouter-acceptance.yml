@@ -41,3 +41,50 @@ jobs:
         run: |
           set -euo pipefail
           python worker/sync_campaigns.py
+
+      - name: Verify persisted acceptance contract
+        env:
+          CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          api = os.environ["CLIPPER_API_URL"].rstrip("/")
+          campaign_id = "926e1b7f-1030-4333-a557-f99d9f891437"
+          request = urllib.request.Request(
+              f"{api}/api/campaigns/{campaign_id}",
+              headers={"x-github-token": os.environ["GITHUB_TOKEN"]},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              payload = json.load(response)
+          campaign = payload["campaign"]
+          ai = campaign["ai_rules"]
+
+          assert ai["schema_version"] == 2
+          assert ai["source_hash"]
+          contract = ai["evidence_contract"]
+          assert contract["schema_version"] == 1
+          assert contract["coverage"] == 1.0, contract
+          assert contract["unverified"] == [], contract["unverified"]
+          rules = ai["rules"]
+          assert rules["cta_required"] is True
+          assert rules["cta_text"] == "Follow and meet Ryan for more @....."
+          assert "@ryan.zofay" in rules["handles"]
+          assert "@ryanzofay" in rules["handles"]
+          assert "@thezofayexperiencepodcast" in rules["handles"]
+          assert "#RyanZofay" in rules["hashtags"]
+          assert "#ryanzofayexperiencepodcast" in rules["hashtags"]
+
+          print("PRODUCTION_ACCEPTANCE=PASS")
+          print("SCHEMA_VERSION="+str(ai["schema_version"]))
+          print("EVIDENCE_COVERAGE="+str(contract["coverage"]))
+          print("VERIFIED_EVIDENCE="+str(len(contract["verified"])))
+          print("UNVERIFIED_EVIDENCE="+str(len(contract["unverified"])))
+          print("CTA_RETAINED="+str(rules["cta_required"]))
+          print("HANDLES_RETAINED="+str(len(rules["handles"])))
+          print("HASHTAGS_RETAINED="+str(len(rules["hashtags"])))
+          PY
