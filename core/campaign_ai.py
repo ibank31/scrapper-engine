@@ -456,11 +456,18 @@ def _recover_source_backed_cta_text(
     if verify_quote(campaign, normalized)["status"] == "verified":
         return normalized
 
-    skeleton = re.escape(normalized)
-    placeholder = r"(?:\[[^\]]+\]|\{[^}]+\}|<[^>]+>|handle|username|user|account)"
-    skeleton = re.sub(r"@(?:\s*)"+placeholder, r"@\\S+", skeleton, flags=re.IGNORECASE)
-    skeleton = skeleton.replace(r"\[handle\]", r"\\S+")
-    pattern = re.compile(skeleton, flags=re.IGNORECASE)
+    placeholder_re = re.compile(
+        r"@\s*(?:\[[^\]]+\]|\{[^}]+\}|<[^>]+>|handle|username|user|account)",
+        flags=re.IGNORECASE,
+    )
+    parts: list[str] = []
+    last = 0
+    for match in placeholder_re.finditer(normalized):
+        parts.append(re.escape(normalized[last:match.start()]))
+        parts.append(r"@\S+")
+        last = match.end()
+    parts.append(re.escape(normalized[last:]))
+    pattern = re.compile("".join(parts), flags=re.IGNORECASE)
 
     for doc in source_documents(campaign):
         match = pattern.search(doc["text"])
@@ -469,7 +476,6 @@ def _recover_source_backed_cta_text(
             if verify_quote(campaign, candidate)["status"] == "verified":
                 return candidate
     return normalized
-
 
 def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[str, Any] | None = None) -> dict[str, Any]:
     rules = item.get("rules") if isinstance(item.get("rules"), dict) else {}
