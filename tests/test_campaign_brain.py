@@ -142,6 +142,56 @@ class CampaignBrainTests(unittest.TestCase):
             any(item["rule_path"] == "rules.cta_text" for item in brain["variants"])
         )
 
+    def test_structured_mandatory_requirement_is_preserved_without_ai_rule(self):
+        campaign = {
+            "id": "structured-mandatory",
+            "requirements": [
+                {"text": "Include demographic information", "isMandatory": True},
+            ],
+            "description": "Campaign metadata requires demographic information.",
+        }
+        item = {
+            "campaign_fit": {"score": 0.9, "label": "high", "reason": "fixture"},
+            "rules": {},
+            "ambiguities": [],
+            "evidence": [],
+            "confidence": 0.9,
+        }
+        brain = normalize_ai_result(item, campaign["id"], campaign)["campaign_brain"]
+        requirement = next(
+            rule for rule in brain["rules"]
+            if rule.get("requirement_index") == 0
+        )
+        self.assertEqual(requirement["value"], "Include demographic information")
+        self.assertEqual(requirement["requirement_level"], "mandatory")
+        self.assertEqual(requirement["requirement_basis"], "campaign_requirement")
+        self.assertEqual(requirement["status"], "supported")
+        self.assertTrue(requirement["evidence_ids"])
+        self.assertEqual(requirement["source"]["type"], "campaign_evidence")
+
+    def test_structured_optional_requirement_is_preserved_as_optional(self):
+        campaign = {
+            "id": "structured-optional",
+            "requirements": [
+                {"text": "Use English voiceover.", "isMandatory": False},
+            ],
+        }
+        item = {
+            "campaign_fit": {"score": 0.9, "label": "high", "reason": "fixture"},
+            "rules": {},
+            "ambiguities": [],
+            "evidence": [],
+            "confidence": 0.9,
+        }
+        brain = normalize_ai_result(item, campaign["id"], campaign)["campaign_brain"]
+        requirement = next(
+            rule for rule in brain["rules"]
+            if rule.get("requirement_index") == 0
+        )
+        self.assertEqual(requirement["requirement_level"], "optional")
+        self.assertEqual(requirement["requirement_basis"], "campaign_optional_requirement")
+        self.assertEqual(requirement["status"], "supported")
+
     def test_unavailable_ai_does_not_create_false_boolean_rules(self):
         campaign = {"id": "unknown", "description": "No subtitle rule here."}
         item = {
