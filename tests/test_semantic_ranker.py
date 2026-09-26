@@ -147,6 +147,20 @@ class SemanticRankerTest(unittest.TestCase):
         ]
         self.assertEqual(semantic_model_decision(candidates, plan, 15), (True, "tier_1_close_ranking"))
 
+    def test_global_gate_keeps_semantic_ai_for_uncertain_relevance(self):
+        plan = {
+            "ai_rules": {"confidence": 0.95},
+            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+        }
+        candidates = [
+            {"candidate_id": "t1", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.95, "text": "Clear complete point.", "_relevance_status": "uncertain"},
+            {"candidate_id": "t2", "tier": "tier_2", "source_asset_id": "b", "start": 40, "end": 70, "duration": 30, "score": 0.94, "text": "Another clear complete point."},
+        ]
+        self.assertEqual(
+            semantic_model_decision(candidates, plan, 15),
+            (True, "ambiguous_campaign_relevance"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
