@@ -55,3 +55,10 @@ The first bounded CA-01 production re-analysis persisted a canonical brain succe
 The same run also exposed that cta_text evidence can be sourced from the cta_required evidence statement. The canonicalizer must treat those fields as compatible and must use the normalized, source-reconciled CTA value.
 
 Decision: fix the generic canonicalizer, strengthen regression tests, and rerun the same bounded production proof. Do not manually repair the production D1 row.
+
+
+## 2026-09-26 — Keep canonical annotations bounded
+
+CA-01 does not require the model to emit a rule annotation for every rule. That would unnecessarily multiply output size and makes free-router reliability part of the brain contract.
+
+Decision: flat rules plus verified evidence remain the normal input to deterministic canonicalization. rule_annotations is an exception channel for semantics that cannot be recovered safely, such as explicit scope, requirement interpretation, or variants. This keeps the canonical brain strict without forcing the provider to return a much larger payload.
