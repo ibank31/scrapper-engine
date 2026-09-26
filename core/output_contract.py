@@ -12,7 +12,7 @@ INVALID_OUTPUT_CONTRACT_REASON = "blocked_invalid_output_contract"
 _REQUIRED_FIELDS = (
     "version",
     "expected_count",
-    "tier_allocation",
+    "tier_allocation",  # distribution slots: tier_1 and tier_2
     "min_duration_seconds",
     "max_duration_seconds",
     "distinctness_profile",
@@ -23,7 +23,7 @@ def build_output_contract(
     min_duration_seconds: Any = 0,
     max_duration_seconds: Any = 0,
 ) -> dict[str, Any]:
-    """Build the default two-output contract without inferring candidate tiers."""
+    """Build the default two-output contract using tier labels as distribution slots."""
     return {
         "version": OUTPUT_CONTRACT_VERSION,
         "expected_count": 2,
