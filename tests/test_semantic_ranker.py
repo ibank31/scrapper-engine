@@ -128,6 +128,7 @@ class SemanticRankerTest(unittest.TestCase):
                     "reasons": ["clear opening beat", "complete ending", "payoff or takeaway"],
                 },
             ]
+            with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}, clear=False):
             self.assertEqual(semantic_model_decision(candidates, plan, 15), (False, "deterministic_confident"))
             with mock.patch("core.semantic_ranker._model_rank", side_effect=AssertionError("semantic model should be skipped")):
                 ranked, runtime = rank_global_candidates(candidates, plan, 15)
@@ -147,6 +148,7 @@ class SemanticRankerTest(unittest.TestCase):
                 {"candidate_id": "t2-a", "tier": "tier_2", "source_asset_id": "c", "start": 70, "end": 100, "duration": 30, "score": 0.76, "text": "Secondary point A."},
                 {"candidate_id": "t2-b", "tier": "tier_2", "source_asset_id": "d", "start": 105, "end": 135, "duration": 30, "score": 0.71, "text": "Secondary point B."},
             ]
+            with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}, clear=False):
             self.assertEqual(semantic_model_decision(candidates, plan, 15), (True, "tier_1_close_ranking"))
 
     def test_global_gate_keeps_semantic_ai_for_uncertain_relevance(self):
