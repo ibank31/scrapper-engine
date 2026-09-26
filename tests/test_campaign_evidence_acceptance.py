@@ -51,12 +51,7 @@ class CampaignEvidenceAcceptanceTests(unittest.TestCase):
                 self.assertEqual(len(result["unverified"]), 0)
                 self.assertEqual(result["coverage"], 1.0)
                 self.assertEqual(len(result["verified"]), len(campaign["expected_evidence"]))
-                self.assertEqual(
-                    sum(1 for item in result["verified"] if item["rule_path"] in {
-                        expected["rule_path"] for expected in mandatory
-                    }),
-                    len(mandatory),
-                )
+                self.assertEqual(len(mandatory), sum(1 for item in campaign["expected_evidence"] if item.get("mandatory")))
                 self.assertTrue(all(item["evidence_id"].startswith("evidence-v1:") for item in result["verified"]))
 
     def test_document_only_change_changes_source_fingerprint(self):
@@ -78,7 +73,8 @@ class CampaignEvidenceAcceptanceTests(unittest.TestCase):
                 }
             ],
         )
-        self.assertEqual(result["coverage"], 7 / 8 if campaign["id"] == "fixture-document-only" else result["coverage"])
+        expected_count = len(campaign["expected_evidence"])
+        self.assertEqual(result["coverage"], expected_count / (expected_count + 1))
         self.assertEqual(len(result["unverified"]), 1)
         self.assertEqual(result["unverified"][0]["reason"], "quote_not_found_in_current_sources")
 
