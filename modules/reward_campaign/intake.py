@@ -451,8 +451,8 @@ def main() -> None:
                     if candidate_url not in discovered:
                         discovered.append(candidate_url)
                 campaign = plan.get("campaign") or {}
-                named_limit = max(0, _env_int("CLIPPER_NAMED_REFERENCE_MAX", 3))
-                for named in extracted.get("named_media", [])[:named_limit]:
+                named_limit = max(0, _env_int("CLIPPER_NAMED_REFERENCE_MAX", 0))
+                named_items = extracted.get("named_media", []) if named_limit == 0 else extracted.get("named_media", [])[:named_limit]\n                for named in named_items:
                     resolution = resolve_named_youtube_reference(
                         named.get("value", ""),
                         campaign_title=str(campaign.get("title") or ""),
