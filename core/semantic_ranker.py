@@ -216,41 +216,135 @@ def rank_candidates_with_metadata(candidates: list[dict[str, Any]], plan: dict[s
     return ranked, runtime
 
 
+def semantic_model_decision(candidates: list[dict[str, Any]], plan: dict[str, Any], semantic_limit: int = 15) -> tuple[bool, str]:
+    """Use semantic AI only when deterministic evidence shows ambiguity."""
+    mode = os.environ.get("CLIPPER_SEMANTIC_ENABLED", "auto").lower()
+    if mode in {"0", "false", "off", "disabled"}:
+        return False, "model_disabled"
+    if mode in {"1", "true", "on", "force"}:
+        return True, "model_forced"
+    if not candidates:
+        return False, "no_candidates"
+
+    prepared = sorted(
+        (dict(item) for item in candidates),
+        key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)),
+    )
+
+    ai_rules = plan.get("ai_rules") or {}
+    try:
+        confidence = float(ai_rules.get("confidence") or 0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if 0 < confidence < 0.85:
+        return True, "low_campaign_confidence"
+
+    review_signals = (
+        "topic_match_requires_human_review",
+        "starts_mid_thought",
+        "unfinished_ending",
+        "short_clip",
+    )
+    top_window = prepared[:max(6, min(len(prepared), int(semantic_limit)))]
+    for item in top_window:
+        reasons = " ".join(str(x) for x in (item.get("reasons") or [])).lower()
+        if any(signal in reasons for signal in review_signals):
+            return True, "ambiguous_candidate_signals"
+
+    try:
+        from core.output_selection import select_required_output_pair
+        pair = select_required_output_pair(prepared, plan.get("output_contract"))
+    except Exception:
+        pair = {"ok": False}
+    if not pair.get("ok"):
+        return True, "deterministic_output_pair_unresolved"
+
+    per_tier: dict[str, list[float]] = {"tier_1": [], "tier_2": []}
+    for item in prepared:
+        tier = str(item.get("tier") or "")
+        if tier in per_tier:
+            per_tier[tier].append(float(item.get("score") or 0))
+    for tier, scores in per_tier.items():
+        if not scores:
+            return True, f"{tier}_not_classified"
+        if scores[0] < 0.70:
+            return True, f"{tier}_low_confidence"
+        if len(scores) > 1 and (scores[0] - scores[1]) < 0.08:
+            return True, f"{tier}_close_ranking"
+
+    return False, "deterministic_confident"
+
+
 def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any], semantic_limit: int = 15) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Cheap-rank globally, then run the local semantic model once on a bounded shortlist."""
+    """Cheap-rank globally, then run the local semantic model only for ambiguous cases."""
     prepared = [dict(item) for item in candidates]
     prepared.sort(key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
-    shortlist = prepared[:max(1, int(semantic_limit))]
-    for index, item in enumerate(shortlist, 1):
-        item["rank"] = index
-    ranked_shortlist, runtime = rank_candidates_with_metadata(shortlist, plan)
-    by_key = {(str(item.get("source") or ""), round(float(item.get("start") or 0), 3), round(float(item.get("end") or 0), 3)): item for item in ranked_shortlist}
-    merged: list[dict[str, Any]] = []
-    for original in prepared:
-        key = (str(original.get("source") or ""), round(float(original.get("start") or 0), 3), round(float(original.get("end") or 0), 3))
-        if key in by_key:
-            merged.append(by_key[key])
-        else:
+
+    use_semantic, decision_reason = semantic_model_decision(prepared, plan, semantic_limit)
+    if use_semantic:
+        shortlist = prepared[:max(1, int(semantic_limit))]
+        for index, item in enumerate(shortlist, 1):
+            item["rank"] = index
+        ranked_shortlist, runtime = rank_candidates_with_metadata(shortlist, plan)
+        by_key = {
+            (str(item.get("source") or ""), round(float(item.get("start") or 0), 3), round(float(item.get("end") or 0), 3)): item
+            for item in ranked_shortlist
+        }
+        merged: list[dict[str, Any]] = []
+        for original in prepared:
+            key = (
+                str(original.get("source") or ""),
+                round(float(original.get("start") or 0), 3),
+                round(float(original.get("end") or 0), 3),
+            )
+            if key in by_key:
+                merged.append(by_key[key])
+            else:
+                item = dict(original)
+                local = _deterministic(item, plan)
+                local["hard_policy_gate"] = local["decision"] == "reject"
+                local["engine"] = "deterministic"
+                local["fallback_used"] = True
+                local["fallback_reason"] = "outside_semantic_shortlist"
+                item["semantic"] = local
+                item["score"] = round(float(item.get("score") or 0) * 0.65 + float(local.get("semantic_score") or 0) / 100 * 0.35, 4)
+                merged.append(item)
+        runtime = dict(runtime)
+        runtime["scope"] = "global"
+        runtime["shortlist_limit"] = max(1, int(semantic_limit))
+        runtime["candidate_count"] = len(candidates)
+        runtime["decision"] = "semantic_required"
+        runtime["decision_reason"] = decision_reason
+    else:
+        merged = []
+        for original in prepared:
             item = dict(original)
             local = _deterministic(item, plan)
             local["hard_policy_gate"] = local["decision"] == "reject"
             local["engine"] = "deterministic"
             local["fallback_used"] = True
-            local["fallback_reason"] = "outside_semantic_shortlist"
+            local["fallback_reason"] = f"semantic_not_needed:{decision_reason}"
             item["semantic"] = local
             item["score"] = round(float(item.get("score") or 0) * 0.65 + float(local.get("semantic_score") or 0) / 100 * 0.35, 4)
             merged.append(item)
+        runtime = {
+            "schema_version": 1,
+            "engine": "deterministic",
+            "fallback_used": True,
+            "fallback_reason": f"semantic_not_needed:{decision_reason}",
+            "candidate_count": len(candidates),
+            "scope": "global",
+            "shortlist_limit": 0,
+            "decision": "semantic_skipped",
+            "decision_reason": decision_reason,
+        }
+
     merged.sort(key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
     for index, item in enumerate(merged, 1):
         item["rank"] = index
         if isinstance(item.get("semantic"), dict):
             item["semantic"]["rank"] = index
-    runtime = dict(runtime)
-    runtime["scope"] = "global"
-    runtime["shortlist_limit"] = max(1, int(semantic_limit))
-    runtime["candidate_count"] = len(candidates)
     return merged, runtime
-
 
 
 def rank_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
