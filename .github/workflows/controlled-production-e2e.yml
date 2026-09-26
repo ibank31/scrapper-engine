@@ -1,10 +1,20 @@
 name: controlled-production-e2e
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/e2e/trigger"
+  workflow_dispatch:
+    inputs:
+      campaign_id:
+        description: "Production campaign ID to run through the website-equivalent flow"
+        required: true
+        type: string
+      expected_terminal_status:
+        description: "Expected terminal job status"
+        required: false
+        default: "review"
+        type: choice
+        options:
+          - review
+          - blocked
 
 concurrency:
   group: controlled-production-e2e
@@ -21,7 +31,8 @@ jobs:
         env:
           API: ${{ secrets.CLIPPER_API_URL }}
           TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
-          CAMPAIGN_ID: "926e1b7f-1030-4333-a557-f99d9f891437"
+          CAMPAIGN_ID: ${{ inputs.campaign_id }}
+          EXPECTED_STATUS: ${{ inputs.expected_terminal_status }}
         run: |
           set -euo pipefail
 
@@ -39,6 +50,7 @@ jobs:
           echo "${dispatch}" | python -m json.tool
 
           echo "3/4 WAIT FOR TERMINAL JOB"
+          terminal=""
           for i in $(seq 1 110); do
             sleep 30
             job="$(curl -fsS --retry 2 --connect-timeout 15 --max-time 60 "${API}/api/jobs/${job_id}" "${auth[@]}")"
@@ -49,10 +61,16 @@ jobs:
 
             case "${status}" in
               review|blocked|error|cancelled)
+                terminal="${status}"
                 break
                 ;;
             esac
           done
+
+          if [ -z "${terminal}" ]; then
+            echo "Timed out waiting for terminal status"
+            exit 1
+          fi
 
           echo "4/4 COLLECT EVIDENCE"
           curl -fsS --retry 2 --connect-timeout 15 --max-time 60 "${API}/api/jobs/${job_id}" "${auth[@]}" | python -m json.tool | tee job.json
@@ -62,9 +80,9 @@ jobs:
           final_status="$(python -c 'import json; print(json.load(open("job.json"))["job"]["status"])')"
           echo "FINAL_STATUS=${final_status}"
 
-          if [ "${final_status}" != "review" ]; then
-            echo "E2E did not reach REVIEW"
+          if [ "${final_status}" != "${EXPECTED_STATUS}" ]; then
+            echo "Unexpected terminal status: expected=${EXPECTED_STATUS} actual=${final_status}"
             exit 1
           fi
 
-          echo "E2E reached REVIEW successfully. Buffer was not invoked."
+          echo "Website-equivalent E2E completed with expected status. Buffer was not invoked."
