@@ -534,7 +534,7 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
                 cid = str(campaign.get("id") or "")
                 if cid not in results:
                     results[cid] = _fallback_result(campaign)
-        except (GeminiApiError, GeminiJsonError) as exc:
+        except (GeminiApiError, GeminiJsonError, AIRoutingError) as exc:
             reason = str(exc)
             print(
                 "(!) AI router batch failed: "
