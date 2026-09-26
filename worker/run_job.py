@@ -27,7 +27,7 @@ import requests
 from core.relevance import check_candidate
 from core.candidate_identity import deduplicate_source_records
 from core.output_selection import select_required_output_pair
-from core.output_gate import evaluate_output_pair
+from core.output_gate import evaluate_output_pair, evaluate_render_pair
 from core.asset_gate import manifest_has_invalid_media, manifest_video_paths
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
@@ -699,10 +699,11 @@ def main() -> None:
                 final_candidates.append(dict(local_item, rank=global_rank, source=item["source"], relevance=item["relevance"]))
         all_candidates = final_candidates
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "completed", {"rendered_count": len(all_candidates)})
-        render_gate = evaluate_output_pair(all_candidates, [])
+        expected_count = int((plan.get("output_contract") or {}).get("expected_count") or 2)
+        render_gate = evaluate_render_pair(all_candidates, expected_count)
         if not render_gate["ok"]:
-            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "blocked", render_gate["evidence"])
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Pasangan output tidak lengkap setelah render", json.dumps(render_gate, ensure_ascii=False))
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "blocked", render_gate["evidence"], "render_incomplete")
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Output tidak lengkap setelah render", json.dumps(render_gate, ensure_ascii=False))
             return
         transcript_dir = transcript_root
         (transcript_dir / "candidates.json").write_text(json.dumps({"schema_version": 1, "candidates": all_candidates}, ensure_ascii=False, indent=2), encoding="utf-8")

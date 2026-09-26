@@ -4,6 +4,14 @@ from __future__ import annotations
 from typing import Any
 
 
+def evaluate_render_pair(rendered: list[dict[str, Any]], expected_count: int = 2) -> dict[str, Any]:
+    """Gate only the render stage; validation is intentionally checked later."""
+    evidence = {"expected_count": expected_count, "rendered_count": len(rendered)}
+    if len(rendered) != expected_count:
+        return {"ok": False, "reason": "render_pair_incomplete", "evidence": evidence}
+    return {"ok": True, "reason": None, "evidence": evidence}
+
+
 def evaluate_output_pair(rendered: list[dict[str, Any]], validation_results: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Require two rendered artifacts and two non-failing validation records."""
     evidence = {
@@ -23,4 +31,4 @@ def evaluate_output_pair(rendered: list[dict[str, Any]], validation_results: lis
     return {"ok": True, "reason": None, "evidence": evidence}
 
 
-__all__ = ["evaluate_output_pair"]
+__all__ = ["evaluate_render_pair", "evaluate_output_pair"]
