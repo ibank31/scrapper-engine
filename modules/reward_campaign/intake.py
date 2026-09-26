@@ -349,6 +349,7 @@ def main() -> None:
     tracker_records = 0
     unresolved_references: list[dict] = []
     reference_manifest: list[dict] = []
+    policy_source_bindings: dict[str, str] = {}
     source_manifest: list[dict] = []
     asset_manifest: list[dict] = []
 
@@ -379,6 +380,8 @@ def main() -> None:
             resolved_url = str((resolution.get("candidate") or {}).get("url") or "")
             if resolved_url:
                 discovered.append(resolved_url)
+                policy_source_bindings[resolved_url] = str(required.get("asset_id") or "")
+                policy_source_bindings[resolved_url] = str(required.get("asset_id") or "")
             else:
                 unresolved_references.append({
                     "reference": raw_reference,
@@ -611,10 +614,14 @@ def main() -> None:
         label = f"source-{index:02d}"
         source_id = candidate.get("source_asset_id") or _source_id(url)
         source_type = _source_type(url, host)
-        provisional_asset_id, policy_match_reason = match_candidate(
-            material_policy,
-            {"source_type": source_type, "source_url": url, "reference_role": candidate.get("reference_role")},
-        )
+        provisional_asset_id = policy_source_bindings.get(url)
+        if provisional_asset_id:
+            policy_match_reason = "policy_named_binding"
+        else:
+            provisional_asset_id, policy_match_reason = match_candidate(
+                material_policy,
+                {"source_type": source_type, "source_url": url, "reference_role": candidate.get("reference_role")},
+            )
         source_entry = {
             "source_id": source_id,
             "policy_asset_id": provisional_asset_id,
