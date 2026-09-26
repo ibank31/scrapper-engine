@@ -13,7 +13,7 @@ from typing import Any, Iterable
 
 import requests
 
-from core.campaign_evidence import build_evidence_ledger, source_fingerprint, verify_ai_evidence
+from core.campaign_evidence import build_evidence_ledger, source_documents, source_fingerprint, verify_ai_evidence, verify_quote
 
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -449,6 +449,39 @@ def _int_or_none(value: Any) -> int | None:
     return int(number) if number is not None else None
 
 
+def _recover_source_backed_cta_text(
+    campaign: dict[str, Any] | None,
+    cta_text: Any,
+    cta_required: bool,
+) -> str | None:
+    """Recover a source-backed CTA when an AI provider emits a placeholder."""
+    if not cta_required or campaign is None or not isinstance(cta_text, str) or not cta_text.strip():
+        return cta_text if isinstance(cta_text, str) and cta_text.strip() else None
+    normalized = cta_text.strip()
+    if verify_quote(campaign, normalized)["status"] == "verified":
+        return normalized
+
+    placeholder_re = re.compile(
+        r"@\s*(?:\[[^\]]+\]|\{[^}]+\}|<[^>]+>|handle|username|user|account)",
+        flags=re.IGNORECASE,
+    )
+    parts: list[str] = []
+    last = 0
+    for match in placeholder_re.finditer(normalized):
+        parts.append(re.escape(normalized[last:match.start()]))
+        parts.append(r"@\S+")
+        last = match.end()
+    parts.append(re.escape(normalized[last:]))
+    pattern = re.compile("".join(parts), flags=re.IGNORECASE)
+
+    for doc in source_documents(campaign):
+        match = pattern.search(doc["text"])
+        if match:
+            candidate = match.group(0).strip()
+            if verify_quote(campaign, candidate)["status"] == "verified":
+                return candidate
+    return normalized
+
 def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[str, Any] | None = None) -> dict[str, Any]:
     rules = item.get("rules") if isinstance(item.get("rules"), dict) else {}
     fit = item.get("campaign_fit") if isinstance(item.get("campaign_fit"), dict) else {}
@@ -470,7 +503,7 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
             "max_duration_seconds": _int_or_none(rules.get("max_duration_seconds")), "subtitle_required": bool(rules.get("subtitle_required")),
             "subtitle_style": str(rules.get("subtitle_style") or "campaign_defined"), "watermark_required": bool(rules.get("watermark_required")),
             "third_party_watermark_allowed": bool(rules.get("third_party_watermark_allowed")), "official_audio_required": bool(rules.get("official_audio_required")),
-            "cta_required": bool(rules.get("cta_required")), "cta_text": rules.get("cta_text"), "handles": list(rules.get("handles") or []),
+            "cta_required": bool(rules.get("cta_required")), "cta_text": _recover_source_backed_cta_text(campaign, rules.get("cta_text"), bool(rules.get("cta_required"))), "handles": list(rules.get("handles") or []),
             "hashtags": list(rules.get("hashtags") or []), "disclosures": list(rules.get("disclosures") or []), "topic_terms": list(rules.get("topic_terms") or []),
             "allowed_content": list(rules.get("allowed_content") or []), "prohibited_content": list(rules.get("prohibited_content") or []),
             "asset_sources": list(rules.get("asset_sources") or []), "posting_rules": list(rules.get("posting_rules") or []), "account_rules": list(rules.get("account_rules") or []),
@@ -505,7 +538,7 @@ def _prompt(batch: Iterable[dict[str, Any]]) -> str:
     profile = _load_profile()
     return """You are the campaign-intelligence layer of a clipping production engine.
 Read each campaign independently. Extract only what is supported by supplied text. Never invent a rule.
-Every evidence quote MUST be copied verbatim from the supplied campaign text and must be sufficient to support the stated rule. Do not cite general knowledge. Never concatenate multiple source lines or list items into one evidence quote. For list-valued rules, emit one evidence object per source-backed item and use a short exact contiguous quote for each.
+Every evidence quote MUST be copied verbatim from the supplied campaign text and must be sufficient to support the stated rule. Do not cite general knowledge. Never concatenate multiple source lines or list items into one evidence quote. For list-valued rules, emit one evidence object per source-backed item and use a short exact contiguous quote for each. For CTA fields, copy the exact source CTA text; never replace a real handle, placeholder, or token with generic values such as @[handle].
 Identify every explicit production or posting rule that can affect clip validity.
 Build a campaign-specific material acquisition plan. Do not assume every campaign uses the same acquisition method. For every required material, identify intent, quantity, preferred/fallback sources, allowed/forbidden source types, discovery methods, identity fields, verification requirements, and evidence. Never treat an example/reference link as production footage unless the campaign explicitly says so. If acquisition is unclear, choose manual_required or unresolved rather than inventing a source.
 Record CRITICAL ambiguity only when an unknown could change asset selection, edit/render decisions, or posting compliance.
