@@ -84,6 +84,12 @@ jobs:
           assert brain["source_hash"] == ai["source_hash"]
           assert isinstance(brain["rules"], list)
           assert brain["evidence"]["coverage"] == 1.0
+          brain_cta = next(
+              rule for rule in brain["rules"]
+              if rule["source_rule_path"] == "rules.cta_text"
+          )
+          assert brain_cta["value"] == "Follow and meet Ryan for more @....."
+          assert brain_cta["evidence_ids"]
           contract = ai["evidence_contract"]
           assert contract["schema_version"] == 1
           assert contract["coverage"] == 1.0, contract

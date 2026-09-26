@@ -109,7 +109,9 @@ def _path_match(left: str, right: str) -> bool:
     b = _norm(right).lower().removeprefix("rules.")
     if not a or not b:
         return False
-    return a == b or a.endswith("." + b) or b.endswith("." + a) or _leaf(a) == _leaf(b)
+    if a == b or a.endswith("." + b) or b.endswith("." + a) or _leaf(a) == _leaf(b):
+        return True
+    return {_leaf(a), _leaf(b)} == {"cta_text", "cta_required"}
 
 
 def _scope(path: str, annotation: dict[str, Any] | None, quotes: list[str]) -> dict[str, list[str]]:
@@ -272,12 +274,17 @@ def build_campaign_brain(
     annotations = [x for x in (rule_annotations or []) if isinstance(x, dict) and _annotation_path(x)]
     records: dict[tuple[str, str], dict[str, Any]] = {}
 
+    annotated_paths = {_annotation_path(x) for x in annotations}
     for path, value in _iter_rules(rules if isinstance(rules, dict) else {}):
+        # When the model supplied canonical annotations for a path, use those
+        # atomic records instead of also emitting the flat aggregate value.
+        if any(_path_match(path, annotated_path) for annotated_path in annotated_paths):
+            continue
         # An unavailable/omitted boolean is not a source fact merely because
         # the compatibility projection defaults it to false.
         if value is False and not _verified_matches(path, value, verified):
             continue
-        annotation = next((x for x in annotations if _path_match(path, _annotation_path(x))), None)
+        annotation = None
         record = _build_rule(campaign, source_hash, path, value, annotation, verified, ai_available)
         if record:
             records[(record["source_rule_path"], _value_key(record["value"]))] = record
@@ -304,7 +311,11 @@ def build_campaign_brain(
         "objective": {
             "declared": campaign.get("objective"),
             "campaign_fit": {
-                "score": (campaign_fit or {}).get("score"),
+                "score": (
+                    max(0.0, min(1.0, float((campaign_fit or {}).get("score"))))
+                    if isinstance((campaign_fit or {}).get("score"), (int, float))
+                    else None
+                ),
                 "label": (campaign_fit or {}).get("label") or "unknown",
                 "reason": (campaign_fit or {}).get("reason") or "",
             },
@@ -329,7 +340,8 @@ def build_campaign_brain(
         },
     }
     stable = {k: v for k, v in brain.items() if k not in {"brain_id", "confidence"}}
-    brain["brain_id"] = _hash_id(BRAIN_ID_PREFIX[:-1], stable)
+    raw = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    brain["brain_id"] = BRAIN_ID_PREFIX + hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return brain
 
 

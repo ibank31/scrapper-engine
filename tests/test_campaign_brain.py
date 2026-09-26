@@ -70,6 +70,7 @@ class CampaignBrainTests(unittest.TestCase):
                 self.assertEqual(evaluation["silent_rule_loss"], 0)
                 self.assertEqual(evaluation["false_mandatory"], [])
                 self.assertTrue(all(rule.get("evidence_ids") for rule in brain["rules"]))
+                self.assertTrue(brain["brain_id"].startswith("brain-v1:"))
                 self.assertEqual(brain["source_hash"], source_fingerprint(campaign))
                 self.assertEqual(brain["brain_id"], second["campaign_brain"]["brain_id"])
 
@@ -161,6 +162,33 @@ class CampaignBrainTests(unittest.TestCase):
         }
         brain = normalize_ai_result(item, campaign["id"], campaign)["campaign_brain"]
         self.assertEqual(brain["rules"], [])
+
+    def test_cta_text_can_bind_to_cta_requirement_evidence(self):
+        campaign = {
+            "id": "cta-alias",
+            "description": 'All pieces of content should have "Follow and meet Ryan for more @....."',
+        }
+        item = {
+            "campaign_fit": {"score": 0.9, "label": "high", "reason": "fixture"},
+            "rules": {
+                "cta_required": True,
+                "cta_text": "Follow and meet Ryan for more @.....",
+            },
+            "rule_annotations": [],
+            "ambiguities": [],
+            "evidence": [{
+                "rule_path": "rules.cta_required",
+                "quote": 'All pieces of content should have "Follow and meet Ryan for more @....."',
+            }],
+            "confidence": 0.9,
+        }
+        brain = normalize_ai_result(item, campaign["id"], campaign)["campaign_brain"]
+        cta = next(
+            rule for rule in brain["rules"]
+            if rule["source_rule_path"] == "rules.cta_text"
+        )
+        self.assertEqual(cta["status"], "supported")
+        self.assertTrue(cta["evidence_ids"])
 
     def test_unverified_rule_is_not_supported(self):
         campaign = {"id": "unsupported", "description": "Approved clips only."}
