@@ -23,7 +23,8 @@ from core.campaign_ai import analyze_campaigns, rules_fingerprint
 from core.campaign_priority import score_campaign
 from core.campaign_readiness import STATUS_KETAT, STATUS_SIAP, apply_readiness, readiness_sort_key
 from core.campaign_rules import compile_plan
-from core.campaign_exclusions import excluded_campaign_terms\nfrom core.material_acquisition import build_legacy_compatible_policy, material_plan_fingerprint, validate_material_policy
+from core.campaign_exclusions import excluded_campaign_terms
+from core.material_acquisition import build_legacy_compatible_policy, material_plan_fingerprint, validate_material_policy\nfrom core.material_acquisition import build_legacy_compatible_policy, material_plan_fingerprint, validate_material_policy
 from modules.reward_campaign.pull_detail import extract_detail
 
 DOC_ID_RE = re.compile(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", re.I)
@@ -231,7 +232,14 @@ def main() -> None:
         rh = rules_fingerprint(c)
         hashes[cid] = rh
         previous = existing.get(cid)
-        if not force_ai and previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json"):
+        cached_has_material = False
+        if previous and previous.get("ai_rules_json"):
+            try:
+                cached_obj = json.loads(previous["ai_rules_json"]) if isinstance(previous["ai_rules_json"], str) else previous["ai_rules_json"]
+                cached_has_material = bool((cached_obj.get("rules") or {}).get("material_policy"))
+            except Exception:
+                cached_has_material = False
+        if not force_ai and previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json") and cached_has_material:
             _apply_ai(c, None, previous, rh)
         else:
             candidates.append(c)
@@ -258,6 +266,18 @@ def main() -> None:
 
         detail = _build_detail(c)
         plan = compile_plan(detail)
+        ai_rules = c.get("ai_rules") if isinstance(c.get("ai_rules"), dict) else {}
+        material_policy = (ai_rules.get("rules") or {}).get("material_policy") if isinstance(ai_rules.get("rules"), dict) else None
+        if not material_policy:
+            material_policy = build_legacy_compatible_policy(c)
+            c.setdefault("flags", []).append("MATERIAL:legacy_conservative")
+        material_errors = validate_material_policy(material_policy)
+        c["material_plan_hash"] = material_plan_fingerprint(material_policy)
+        c["material_acquisition_status"] = "needs_review" if material_errors else "planned"
+        if material_errors:
+            c["flags"] = list(dict.fromkeys((c.get("flags") or []) + ["MATERIAL:needs_review"]))
+        plan["material_policy"] = material_policy
+        plan["material_plan_hash"] = c["material_plan_hash"]
         plan["rules_hash"] = hashes.get(cid)
         plan["ai_rules_status"] = c.get("ai_rules_status")
         c["plan_json"] = plan
