@@ -326,7 +326,7 @@ function renderJobs() {
         '<div class="job-head"><div class="job-title-wrap"><strong>' + escapeHtml(j.campaign_title || j.campaign_id) + '</strong><span class="job-phase">' + escapeHtml(phase.label) + '</span></div><span class="status ' + escapeHtml(j.status) + '">' + statusText(j.status) + '</span></div>' +
         '<p class="job-message"><b>' + escapeHtml(phase.detail || j.message || "Menunggu pembaruan…") + '</b>' + (j.error ? " · " + escapeHtml(friendlyError(j.error)) : "") + '</p>' +
         '<div class="job-output-contract">' + escapeHtml(outputContractSummary(j)) + '</div>' +
-        renderStageTrack(j) +
+        renderStageTrack(j) + renderJobDetails(j) +
         '<div class="job-progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><span class="progress-number">' + progress + '%</span></div>' +
         '<div class="job-meta"><span>Pembaruan ' + formatAge(j.updated_at) + '</span>' + (stale ? '<span class="stale-warning">⚠ Belum ada pembaruan cukup lama</span>' : "") + '</div>' +
         ((j.status === "queued" || j.status === "processing") ? '<button class="stop-button" data-stop-id="' + escapeHtml(j.id) + '" type="button">Stop proses</button>' : "") +
@@ -480,6 +480,14 @@ function renderReviews() {
       (r.rules_summary_id ? '<div class="rules-summary"><strong>Yang perlu Anda cek</strong><p>' + escapeHtml(r.rules_summary_id) + '</p></div>' : '') +
       '<div class="review-validation"><span>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap diedit</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
+      '<details class="review-detail"><summary>⌄ Mengapa video ini lolos?</summary><div class="review-detail-grid">' +
+        '<div><small>Audiens</small><strong>' + escapeHtml(tierLabel) + '</strong></div>' +
+        '<div><small>Validasi</small><strong>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</strong></div>' +
+        '<div><small>Distinctness</small><strong>' + escapeHtml(distinctness.distinct == null ? "Belum diketahui" : distinctness.distinct ? "Berbeda dari kandidat lain" : "Perlu diperiksa") + '</strong></div>' +
+        '<div><small>Subtitle</small><strong>' + escapeHtml(subtitleNames[subtitle.mode] || "Belum diketahui") + '</strong></div>' +
+        '<div><small>Audio</small><strong>' + escapeHtml(soundNames[sound.status] || "Belum diketahui") + '</strong></div>' +
+        '<div><small>Caption</small><strong>' + escapeHtml(r.caption_draft ? "Tersedia dan bisa diedit" : "Belum tersedia") + '</strong></div>' +
+      '</div></details>' +
       '<div class="review-actions">' +
       (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Unduh video <span>↓</span></a>' + ((status === "pending_review" || status === "changes_requested") ? '<button class="secondary-button caption-edit-button" type="button">Edit caption</button>' : '') + (status === "approved_for_manual_post" ? '<button class="primary-button buffer-upload-button" type="button">Masukkan ke Buffer <span>↗</span></button>' : '') : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
