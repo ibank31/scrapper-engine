@@ -19,13 +19,14 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-PR #28 (**CA-00 acceptance hardening**) and PR #32 (**CA-00 campaign diversity + provenance hardening**) are merged to `main`. The latest main commit is `3a7bd0b257a2986d07335803ae36230431705fcf`.
+PR #28 (**CA-00 acceptance hardening**) and PR #32 (**CA-00 campaign diversity + provenance hardening**) are merged to `main`. The latest verified functional code baseline is `465b2b6cf1d955e2c193aedba82a35937fa5a389`. Subsequent commits only narrow repository scope and update documentation/remove unrelated tooling.
 
 CI status for the latest commit is not exposed by the current GitHub connector surface; the repository's existing CI baseline remains green from the prior verified runs. Cloudflare production deployment of the latest main commit completed successfully.
 
 Production:
-- deployment: `105b16be` (success)
-- deployment commit: `3a7bd0b257a2986d07335803ae36230431705fcf`
+- last verified functional deployment: `99d49f6e-59cf-4204-8b6e-ce20ac683e3a`
+- deployment code baseline: `8dd04a440651922b966d76ed37817e4959fc5aad`
+- controlled CA-00 production acceptance was later verified against main code baseline `465b2b6cf1d955e2c193aedba82a35937fa5a389`
 - deployment URL: https://105b16be.clipper-engine.pages.dev
 
 ## CA-00 status
