@@ -33,7 +33,7 @@ Cloudflare Workers Free is suitable for a light API, not video rendering. The cu
 
 The API does not need a GitHub token or R2 S3 keys. Starting a job writes `queued` metadata to D1. A public-repository GitHub Actions schedule checks the queue every five minutes. The worker uploads files through the protected Pages Function, which uses the R2 binding directly. The only repository secrets required by the workflow are `CLIPPER_API_URL` and `CLIPPER_WORKER_TOKEN`.
 
-Because the user only has a phone, the Python worker must not be assumed to run locally. The planned worker is a GitHub Actions standard runner from the public `ibank31/scrapper-engine` repository. It will run the existing pipeline, upload MP4 and thumbnails to R2, insert preview rows, and PATCH job progress with `x-worker-token`. See [`PHONE_ONLY_ARCHITECTURE.md`](./PHONE_ONLY_ARCHITECTURE.md). It must never receive or store Cloudflare credentials in the repository.
+The Python worker may run on a controlled local or CI runner. Its role is strictly clipping execution: intake, transcription, selection, rendering, validation, review preparation, and protected artifact upload. It must never receive or store Cloudflare credentials in the repository.
 
 ## API contract
 
