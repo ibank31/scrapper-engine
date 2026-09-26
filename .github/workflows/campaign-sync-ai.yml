@@ -1,9 +1,6 @@
 name: campaign-sync-ai
 
 on:
-  push:
-    paths:
-      - ".github/e2e/campaign-sync-trigger"
   schedule:
     # GitHub cron is UTC: 17:00 UTC = 00:00 WIB, once per day.
     - cron: "0 17 * * *"
