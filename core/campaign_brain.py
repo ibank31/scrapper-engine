@@ -450,15 +450,27 @@ def evaluate_rule_preservation(campaign: dict[str, Any], brain: dict[str, Any]) 
 
     supported_without_evidence = [x for x in brain_rules if x.get("status") == "supported" and not x.get("evidence_ids")]
     mandatory_without_evidence = [x for x in brain_rules if x.get("requirement_level") == "mandatory" and not x.get("evidence_ids")]
-    expected_evidence_ids = {
-        str((verified_by_key.get((_norm(x.get("rule_path")).lower(), _norm(x.get("quote")).lower())) or {}).get("evidence_id") or "")
-        for x in expected
+    mandatory_quotes = {
+        _norm(x.get("quote")).lower()
+        for x in mandatory
+        if _norm(x.get("quote"))
     }
-    false_mandatory = [
-        x for x in brain_rules
-        if x.get("requirement_level") == "mandatory"
-        and not set(x.get("evidence_ids") or []).intersection(expected_evidence_ids)
-    ]
+    verified_by_id = {
+        str(x.get("evidence_id")): x
+        for x in verified
+        if x.get("evidence_id")
+    }
+    false_mandatory = []
+    for rule in brain_rules:
+        if rule.get("requirement_level") != "mandatory":
+            continue
+        rule_quotes = {
+            _norm(verified_by_id[evidence_id].get("quote")).lower()
+            for evidence_id in (rule.get("evidence_ids") or [])
+            if evidence_id in verified_by_id
+        }
+        if not rule_quotes or not rule_quotes.intersection(mandatory_quotes):
+            false_mandatory.append(rule)
     failed = bool(missing_evidence or unbound or platform_missing or supported_without_evidence or mandatory_without_evidence or false_mandatory)
     preserved = len(expected) - len(missing_evidence) - len(unbound)
     mandatory_preserved = len(mandatory) - len(mandatory_missing)
