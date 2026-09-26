@@ -232,11 +232,13 @@ def semantic_model_decision(candidates: list[dict[str, Any]], plan: dict[str, An
     )
 
     ai_rules = plan.get("ai_rules") or {}
+    if not isinstance(ai_rules, dict) or "confidence" not in ai_rules:
+        return True, "campaign_confidence_missing"
     try:
         confidence = float(ai_rules.get("confidence") or 0)
     except (TypeError, ValueError):
-        confidence = 0.0
-    if 0 < confidence < 0.85:
+        return True, "campaign_confidence_invalid"
+    if confidence < 0.85:
         return True, "low_campaign_confidence"
 
     review_signals = (
