@@ -26,7 +26,7 @@ from core.job_workspace import create_workspace, now_iso, read_json, sha256_file
 from core.candidate_identity import normalize_source_asset_id
 from core.material_references import extract_document_references, is_symbolic_reference, resolve_named_youtube_reference
 from core.media_validation import validate_video_file
-from core.material_planner import match_candidate, required_asset_minimums
+from core.material_planner import candidate_priority, match_candidate, required_asset_minimums
 
 DIRECT_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".m4a", ".png", ".jpg", ".jpeg", ".webp", ".srt", ".ass"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
@@ -619,6 +619,7 @@ def main() -> None:
             "source_id": source_id,
             "policy_asset_id": provisional_asset_id,
             "policy_match": policy_match_reason,
+            "policy_priority": candidate_priority(material_policy, provisional_asset_id, {"source_type": source_type, "source_url": url, "reference_role": candidate.get("reference_role")}) if provisional_asset_id else 10_000,
             "reference_role": candidate.get("reference_role") or "PRIMARY_SOURCE",
             "source_type": source_type,
             "source_reference": url,
@@ -799,7 +800,14 @@ def main() -> None:
     ranked_queue = sorted(
         download_queue,
         key=lambda entry: (
-            _asset_priority({**entry["item"], "url": entry["item"].get("url"), "_base_priority": entry.get("base_priority", 0)}),
+            (
+                candidate_priority(
+                    material_policy,
+                    str(entry["asset_entry"].get("policy_asset_id") or ""),
+                    {"source_type": entry["asset_entry"].get("source_type"), "source_url": entry["asset_entry"].get("source_url"), "reference_role": entry["asset_entry"].get("reference_role")},
+                ),
+                _asset_priority({**entry["item"], "url": entry["item"].get("url"), "_base_priority": entry.get("base_priority", 0)}),
+            ),
             str(entry["asset_entry"].get("asset_id") or ""),
         ),
         reverse=True,
