@@ -29,8 +29,8 @@ Whop submission is not automated.
 | Slice | Implementation | Acceptance result |
 |---|---|---|
 | P1-A | Versioned `output_contract` in compiled plans and deterministic contract validation | Invalid contracts are rejected before candidate selection with structured blocking reasons. |
-| P1-B | Stable candidate identity, normalized source identity, source/transcript/rules hashes, explicit audience-tier classification, and source evidence | Same candidates receive stable IDs; duplicates are retained as evidence; ambiguous audience classification is `unknown`. |
-| P1-C | `select_required_output_pair` gate with one eligible candidate per tier and bounded near-miss diagnostics | Missing tiers, wrong allocation, overlapping candidates, and non-distinct pairs block before rendering. |
+| P1-B | Stable candidate identity, normalized source identity, source/transcript/rules hashes, optional audience-tier evidence, distribution-slot assignment, and source evidence | Same candidates receive stable IDs; duplicates are retained as evidence; ambiguous audience classification is `unknown`. |
+| P1-C | `select_required_output_pair` gate with one eligible candidate per tier and bounded near-miss diagnostics | Insufficient candidates, overlapping candidates, and non-distinct pairs block before rendering; audience classification is not required for slot assignment. |
 | P1-D | `evaluate_output_pair` aggregate gate and worker render/validation fencing | Partial render, missing validation, malformed validation, or one failed validation blocks the complete pair. |
 | P1-E | D1 fields, API payloads, manifest schema, and Worker Pages contract summary | Review records expose tier, candidate ID, source identity, artifact hash, and distinctness evidence. |
 

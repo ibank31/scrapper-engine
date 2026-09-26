@@ -651,9 +651,13 @@ def main() -> None:
         (workspace / "output-selection.json").write_text(json.dumps(selection_diagnostics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if not selection_result["ok"]:
             stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "blocked", selection_diagnostics)
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Belum ditemukan pasangan video Tier 1 dan Tier 2 yang berbeda", json.dumps({"reason": selection_result["reason"], **selection_diagnostics}, ensure_ascii=False), "blocked", selection_diagnostics)
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Belum ditemukan dua video berbeda yang memenuhi contract output campaign", json.dumps({"reason": selection_result["reason"], **selection_diagnostics}, ensure_ascii=False), "blocked", selection_diagnostics)
             return
-        selected = [all_candidates[int(item["_item_index"])] for item in selection_result["selected"]]
+        selected = []
+        for slot_item in selection_result["selected"]:
+            selected_item = dict(all_candidates[int(slot_item["_item_index"])])
+            selected_item["candidate"] = dict(selected_item.get("candidate") or {}, distribution_slot=slot_item.get("distribution_slot"))
+            selected.append(selected_item)
         selected_sources = {str(item["source"]) for item in selected}
         for source_path in sources:
             if str(source_path) in selected_sources:
@@ -758,7 +762,7 @@ def main() -> None:
             candidate_payload = item.get("candidate") or {}
             validation_payload["source_asset_id"] = candidate_payload.get("source_asset_id") or Path(candidate_payload.get("source", "")).name
             validation_payload["candidate_id"] = candidate_payload.get("candidate_id")
-            validation_payload["tier"] = candidate_payload.get("tier")
+            validation_payload["tier"] = candidate_payload.get("distribution_slot") or candidate_payload.get("tier")
             metadata = validation_payload.get("metadata") or {}
             validation_payload["rendered_duration"] = metadata.get("duration")
             validation_payload["width"] = metadata.get("width")

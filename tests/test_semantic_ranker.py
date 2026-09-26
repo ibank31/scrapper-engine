@@ -149,7 +149,7 @@ class SemanticRankerTest(unittest.TestCase):
                 {"candidate_id": "t2-b", "tier": "tier_2", "source_asset_id": "d", "start": 105, "end": 135, "duration": 30, "score": 0.71, "text": "Secondary point B."},
             ]
             with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}, clear=False):
-                self.assertEqual(semantic_model_decision(candidates, plan, 15), (True, "tier_1_close_ranking"))
+                self.assertEqual(semantic_model_decision(candidates, plan, 15), (True, "close_output_ranking"))
 
     def test_global_gate_keeps_semantic_ai_for_uncertain_relevance(self):
         with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}):

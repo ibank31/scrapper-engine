@@ -1,4 +1,4 @@
-"""Pure gates for the required Tier 1/Tier 2 output pair."""
+"""Deterministic gate for the campaign's required distinct distribution outputs."""
 from __future__ import annotations
 
 import re
@@ -60,7 +60,7 @@ def pairwise_distinctness(left: dict[str, Any], right: dict[str, Any], profile: 
 def _near_miss(item: dict[str, Any], reason: str) -> dict[str, Any]:
     return {
         "candidate_id": item.get("candidate_id"),
-        "tier": item.get("tier", "unknown"),
+        "classification": item.get("tier", "unknown"),
         "score": item.get("score"),
         "start": item.get("start"),
         "end": item.get("end"),
@@ -69,46 +69,48 @@ def _near_miss(item: dict[str, Any], reason: str) -> dict[str, Any]:
 
 
 def select_required_output_pair(candidates: list[dict[str, Any]], contract: dict[str, Any] | None) -> dict[str, Any]:
-    """Select one distinct eligible candidate for each required audience tier."""
+    """Select the best materially distinct pair and assign distribution slots.
+
+    tier_1 and tier_2 in the contract are distribution slots, not audience classifications.
+    Candidate audience classification is optional evidence and never required for eligibility.
+    """
     allocation = (contract or {}).get("tier_allocation") or {"tier_1": 1, "tier_2": 1}
     expected = {"tier_1": int(allocation.get("tier_1") or 0), "tier_2": int(allocation.get("tier_2") or 0)}
-    eligible = {tier: sorted([item for item in candidates if item.get("tier") == tier], key=lambda item: (-float(item.get("score") or 0), float(item.get("start") or 0))) for tier in expected}
-    actual = {tier: len(items) for tier, items in eligible.items()}
+    pool = sorted([dict(item) for item in candidates], key=lambda item: (-float(item.get("score") or 0), float(item.get("start") or 0)))
     diagnostics: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "distinctness_profile": (contract or {}).get("distinctness_profile") or DISTINCTNESS_PROFILE,
         "expected": expected,
-        "actual": actual,
+        "candidate_count": len(pool),
+        "actual": {"eligible": len(pool)},
         "rejected_reasons": {},
         "near_misses": [],
+        "classification_not_required": True,
     }
     if expected != {"tier_1": 1, "tier_2": 1}:
-        diagnostics["rejected_reasons"]["contract"] = "required allocation is not one Tier 1 and one Tier 2"
+        diagnostics["rejected_reasons"]["contract"] = "required distribution allocation is not exactly one slot 1 and one slot 2"
         return {"ok": False, "reason": "blocked_insufficient_output_contract", "selected": [], "diagnostics": diagnostics}
-    for tier in expected:
-        if not eligible[tier]:
-            diagnostics["rejected_reasons"][tier] = "no eligible candidate"
-            diagnostics["near_misses"].extend(_near_miss(item, "unclassifiable_or_wrong_tier") for item in sorted(candidates, key=lambda x: -float(x.get("score") or 0))[:3])
-    if diagnostics["rejected_reasons"]:
-        diagnostics["near_misses"] = diagnostics["near_misses"][:3]
+    if len(pool) < 2:
+        diagnostics["rejected_reasons"]["candidates"] = "fewer than two eligible candidates"
+        diagnostics["near_misses"] = [_near_miss(item, "insufficient_distinct_candidates") for item in pool[:3]]
         return {"ok": False, "reason": "blocked_insufficient_output_contract", "selected": [], "diagnostics": diagnostics}
 
     pair_attempts = []
-    for left, right in combinations(eligible["tier_1"] + eligible["tier_2"], 2):
-        if {left.get("tier"), right.get("tier")} != {"tier_1", "tier_2"}:
-            continue
+    for left, right in combinations(pool, 2):
         evidence = pairwise_distinctness(left, right, diagnostics["distinctness_profile"])
         pair_attempts.append((evidence["distinct"], -float(left.get("score") or 0) - float(right.get("score") or 0), left, right, evidence))
     pair_attempts.sort(key=lambda item: (not item[0], item[1]))
     for is_distinct, _score, left, right, evidence in pair_attempts:
         if is_distinct:
-            selected = sorted([left, right], key=lambda item: 0 if item.get("tier") == "tier_1" else 1)
+            selected = [dict(left, distribution_slot="tier_1"), dict(right, distribution_slot="tier_2")]
             diagnostics["pairwise_distinctness"] = evidence
             diagnostics["actual_selected"] = {"tier_1": 1, "tier_2": 1}
+            diagnostics["selected_candidate_ids"] = [left.get("candidate_id"), right.get("candidate_id")]
             return {"ok": True, "reason": None, "selected": selected, "diagnostics": diagnostics}
         if len(diagnostics["near_misses"]) < 3:
             diagnostics["near_misses"].append({"candidate_ids": evidence.get("candidate_ids"), "reason": ";".join(evidence.get("reasons") or ["not_materially_distinct"]), "evidence": evidence})
-    diagnostics["rejected_reasons"]["distinctness"] = "no materially distinct Tier 1/Tier 2 pair"
+
+    diagnostics["rejected_reasons"]["distinctness"] = "no materially distinct candidate pair"
     diagnostics["near_misses"] = diagnostics["near_misses"][:3]
     return {"ok": False, "reason": "blocked_insufficient_output_contract", "selected": [], "diagnostics": diagnostics}
 
