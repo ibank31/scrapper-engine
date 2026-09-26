@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,14 +38,45 @@ MAX_REVIEW_CANDIDATES = 2
 
 
 def api_call(base: str, path: str, token: str, method: str = "GET", payload: dict | None = None) -> dict:
+    """Call the control-plane API with bounded retries for safe/idempotent methods."""
     headers = {"content-type": "application/json", "x-worker-token": token}
     dispatch_token = os.environ.get("CLIPPER_DISPATCH_TOKEN")
     if dispatch_token: headers["x-dispatch-token"] = dispatch_token
     claim_token = os.environ.get("CLIPPER_CLAIM_TOKEN")
     if claim_token: headers["x-claim-token"] = claim_token
-    response = requests.request(method, base.rstrip("/") + path, headers=headers, json=payload, timeout=60)
-    response.raise_for_status()
-    return response.json()
+
+    method_upper = method.upper()
+    max_attempts = max(1, int(os.environ.get("CLIPPER_API_RETRIES", "3")))
+    retry_safe = method_upper in {"GET", "PATCH"}
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.request(
+                method_upper,
+                base.rstrip("/") + path,
+                headers=headers,
+                json=payload,
+                timeout=(10, 60),
+            )
+            if (
+                retry_safe
+                and response.status_code in {408, 425, 429, 500, 502, 503, 504}
+                and attempt < max_attempts
+            ):
+                time.sleep(min(4.0, 0.75 * (2 ** (attempt - 1))))
+                continue
+            response.raise_for_status()
+            return response.json()
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            last_error = exc
+            if not retry_safe or attempt >= max_attempts:
+                raise
+            time.sleep(min(4.0, 0.75 * (2 ** (attempt - 1))))
+        except requests.HTTPError:
+            raise
+    if last_error:
+        raise last_error
+    raise RuntimeError("API request failed without a response")
 
 
 def update(base: str, job_id: str, token: str, status: str, progress: int, message: str, error: str | None = None, output_contract_status: str | None = None, output_selection: dict | None = None) -> None:
@@ -80,38 +112,70 @@ def claim_job(base: str, job_id: str, token: str, dispatch_token: str = "", runn
     return True
 
 
-def run(command: list[str], cwd: str | None = None, check: bool = True) -> None:
-    subprocess.run(command, check=check, cwd=cwd, text=True)
+class PipelineStageTimeout(RuntimeError):
+    def __init__(self, stage: str, timeout_seconds: int):
+        self.stage = stage
+        self.timeout_seconds = timeout_seconds
+        super().__init__(f"stage_timeout:{stage}:{timeout_seconds}s")
 
 
-def source_priority(path: Path) -> tuple[float, int]:
-    """Prefer usable high-resolution sources; size alone is a poor quality proxy."""
+def stage_timeout(name: str, default_seconds: int) -> int:
     try:
-        probe = subprocess.check_output([
-            "ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)
-        ], text=True)
-        data = json.loads(probe)
-        video = next((stream for stream in data.get("streams", []) if stream.get("codec_type") == "video"), {})
-        width, height = int(video.get("width") or 0), int(video.get("height") or 0)
-        duration = float((data.get("format") or {}).get("duration") or 0)
-        area_score = min(4.0, (width * height) / 2_000_000)
-        duration_score = min(1.0, duration / 90.0) if duration >= 20 else 0.0
-        vertical_bonus = 0.35 if height >= width else 0.0
-        return area_score + duration_score + vertical_bonus, -path.stat().st_size
-    except Exception:
-        return 0.0, -path.stat().st_size
+        return max(30, int(os.environ.get(f"CLIPPER_{name.upper()}_TIMEOUT_SECONDS", str(default_seconds))))
+    except (TypeError, ValueError):
+        return default_seconds
+
+
+def run(
+    command: list[str],
+    cwd: str | None = None,
+    check: bool = True,
+    timeout: int | None = None,
+    stage: str = "subprocess",
+):
+    try:
+        return subprocess.run(command, check=check, cwd=cwd, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise PipelineStageTimeout(stage, int(timeout or 0)) from exc
+
 
 
 def upload_r2(api_base: str, job_id: str, token: str, path: str, key: str, content_type: str):
+    """Upload with bounded retries; object key is stable so retries are idempotent."""
     headers = {"x-worker-token": token}
     dispatch_token = os.environ.get("CLIPPER_DISPATCH_TOKEN")
     if dispatch_token: headers["x-dispatch-token"] = dispatch_token
     claim_token = os.environ.get("CLIPPER_CLAIM_TOKEN")
     if claim_token: headers["x-claim-token"] = claim_token
-    with open(path, "rb") as stream:
-        response = requests.post(api_base.rstrip("/") + f"/api/jobs/{job_id}/upload", headers=headers, files={"file": (Path(path).name, stream, content_type)}, data={"key": key, "run_id": os.environ.get("CLIPPER_RUN_ID", ""), "execution_generation": os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")}, timeout=180)
-    response.raise_for_status()
-    return response.json()["download_url"]
+    max_attempts = max(1, int(os.environ.get("CLIPPER_UPLOAD_RETRIES", "3")))
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with open(path, "rb") as stream:
+                response = requests.post(
+                    api_base.rstrip("/") + f"/api/jobs/{job_id}/upload",
+                    headers=headers,
+                    files={"file": (Path(path).name, stream, content_type)},
+                    data={
+                        "key": key,
+                        "run_id": os.environ.get("CLIPPER_RUN_ID", ""),
+                        "execution_generation": os.environ.get("CLIPPER_EXECUTION_GENERATION", "1"),
+                    },
+                    timeout=(10, 180),
+                )
+            if response.status_code in {408, 425, 429, 500, 502, 503, 504} and attempt < max_attempts:
+                time.sleep(min(5.0, 1.0 * (2 ** (attempt - 1))))
+                continue
+            response.raise_for_status()
+            return response.json()["download_url"]
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            last_error = exc
+            if attempt >= max_attempts:
+                raise
+            time.sleep(min(5.0, 1.0 * (2 ** (attempt - 1))))
+    if last_error:
+        raise last_error
+    raise RuntimeError("R2 upload failed without a response")
 
 
 def _candidate_audit_reason(stats: dict[str, int], source_count: int, usable_count: int) -> str:
@@ -256,11 +320,11 @@ def main() -> None:
         # Intake records every selected source. A single blocked or rate-limited
         # URL must not discard other usable assets, but a run with no usable
         # video must become a clear blocked job instead of a raw traceback.
-        intake = subprocess.run(
+        intake = run(
             [sys.executable, "run.py", "reward_intake", plan_path, "--workspace", workspace_root],
             check=False,
-            cwd=None,
-            text=True,
+            timeout=stage_timeout("asset_intake", 1200),
+            stage="asset_intake",
         )
         workspace = next(Path(workspace_root).glob("*/"), None)
         if not workspace: raise RuntimeError("workspace asset tidak terbentuk")
@@ -288,8 +352,7 @@ def main() -> None:
             update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Bahan video campaign tidak dapat diakses", blocked_error)
             stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"usable_sources": 0, "intake_returncode": intake.returncode}, "source_assets_unavailable", detail)
             return
-        # Prefer the highest-quality usable sources, not the smallest files.
-        sources.sort(key=source_priority, reverse=True)
+        # Quality is ranked from the single authoritative preflight pass below.
         if not sources:
             discovery = intake_manifest.get("discovery") or {}
             invalid_media = [
@@ -370,8 +433,29 @@ def main() -> None:
         preflight_records = []
         for source in sources:
             quality = source_quality_preflight(str(source))
-            record = {"source": str(source), "quality": quality}
-            preflight_records.append(record)
+            preflight_records.append({"source": str(source), "quality": quality})
+
+        def _quality_rank(record: dict) -> tuple:
+            quality = record.get("quality") or {}
+            resolution = quality.get("resolution") or {}
+            width = int(resolution.get("width") or 0)
+            height = int(resolution.get("height") or 0)
+            duration = float(quality.get("duration_seconds") or 0)
+            area = width * height
+            vertical_bonus = 1 if height >= width and height > 0 else 0
+            source_path = Path(str(record.get("source") or ""))
+            file_size = source_path.stat().st_size if source_path.exists() else 0
+            return (
+                bool(quality.get("available")),
+                bool(quality.get("has_video")),
+                bool(quality.get("has_audio")),
+                min(area, 16_000_000),
+                min(duration, 600.0),
+                vertical_bonus,
+                file_size,
+            )
+
+        preflight_records.sort(key=_quality_rank, reverse=True)
         selected_records, preflight_records = deduplicate_source_records(preflight_records, max_sources)
         selected_paths = {str(record.get("source")) for record in selected_records}
         usable_sources = []
@@ -464,7 +548,7 @@ def main() -> None:
                 "--out-dir", str(transcript_dir),
                 "--model", args.whisper_model,
                 "--beam-size", str(max(1, int(args.whisper_beam))),
-            ])
+            ], timeout=stage_timeout("transcribe", 900), stage="transcription")
             candidate_stats["transcribed"] += 1
             transcript_payload = json.loads((transcript_dir / "transcript.json").read_text(encoding="utf-8"))
             transcript_duration = max((float(segment.get("end", 0)) for segment in transcript_payload.get("segments", [])), default=0.0)
@@ -475,7 +559,7 @@ def main() -> None:
                 "--bands-json", json.dumps([[round(float(lo), 3), round(float(hi), 3)] for lo, hi in bands]),
                 "--limit", "10", "--media-top-n", os.environ.get("CLIPPER_MEDIA_TOP_N", "24"),
                 "--source", str(source), "--plan", plan_path, "--out", str(band_path),
-            ])
+            ], timeout=stage_timeout("selector", 180), stage="selector")
             local_candidates = json.loads(band_path.read_text(encoding="utf-8"))
             selection = local_candidates.get("selection") or {}
             stage_event(args.api_base, args.job_id, args.worker_token, run_id, "selector", "completed", {
@@ -504,7 +588,16 @@ def main() -> None:
             "shortlist_limit": int(os.environ.get("CLIPPER_SEMANTIC_TOP_N", "15")),
         })
         if all_candidates:
-            semantic_pool = [dict(item["candidate"], source=item["source"], _wrapper_index=index) for index, item in enumerate(all_candidates)]
+            semantic_pool = [
+                dict(
+                    item["candidate"],
+                    source=item["source"],
+                    _relevance_status=(item.get("relevance") or {}).get("status"),
+                    _relevance_reason=(item.get("relevance") or {}).get("reason"),
+                    _wrapper_index=index,
+                )
+                for index, item in enumerate(all_candidates)
+            ]
             ranked_pool, semantic_runtime = rank_global_candidates(
                 semantic_pool, plan, int(os.environ.get("CLIPPER_SEMANTIC_TOP_N", "15"))
             )
@@ -584,7 +677,11 @@ def main() -> None:
             candidate_path.write_text(json.dumps(local_payload, ensure_ascii=False, indent=2), encoding="utf-8")
             local_render = Path(item["transcript"]).parent / f"final-render-{global_rank:03d}"
             try:
-                run([sys.executable, "run.py", "render_clips", item["source"], str(candidate_path), "--transcript", item["transcript"], "--plan", plan_path, "--force-subtitles", "--out-dir", str(local_render)])
+                run(
+                    [sys.executable, "run.py", "render_clips", item["source"], str(candidate_path), "--transcript", item["transcript"], "--plan", plan_path, "--force-subtitles", "--out-dir", str(local_render)],
+                    timeout=stage_timeout("render", 900),
+                    stage="render",
+                )
             except subprocess.CalledProcessError as exc:
                 stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "item_failed", {"rank": global_rank, "candidate_id": local_item.get("candidate_id"), "error": str(exc)[:300]})
                 continue
@@ -610,7 +707,12 @@ def main() -> None:
         validation_path = workspace / "validation.json"
         # Validation is per-preview: keep usable outputs in the review queue even
         # when another candidate fails a technical gate.
-        run([sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)], check=False)
+        run(
+            [sys.executable, "run.py", "validate_clips", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--glob", str(render_dir / "*.mp4"), "--out", str(validation_path)],
+            check=False,
+            timeout=stage_timeout("validation", 300),
+            stage="validation",
+        )
         try:
             validation = json.loads(validation_path.read_text(encoding="utf-8")) if validation_path.exists() else {}
         except (OSError, json.JSONDecodeError):
@@ -628,7 +730,11 @@ def main() -> None:
             update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Pasangan output gagal all-or-nothing validation gate", json.dumps({**pair_gate, "results": validation_summary}, ensure_ascii=False), "blocked", {"validation": validation_summary, "selection": selection_diagnostics, "pair_gate": pair_gate})
             return
         review_dir = workspace / "review"
-        run([sys.executable, "run.py", "review_queue", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--validation", str(validation_path), "--rendered-dir", str(render_dir), "--out-dir", str(review_dir)])
+        run(
+            [sys.executable, "run.py", "review_queue", "--plan", plan_path, "--candidates", str(transcript_dir / "candidates.json"), "--validation", str(validation_path), "--rendered-dir", str(render_dir), "--out-dir", str(review_dir)],
+            timeout=stage_timeout("review_queue", 180),
+            stage="review_queue",
+        )
         update(args.api_base, args.job_id, args.worker_token, "processing", 92, "Mengunggah preview ke R2")
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "r2_upload", "started")
         review = json.load(open(review_dir / "review.json", encoding="utf-8")); previews = []; manifest_previews = []
@@ -638,7 +744,11 @@ def main() -> None:
             prefix = f"jobs/{args.job_id}/clip-{int(item['rank']):03d}"
             video_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(video_path), prefix + ".mp4", "video/mp4")
             review_path = review_dir / f"review-{int(item['rank']):03d}.mp4"
-            run(["ffmpeg", "-y", "-i", str(video_path), "-vf", "scale=720:1280:flags=lanczos,setsar=1", "-c:v", "libx264", "-preset", "veryfast", "-crf", "27", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-ar", "48000", "-movflags", "+faststart", str(review_path)])
+            run(
+                ["ffmpeg", "-y", "-i", str(video_path), "-vf", "scale=720:1280:flags=lanczos,setsar=1", "-c:v", "libx264", "-preset", "veryfast", "-crf", "27", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-ar", "48000", "-movflags", "+faststart", str(review_path)],
+                timeout=stage_timeout("review_transcode", 300),
+                stage="review_transcode",
+            )
             review_prefix = prefix + ".review.mp4"
             review_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(review_path), review_prefix, "video/mp4")
             thumb_url = upload_r2(args.api_base, args.job_id, args.worker_token, str(thumbnail_path), prefix + ".jpg", "image/jpeg") if thumbnail_path and thumbnail_path.exists() else None
@@ -670,6 +780,31 @@ def main() -> None:
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "r2_upload", "completed", {"preview_count": len(previews), "manifest_key": manifest_key})
         api_call(args.api_base, f"/api/jobs/{args.job_id}/previews", args.worker_token, "POST", {"job_id": args.job_id, "run_id": run_id, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1")), "output_selection": selection_diagnostics, "previews": previews})
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "manual_review", "completed", {"preview_count": len(previews), "manifest_key": manifest_key})
+    except PipelineStageTimeout as exc:
+        try:
+            update(
+                args.api_base,
+                args.job_id,
+                args.worker_token,
+                "error",
+                0,
+                f"Tahap {exc.stage} melewati batas waktu",
+                str(exc),
+            )
+            stage_event(
+                args.api_base,
+                args.job_id,
+                args.worker_token,
+                run_id,
+                exc.stage,
+                "blocked",
+                {},
+                "stage_timeout",
+                str(exc),
+            )
+        except Exception:
+            pass
+        raise
     except Exception as exc:
         try: update(args.api_base, args.job_id, args.worker_token, "error", 0, "Pipeline gagal", str(exc))
         except Exception: pass
