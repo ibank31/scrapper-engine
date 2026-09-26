@@ -171,7 +171,7 @@ def _route_generate(prompt: str, timeout: int = 120) -> tuple[dict[str, Any], st
             try:
                 parsed = _json_from_text(text)
             except GeminiJsonError as exc:
-                raise AIProviderError(f"{provider.name} returned invalid JSON") from exc
+                raise AIProviderError(f"{provider.name} returned invalid JSON: {exc}") from exc
             print(f"AI router: provider={provider.name} status=success")
             return parsed, provider.name
         except Exception as exc:
@@ -274,7 +274,7 @@ GEMINI_RESPONSE_SCHEMA: dict[str, Any] = {
                     },
                     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                 },
-                "required": ["campaign_id", "campaign_fit", "rules", "rule_annotations", "ambiguities", "evidence", "confidence"],
+                "required": ["campaign_id", "campaign_fit", "rules", "ambiguities", "evidence", "confidence"],
             },
         },
     },
@@ -544,14 +544,26 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
     ambiguities = [str(x) for x in (item.get("ambiguities") or [])]
     if evidence_contract["unverified"]:
         ambiguities.append("CRITICAL: %d AI evidence quote(s) could not be verified against current campaign sources." % len(evidence_contract["unverified"]))
+    normalized_cta = _recover_source_backed_cta_text(
+        campaign,
+        rules.get("cta_text"),
+        bool(rules.get("cta_required")),
+        evidence,
+    )
+    brain_rules = dict(rules)
+    brain_rules["cta_text"] = normalized_cta
     brain = build_campaign_brain(
         campaign or {"id": campaign_id},
-        rules=rules,
+        rules=brain_rules,
         rule_annotations=rule_annotations,
         evidence_contract=evidence_contract,
         ambiguities=ambiguities,
         confidence=confidence,
-        campaign_fit=fit,
+        campaign_fit={
+            "score": fit_score,
+            "label": str(fit.get("label") or "unknown"),
+            "reason": str(fit.get("reason") or ""),
+        },
         ai_available=not (confidence == 0.0 and fit_score is None and str(fit.get("reason") or "") == "AI analysis unavailable"),
     )
     return {
@@ -564,7 +576,7 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
             "max_duration_seconds": _int_or_none(rules.get("max_duration_seconds")), "subtitle_required": bool(rules.get("subtitle_required")),
             "subtitle_style": str(rules.get("subtitle_style") or "campaign_defined"), "watermark_required": bool(rules.get("watermark_required")),
             "third_party_watermark_allowed": bool(rules.get("third_party_watermark_allowed")), "official_audio_required": bool(rules.get("official_audio_required")),
-            "cta_required": bool(rules.get("cta_required")), "cta_text": _recover_source_backed_cta_text(campaign, rules.get("cta_text"), bool(rules.get("cta_required")), evidence), "handles": list(rules.get("handles") or []),
+            "cta_required": bool(rules.get("cta_required")), "cta_text": normalized_cta, "handles": list(rules.get("handles") or []),
             "hashtags": list(rules.get("hashtags") or []), "disclosures": list(rules.get("disclosures") or []), "topic_terms": list(rules.get("topic_terms") or []),
             "allowed_content": list(rules.get("allowed_content") or []), "prohibited_content": list(rules.get("prohibited_content") or []),
             "asset_sources": list(rules.get("asset_sources") or []), "posting_rules": list(rules.get("posting_rules") or []), "account_rules": list(rules.get("account_rules") or []),
@@ -600,7 +612,7 @@ def _prompt(batch: Iterable[dict[str, Any]]) -> str:
     return """You are the campaign-intelligence layer of a clipping production engine.
 Read each campaign independently. Extract only what is supported by supplied text. Never invent a rule.
 Every evidence quote MUST be copied verbatim from the supplied campaign text and must be sufficient to support the stated rule. Do not cite general knowledge. Never concatenate multiple source lines or list items into one evidence quote. For list-valued rules, emit one evidence object per source-backed item and use a short exact contiguous quote for each. For CTA fields, copy the exact source CTA text; never replace a real handle, placeholder, or token with generic values such as @[handle].
-For every supported rule, emit a rule_annotations entry with exact rule_path, canonical value, requirement_level (mandatory, optional, or unknown), interpretation_type, and scope for platforms/languages/audiences. Preserve distinct source variants as separate annotations. Never mark a rule mandatory without source support. Never turn an unmentioned boolean into false in campaign_brain.
+Use rule_annotations only for rules whose canonical scope, requirement level, interpretation, or source variant cannot be represented safely by the supplied flat rules and evidence. When an annotation is emitted, include exact rule_path, canonical value, requirement_level (mandatory, optional, or unknown), interpretation_type, and scope for platforms/languages/audiences. Preserve distinct source variants as separate annotations. Never mark a rule mandatory without source support. Never turn an unmentioned boolean into false in campaign_brain.
 Identify every explicit production or posting rule that can affect clip validity.
 Build a campaign-specific material acquisition plan. Do not assume every campaign uses the same acquisition method. For every required material, identify intent, quantity, preferred/fallback sources, allowed/forbidden source types, discovery methods, identity fields, verification requirements, and evidence. Never treat an example/reference link as production footage unless the campaign explicitly says so. If acquisition is unclear, choose manual_required or unresolved rather than inventing a source.
 Record CRITICAL ambiguity only when an unknown could change asset selection, edit/render decisions, or posting compliance.
@@ -619,6 +631,7 @@ def _fallback_result(campaign: dict[str, Any], reason: str = "AI omitted this ca
     return {
         "schema_version": 2, "campaign_id": cid,
         "campaign_fit": {"score": None, "label": "unknown", "reason": "AI analysis unavailable"},
+        "rule_annotations": [],
         "rules": {
             "source_policy": "unknown", "platforms": campaign.get("platforms") or [], "aspect_ratio": None,
             "min_duration_seconds": None, "max_duration_seconds": None, "subtitle_required": False, "subtitle_style": "campaign_defined",
