@@ -54,6 +54,67 @@ function escapeHtml(value) {
 function showToast(message) { const el = $("#toast"); el.textContent = message; el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2800); }
 function api(path, options) { return fetch((cfg.API_BASE_URL || "") + path, options).then(async (r) => { const payload = await r.json().catch(() => ({})); if (!r.ok) throw new Error(payload.message || payload.error || "API " + r.status); return payload; }); }
 function parseObject(value, fallback) { if (value && typeof value === "object") return value; try { const parsed = JSON.parse(value || ""); return parsed && typeof parsed === "object" ? parsed : (fallback || {}); } catch (_) { return fallback || {}; } }
+function humanDate(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+}
+function metricLabel(key) { return String(key || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()); }
+function metricValue(value) {
+  if (value == null || value === '') return '-';
+  if (typeof value === 'boolean') return value ? 'Ya' : 'Tidak';
+  if (Array.isArray(value)) return value.length + ' item';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+function detailPairs(obj, allow) {
+  if (!obj || typeof obj !== 'object') return '';
+  return (allow || []).filter((key) => obj[key] != null && obj[key] !== '').map((key) => '<div><small>' + escapeHtml(metricLabel(key)) + '</small><strong>' + escapeHtml(metricValue(obj[key])) + '</strong></div>').join('');
+}
+function campaignMaterialLines(c) {
+  const plan = parseObject(c.plan, {}); const ai = parseObject(c.ai_rules, {}); const rules = parseObject(ai.rules, ai);
+  const production = parseObject(plan.production, {}); const policy = parseObject(production.material_policy || rules.material_policy || ai.material_policy, {});
+  const assets = Array.isArray(policy.assets) ? policy.assets : Array.isArray(policy.required_assets) ? policy.required_assets : [];
+  if (!assets.length) return '<p class="detail-empty">Rencana bahan belum disimpan sebagai daftar terstruktur.</p>';
+  return assets.slice(0, 8).map((asset) => {
+    const name = asset.name || asset.asset_id || asset.id || 'Bahan'; const role = asset.role || asset.intent || ''; const required = asset.required === false ? 'Opsional' : 'Wajib';
+    return '<div class="detail-list-row"><span>' + escapeHtml(name) + (role ? ' · ' + escapeHtml(role) : '') + '</span><b>' + escapeHtml(required) + '</b></div>';
+  }).join('') + (assets.length > 8 ? '<p class="detail-empty">+' + (assets.length - 8) + ' bahan lain</p>' : '');
+}
+function campaignRuleLines(c) {
+  const plan = parseObject(c.plan, {}); const ai = parseObject(c.ai_rules, {}); const rules = parseObject(ai.rules, ai); const production = parseObject(plan.production, {});
+  const rows = []; const add = (label, value) => { if (value == null || value === '') return; const text = Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value); if (text.length <= 220) rows.push([label, text]); };
+  add('Format', production.aspect_ratio || production.format || rules.aspect_ratio || rules.format);
+  add('Durasi', production.duration || rules.duration || rules.duration_seconds);
+  add('Subtitle', production.subtitle || rules.subtitle); add('Watermark', production.watermark || rules.watermark); add('Audio', production.sound || production.audio || rules.sound || rules.audio);
+  add('Platform', (c.platforms || []).join(', ')); const output = parseObject(plan.output_contract, rules.output_contract || {}); add('Output', output.target || output.required || output.description);
+  if (!rows.length) return '<p class="detail-empty">Aturan detail belum tersedia dalam format yang bisa dibaca UI.</p>';
+  return rows.map(([label, value]) => '<div class="detail-list-row"><span>' + escapeHtml(label) + '</span><b>' + escapeHtml(value) + '</b></div>').join('');
+}
+function campaignAiSummary(c) {
+  const ai = parseObject(c.ai_rules, {}); const rules = parseObject(ai.rules, ai); const confidence = ai.confidence ?? rules.confidence ?? ai.analysis_confidence; const status = c.ai_rules_status || ai.status || 'belum diketahui'; const analyzed = c.ai_analyzed_at || ai.analyzed_at;
+  const confidenceText = confidence == null ? 'belum tersedia' : Number(confidence) <= 1 ? (Number(confidence) * 100).toFixed(0) + '%' : Number(confidence).toFixed(0) + '%';
+  return '<div class="detail-grid"><div><small>Status analisis</small><strong>' + escapeHtml(status) + '</strong></div><div><small>Confidence</small><strong>' + escapeHtml(confidenceText) + '</strong></div><div><small>Rules hash</small><strong class="mono">' + escapeHtml(c.rules_hash || 'belum tersedia') + '</strong></div><div><small>Dianalisis</small><strong>' + escapeHtml(humanDate(analyzed)) + '</strong></div></div>';
+}
+function renderCampaignDetail(c) {
+  const label = c.readiness_label || 'Belum dinilai'; const reason = c.readiness_reason || 'Belum ada alasan readiness yang tersimpan.'; const plan = parseObject(c.plan, {}); const source = parseObject(plan.source_of_truth, {});
+  const sourceText = String(source.docs_text || '').trim(); const sourceUrls = Array.isArray(source.source_urls) ? source.source_urls : Array.isArray((plan.production || {}).asset_urls) ? plan.production.asset_urls : [];
+  return '<div class="campaign-detail"><div class="detail-hero"><div><p class="eyebrow">DETAIL CAMPAIGN</p><h2>' + escapeHtml(c.title) + '</h2><p class="modal-brand">' + escapeHtml(c.brand || '-') + ' · ' + escapeHtml(c.content_kind || c.type || 'clipping') + '</p></div><span class="readiness-badge ' + readinessClass(c.readiness_status) + '">' + escapeHtml(label) + '</span></div>' +
+    '<p class="detail-lead">' + escapeHtml(reason) + '</p><div class="detail-grid detail-metrics">' +
+    '<div><small>Bayaran / 1K</small><strong>' + escapeHtml(money(c.rate_per_1k)) + '</strong></div><div><small>Sisa budget</small><strong>' + escapeHtml(money(c.budget_left)) + '</strong></div><div><small>Score</small><strong>' + escapeHtml(c.score == null ? '-' : Number(c.score).toFixed(1)) + '</strong></div><div><small>Platform</small><strong>' + escapeHtml((c.platforms || []).join(', ') || '-') + '</strong></div></div>' +
+    '<section class="detail-section"><h3>Aturan yang akan dipakai</h3><div class="detail-list">' + campaignRuleLines(c) + '</div></section>' +
+    '<section class="detail-section"><h3>Bahan yang dibutuhkan</h3><div class="detail-list">' + campaignMaterialLines(c) + '</div></section>' +
+    '<section class="detail-section"><h3>Sumber aturan</h3><div class="source-proof"><span>' + (sourceUrls.length ? sourceUrls.length + ' URL tersimpan' : 'URL sumber belum tersedia') + '</span><span>' + (sourceText ? 'Dokumen tersimpan' : 'Teks dokumen belum tersedia') + '</span></div>' + (sourceText ? '<p class="source-excerpt">' + escapeHtml(sourceText.slice(0, 500)) + (sourceText.length > 500 ? '…' : '') + '</p>' : '') + '</section>' +
+    '<section class="detail-section"><h3>Analisis mesin</h3>' + campaignAiSummary(c) + '</section><div class="detail-actions"><button class="primary-button" id="startJob">Mulai proses campaign <span>→</span></button></div></div>';
+}
+function renderJobDetails(job) {
+  const rows = Array.isArray(job.stages) ? job.stages : []; if (!rows.length) return '<details class="job-detail"><summary>⌄ Detail proses</summary><p class="detail-empty">Belum ada stage event yang diterima.</p></details>';
+  const latest = new Map(); for (const row of rows) latest.set(String(row.stage || ''), row);
+  return '<details class="job-detail"><summary>⌄ Detail proses</summary><div class="stage-details">' + Array.from(latest.values()).map((row) => {
+    const metrics = parseObject(row.metrics_json, row.metrics || {}); const pairs = detailPairs(metrics, ['duration_seconds','candidate_count','selected','semantic_required','semantic_skipped','reason','cache_hit','ai_calls','source_count','usable_sources']);
+    return '<div class="stage-detail-row"><div><strong>' + escapeHtml(stageNames[row.stage] || row.stage) + '</strong><span>' + escapeHtml(String(row.status || '').replace(/_/g, ' ')) + '</span></div>' + (pairs ? '<div class="stage-metrics">' + pairs + '</div>' : '') + (row.error_code || row.error_detail ? '<p class="stage-error">' + escapeHtml(row.error_code || '') + (row.error_detail ? ' · ' + escapeHtml(row.error_detail) : '') + '</p>' : '') + '<small>' + escapeHtml(row.ended_at ? 'Selesai ' + humanDate(row.ended_at) : row.started_at ? 'Mulai ' + humanDate(row.started_at) : 'Waktu belum tersedia') + '</small></div>';
+  }).join('') + '</div></details>';
+}
 function outputContractSummary(job) {
   const selection = parseObject(job.output_selection_json, {});
   const actual = selection.actual_selected || selection.actual || {};
@@ -119,20 +180,7 @@ function renderCampaigns() {
 }
 function openCampaign(id) {
   const c = state.campaigns.find((x) => x.id === id); if (!c) return;
-  const label = c.readiness_label || "Belum dinilai";
-  const reason = c.readiness_reason || "-";
-  $("#modalContent").innerHTML =
-    '<p class="eyebrow">DETAIL CAMPAIGN</p>' +
-    '<h2>' + escapeHtml(c.title) + '</h2>' +
-    '<p class="modal-brand">' + escapeHtml(c.brand) + ' · ' + escapeHtml(c.content_kind || "clipping") + '</p>' +
-    '<p class="readiness-badge ' + readinessClass(c.readiness_status) + '">' + escapeHtml(label) + '</p>' +
-    '<p class="description">' + escapeHtml(reason) + '</p>' +
-      '<div class="rule-preview"><strong>Yang akan dikerjakan mesin</strong>' +
-      '<span>Membaca aturan dan bahan resmi campaign</span>' +
-      '<span>Mencari dua video yang berbeda untuk dua audiens</span>' +
-      '<span>Membuat subtitle, memeriksa syarat, lalu menyiapkan review</span></div>' +
-      '<p class="modal-note">Setelah selesai, Anda menonton video dan memutuskan: ACC, tolak, atau minta render ulang. Setelah ACC, Anda memilih channel Buffer.</p>' +
-      '<button class="primary-button" id="startJob">Mulai proses campaign <span>→</span></button>';
+  $("#modalContent").innerHTML = renderCampaignDetail(c);
   $("#detailModal").classList.remove("hidden");
   $("#startJob").addEventListener("click", () => startJob(c));
 }
@@ -278,7 +326,7 @@ function renderJobs() {
         '<div class="job-head"><div class="job-title-wrap"><strong>' + escapeHtml(j.campaign_title || j.campaign_id) + '</strong><span class="job-phase">' + escapeHtml(phase.label) + '</span></div><span class="status ' + escapeHtml(j.status) + '">' + statusText(j.status) + '</span></div>' +
         '<p class="job-message"><b>' + escapeHtml(phase.detail || j.message || "Menunggu pembaruan…") + '</b>' + (j.error ? " · " + escapeHtml(friendlyError(j.error)) : "") + '</p>' +
         '<div class="job-output-contract">' + escapeHtml(outputContractSummary(j)) + '</div>' +
-        renderStageTrack(j) +
+        renderStageTrack(j) + renderJobDetails(j) +
         '<div class="job-progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><span class="progress-number">' + progress + '%</span></div>' +
         '<div class="job-meta"><span>Pembaruan ' + formatAge(j.updated_at) + '</span>' + (stale ? '<span class="stale-warning">⚠ Belum ada pembaruan cukup lama</span>' : "") + '</div>' +
         ((j.status === "queued" || j.status === "processing") ? '<button class="stop-button" data-stop-id="' + escapeHtml(j.id) + '" type="button">Stop proses</button>' : "") +
@@ -429,9 +477,17 @@ function renderReviews() {
       '<div class="review-contract"><strong>' + escapeHtml(tierLabel) + '</strong>' + (r.candidate_id ? '<span>Potongan teridentifikasi</span>' : '<span>Identitas potongan belum tersedia</span>') + (distinctness.distinct ? '<span>Berbeda dari video sebelahnya</span>' : '') + (subtitle.mode ? '<span>' + escapeHtml(subtitleNames[subtitle.mode] || "Status subtitle tersimpan") + '</span>' : '') + (sound.status ? '<span>' + escapeHtml(soundNames[sound.status] || "Status audio tersimpan") + '</span>' : '') + '</div>' +
       operationLine +
       '<p>Putar sampai selesai, cek apakah potongannya jelas, lalu pilih keputusan di bawah.</p>' +
-      (r.rules_summary_id ? '<div class="rules-summary"><strong>Yang perlu Anda cek</strong><p>' + escapeHtml(r.rules_summary_id) + '</p></div>' : '') +
+      (r.rules_summary_id ? '<div class="rules-summary"><strong>Referensi aturan</strong><p>Aturan campaign terhubung ke hasil pemeriksaan mesin. Detail yang perlu diperiksa ditampilkan pada panel bukti di bawah.</p></div>' : '') +
       '<div class="review-validation"><span>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap diedit</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
       (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
+      '<details class="review-detail"><summary>⌄ Mengapa video ini lolos?</summary><div class="review-detail-grid">' +
+        '<div><small>Audiens</small><strong>' + escapeHtml(tierLabel) + '</strong></div>' +
+        '<div><small>Validasi</small><strong>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</strong></div>' +
+        '<div><small>Distinctness</small><strong>' + escapeHtml(distinctness.distinct == null ? "Belum diketahui" : distinctness.distinct ? "Berbeda dari kandidat lain" : "Perlu diperiksa") + '</strong></div>' +
+        '<div><small>Subtitle</small><strong>' + escapeHtml(subtitleNames[subtitle.mode] || "Belum diketahui") + '</strong></div>' +
+        '<div><small>Audio</small><strong>' + escapeHtml(soundNames[sound.status] || "Belum diketahui") + '</strong></div>' +
+        '<div><small>Caption</small><strong>' + escapeHtml(r.caption_draft ? "Tersedia dan bisa diedit" : "Belum tersedia") + '</strong></div>' +
+      '</div></details>' +
       '<div class="review-actions">' +
       (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Unduh video <span>↓</span></a>' + ((status === "pending_review" || status === "changes_requested") ? '<button class="secondary-button caption-edit-button" type="button">Edit caption</button>' : '') + (status === "approved_for_manual_post" ? '<button class="primary-button buffer-upload-button" type="button">Masukkan ke Buffer <span>↗</span></button>' : '') : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
       '</div></div></article>';
@@ -468,7 +524,7 @@ $("#searchInput").addEventListener("input", renderCampaigns);
 $("#platformFilter").addEventListener("change", renderCampaigns);
 $("#sortSelect").addEventListener("change", renderCampaigns);
 document.querySelectorAll("[data-close]").forEach((x) => x.addEventListener("click", () => $("#detailModal").classList.add("hidden")));
-$("#workerStatus").textContent = cfg.DEMO_MODE ? "mode demo" : "terhubung · pembaruan otomatis";
+$("#workerStatus").textContent = cfg.DEMO_MODE ? "mode demo" : "pembaruan otomatis aktif";
 loadCampaigns();
 loadJobs();
 setInterval(() => { if (state.jobs.length) renderJobs(); }, 1000);
