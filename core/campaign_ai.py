@@ -365,14 +365,14 @@ def _fallback_result(campaign: dict[str, Any], reason: str = "AI omitted this ca
     cid = str(campaign.get("id") or "")
     safe_reason = re.sub(r"AIza[0-9A-Za-z_-]{12,}", "[redacted]", str(reason))[:240]
     return {
-        "schema_version": 1, "campaign_id": cid,
+        "schema_version": 2, "campaign_id": cid,
         "campaign_fit": {"score": None, "label": "unknown", "reason": "AI analysis unavailable"},
         "rules": {
             "source_policy": "unknown", "platforms": campaign.get("platforms") or [], "aspect_ratio": None,
             "min_duration_seconds": None, "max_duration_seconds": None, "subtitle_required": False, "subtitle_style": "campaign_defined",
             "watermark_required": False, "third_party_watermark_allowed": False, "official_audio_required": False, "cta_required": False,
             "cta_text": None, "handles": [], "hashtags": [], "disclosures": [], "topic_terms": [], "allowed_content": [],
-            "prohibited_content": [], "asset_sources": [], "posting_rules": [], "account_rules": [], "audience_tiers": {}, "platform_rules": {}, "subtitle_delivery_profile": "", "sound_policy": "manual_required", "native_tags": [],
+            "prohibited_content": [], "asset_sources": [], "posting_rules": [], "account_rules": [], "audience_tiers": {}, "platform_rules": {}, "subtitle_delivery_profile": "", "sound_policy": "manual_required", "native_tags": [], "material_policy": {},
         },
         "ambiguities": [f"CRITICAL: {safe_reason}"], "evidence": [], "confidence": 0.0,
     }
@@ -389,6 +389,7 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
         try:
             parsed = _json_from_text(_gemini_generate(_prompt(batch)))
             items = parsed["campaigns"]
+            by_id = {str(campaign.get("id") or ""): campaign for campaign in batch}
             for raw in items:
                 if not isinstance(raw, dict):
                     continue
