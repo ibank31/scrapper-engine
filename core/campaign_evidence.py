@@ -178,14 +178,51 @@ def verify_quote(
     }
 
 
+def _rule_path_values(rules: dict[str, Any] | None, rule_path: str) -> list[str]:
+    """Return source-bearing atomic rule values for deterministic evidence recovery."""
+    if not isinstance(rules, dict):
+        return []
+    leaf = str(rule_path or "").split(".")[-1]
+    if not leaf or leaf not in rules:
+        return []
+    value = rules.get(leaf)
+    values = value if isinstance(value, list) else [value]
+    result = []
+    for item in values:
+        if not isinstance(item, str):
+            continue
+        normalized = _norm_text(item)
+        if len(normalized) < 4:
+            continue
+        if normalized.lower() in {"unknown", "campaign_defined", "manual_required", "unresolved"}:
+            continue
+        result.append(normalized)
+    if isinstance(value, str):
+        normalized = _norm_text(value)
+        if len(normalized) < 4 or normalized.lower() in {"unknown", "campaign_defined", "manual_required", "unresolved"}:
+            return []
+        return [normalized]
+    return result
+
+
 def verify_ai_evidence(
     campaign: dict[str, Any],
     evidence: list[Any],
+    *,
+    rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Verify all AI evidence and report coverage without changing the rules."""
+    """Verify AI evidence and deterministically recover atomic source-backed rule values."""
     source_hash = source_fingerprint(campaign)
     verified: list[dict[str, Any]] = []
     unverified: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    def add_verified(result: dict[str, Any]) -> None:
+        evidence_key = result.get("evidence_id")
+        if not evidence_key or evidence_key in seen_ids:
+            return
+        seen_ids.add(evidence_key)
+        verified.append(result)
 
     for item in evidence:
         if not isinstance(item, dict):
@@ -195,11 +232,22 @@ def verify_ai_evidence(
                 "raw": item,
             })
             continue
+
+        rule_path = str(item.get("rule_path") or "")
         result = verify_quote(campaign, item.get("quote"), source_hash=source_hash)
-        result["rule_path"] = str(item.get("rule_path") or "")
+        result["rule_path"] = rule_path
         if result["status"] == "verified":
-            verified.append(result)
-        else:
+            add_verified(result)
+            continue
+
+        recovered = False
+        for value in _rule_path_values(rules, rule_path):
+            atomic = verify_quote(campaign, value, source_hash=source_hash)
+            if atomic["status"] == "verified":
+                atomic["rule_path"] = rule_path
+                add_verified(atomic)
+                recovered = True
+        if not recovered:
             unverified.append(result)
 
     total = len(verified) + len(unverified)
