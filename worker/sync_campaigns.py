@@ -33,7 +33,11 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 def _headers(token: str) -> dict[str, str]:
-    return {"content-type": "application/json", "x-worker-token": token}
+    return {
+        "content-type": "application/json",
+        "authorization": f"Bearer {token}",
+        "x-worker-token": token,
+    }
 
 def _fetch_detail(campaign: dict[str, Any]) -> tuple[str, dict[str, Any] | None, str | None]:
     cid = str(campaign.get("id") or "")
@@ -294,11 +298,20 @@ def main() -> None:
     campaigns.sort(key=readiness_sort_key)
     print("Readiness:", readiness_counts)
 
+    target_ids = {
+        item.strip()
+        for item in os.getenv("CLIPPER_CAMPAIGN_IDS", "").split(",")
+        if item.strip()
+    }
+    sync_campaigns = [c for c in campaigns if str(c.get("id") or "") in target_ids] if target_ids else campaigns
+    if target_ids:
+        print(f"Targeted campaign sync: {len(sync_campaigns)} / {len(target_ids)} requested")
+
     data["updated"] = _now()
     data["campaigns"] = campaigns
     data_path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    response = requests.post(api + "/api/campaigns/sync", headers=_headers(token), json={"campaigns": campaigns}, timeout=180)
+    response = requests.post(api + "/api/campaigns/sync", headers=_headers(token), json={"campaigns": sync_campaigns}, timeout=180)
     response.raise_for_status()
     print("Synced campaigns:", response.json())
 
