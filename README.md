@@ -1,10 +1,10 @@
 # Scrapper Engine
 
-Engine scraping pribadi (ibank31). Dua misi:
-1. **Data affiliate** - foto/spek produk dari sumber resmi untuk situs affiliate (sortirin.com).
-2. **Reward campaigns** - radar + detail campaign contentrewards.com untuk project clipping.
+**Mission tunggal: AI Agent untuk clipping campaign.**
 
-> Repo ini berisi data hasil scrape dan strategi pribadi. **Jaga tetap PRIVATE.**
+Mesin ini menemukan dan memahami campaign, mengumpulkan evidence/material, memilih clip, merender, memvalidasi, menyiapkan review, dan menahan publishing sampai seluruh gate terpenuhi.
+
+> Repository ini berisi pipeline, fixtures, dan data operasional clipping. Tetap **PRIVATE**.
 
 ## Handoff untuk agent
 
@@ -27,14 +27,11 @@ data/                    output scrape (reward_campaign)
 run.py                   dispatcher: python run.py <modul> [args]
 ```
 
-## Setup (Termux)
+## Setup lokal
 
 ```
-pip install requests
-pkg install -y libwebp          # untuk product_image
-pip install deep-translator     # opsional, terjemahan brief campaign
-pip install -r requirements.txt # requests + faster-whisper untuk worker AI lokal
-sudo apt install ffmpeg         # Ubuntu/Debian
+python3 -m pip install -r requirements.txt
+# FFmpeg diperlukan untuk pipeline media lokal
 ```
 
 ## Pemakaian
@@ -43,7 +40,6 @@ sudo apt install ffmpeg         # Ubuntu/Debian
 python run.py reward_campaign
 python run.py reward_detail <campaign_id>
 python run.py reward_plan <detail.json atau HTML/Flight detail>
-python run.py product_image --manifest manifests/sortirin_photos.json --repo ~/sortirin
 ```
 
 ## Campaign-aware clipping
@@ -78,15 +74,6 @@ Campaign radar mengurutkan prioritas dengan komponen relevance, recency, sisa bu
 ## Cloudflare Pages dashboard
 
 Dashboard awal tersedia di `web/`. Ia memiliki menu campaign radar, filter, detail campaign, tombol mulai otomatis, processing queue, review preview, dan download. Mode awal adalah demo agar UI dapat diuji tanpa kredensial. Arsitektur produksi memakai Cloudflare Pages untuk UI, Worker untuk API kecil, D1 untuk metadata, dan R2 untuk MP4/thumbnail. FFmpeg dan faster-whisper tetap berjalan pada worker Python lokal karena proses video berat tidak cocok dijalankan di Pages/Workers Free. Lihat `cloudflare/README.md` sebelum deployment.
-
-## Prinsip sumber (product_image)
-
-Urutan kandidat di manifest = urutan prioritas:
-1. Situs resmi brand (regional Indonesia > global).
-2. Toko/distributor resmi (contoh: jblstore.co.id, anker.com.bd).
-3. Marketplace = pilihan terakhir. Tandai jelas di `sumber`; risiko hak pakai lebih tinggi, wajib cek manual.
-
-**Bot-wall (Akamai dll) tidak dilawan.** Kalau kena 403: ganti sumber di manifest, jangan tambah teknik bypass. Kasus nyata: www.jbl.com 403 -> id.jbl.com + jblstore.co.id sukses.
 
 ## Gemini campaign intelligence
 
