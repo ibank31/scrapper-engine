@@ -477,7 +477,7 @@ def _recover_source_backed_cta_text(
     for doc in source_documents(campaign):
         match = pattern.search(doc["text"])
         if match:
-            candidate = match.group(0).strip(" \\t\\r\\n.,;:)")
+            candidate = match.group(0).strip()
             if verify_quote(campaign, candidate)["status"] == "verified":
                 return candidate
     return normalized
