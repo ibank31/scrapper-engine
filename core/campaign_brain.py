@@ -469,6 +469,8 @@ def evaluate_rule_preservation(campaign: dict[str, Any], brain: dict[str, Any]) 
             for evidence_id in (rule.get("evidence_ids") or [])
             if evidence_id in verified_by_id
         }
+        if rule.get("requirement_basis") == "campaign_requirement":
+            continue
         if not rule_quotes or not rule_quotes.intersection(mandatory_quotes):
             false_mandatory.append(rule)
     failed = bool(missing_evidence or unbound or platform_missing or supported_without_evidence or mandatory_without_evidence or false_mandatory)
