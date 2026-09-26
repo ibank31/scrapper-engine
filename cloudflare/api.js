@@ -3,7 +3,7 @@ import { validateCaptionRevision } from "./caption_compliance.js";
 const cors = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
-  "access-control-allow-headers": "content-type,x-worker-token,x-review-token,authorization"
+  "access-control-allow-headers": "content-type,x-worker-token,x-review-token,x-github-token,authorization"
 };
 
 function json(data, status = 200) {
@@ -69,15 +69,30 @@ function workerAuthorized(request, env) {
   const bearer = request.headers.get("authorization") || "";
   return request.headers.get("x-worker-token") === env.WORKER_TOKEN || bearer === `Bearer ${env.WORKER_TOKEN}`;
 }
-async function cleanupAuthorized(request, env) {
-  if (workerAuthorized(request, env)) return true;
+async function githubRepositoryAuthorized(request, env) {
   const token = request.headers.get("x-github-token") || "";
   if (!token) return false;
   const repo = env.GITHUB_REPOSITORY || "ibank31/scrapper-engine";
-  const response = await fetch(`https://api.github.com/repos/${repo}`, {
-    headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "clipper-preview-cleanup" }
-  });
-  return response.ok;
+  const headers = {
+    authorization: `Bearer ${token}`,
+    accept: "application/vnd.github+json",
+    "x-github-api-version": "2022-11-28",
+    "user-agent": "scrapper-engine-automation/1.0",
+  };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(`https://api.github.com/repos/${repo}`, { headers });
+    if (response.ok) return true;
+    if (![403, 408, 429, 500, 502, 503, 504].includes(response.status)) return false;
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return false;
+}
+async function workerOrGithubAuthorized(request, env) {
+  if (workerAuthorized(request, env)) return true;
+  return githubRepositoryAuthorized(request, env);
+}
+async function cleanupAuthorized(request, env) {
+  return workerAuthorized(request, env);
 }
 async function workerOrDispatchAuthorized(request, env, jobId) {
   if (workerAuthorized(request, env)) return true;
@@ -435,7 +450,7 @@ export default {
         return json({ ok: true, cutoff, scan_cutoff: scanCutoff, deleted_previews: deletablePreviews.length, retained_previews: retainedPreviews.length, deleted_jobs: deletableJobs.length, retained_jobs: (oldJobs.results || []).length - deletableJobs.length, deleted_objects: keys.size });
       }
       if (parts[1] === "campaigns" && parts[2] === "sync" && request.method === "POST") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        if (!(await workerOrGithubAuthorized(request, env))) return json({ error: "worker_unauthorized" }, 401);
         const body = await request.json(); const timestamp = now(); let synced = 0;
         for (const campaign of body.campaigns || []) {
           if (!campaign.id || !campaign.title) continue;
@@ -446,7 +461,7 @@ export default {
         return json({ ok: true, synced, updated_at: timestamp });
       }
       if (parts[1] === "campaign-intelligence" && request.method === "GET") {
-        if (!workerAuthorized(request, env)) return json({ error: "worker_unauthorized" }, 401);
+        if (!(await workerOrGithubAuthorized(request, env))) return json({ error: "worker_unauthorized" }, 401);
         const result = await env.DB.prepare("SELECT id,rules_hash,ai_rules_json,ai_rules_status,ai_analyzed_at FROM campaigns WHERE status='active'").all();
         return json({ campaigns: result.results || [] });
       }
