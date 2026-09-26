@@ -123,6 +123,28 @@ def _build_detail(campaign: dict[str, Any]) -> dict[str, Any]:
 def _critical(ambiguities: list[Any]) -> bool:
     return any("critical" in str(x).lower() for x in ambiguities)
 
+def _cache_is_current(previous: dict[str, Any] | None, rules_hash: str) -> bool:
+    """Return True only for intelligence produced by the current evidence contract."""
+    if not previous or previous.get("rules_hash") != rules_hash or not previous.get("ai_rules_json"):
+        return False
+    try:
+        cached = json.loads(previous["ai_rules_json"]) if isinstance(previous["ai_rules_json"], str) else previous["ai_rules_json"]
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(cached, dict) or cached.get("schema_version") != 2:
+        return False
+    if not cached.get("source_hash") or not cached.get("source_ledger"):
+        return False
+    contract = cached.get("evidence_contract")
+    if not isinstance(contract, dict) or contract.get("schema_version") != 1:
+        return False
+    if not isinstance(contract.get("verified"), list) or not isinstance(contract.get("unverified"), list):
+        return False
+    if (cached.get("rules") or {}).get("material_policy") is None:
+        return False
+    return True
+
+
 def _apply_ai(campaign: dict[str, Any], ai: dict[str, Any] | None, previous: dict[str, Any] | None, rh: str) -> None:
     if ai:
         campaign["ai_rules"] = ai
@@ -232,14 +254,7 @@ def main() -> None:
         rh = rules_fingerprint(c)
         hashes[cid] = rh
         previous = existing.get(cid)
-        cached_has_material = False
-        if previous and previous.get("ai_rules_json"):
-            try:
-                cached_obj = json.loads(previous["ai_rules_json"]) if isinstance(previous["ai_rules_json"], str) else previous["ai_rules_json"]
-                cached_has_material = bool((cached_obj.get("rules") or {}).get("material_policy"))
-            except Exception:
-                cached_has_material = False
-        if not force_ai and previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json") and cached_has_material:
+        if not force_ai and _cache_is_current(previous, rh):
             _apply_ai(c, None, previous, rh)
         else:
             candidates.append(c)
