@@ -29,3 +29,7 @@ This corpus is contract proof only. It does not substitute for real production a
 Gemini-backed production re-analysis is intentionally deferred while the provider quota is exhausted. No fixture or production row is mutated to simulate a successful AI migration.
 
 When quota resets, production acceptance should use the bounded `campaign_ids` workflow input and then verify the persisted evidence contract before controlled E2E.
+
+## Provenance fields
+
+The evidence ledger records declared source references and, when supplied by the campaign source, URL, source timestamp, extraction method, source priority, and character spans. Missing metadata is represented explicitly as `null` rather than invented. Source fingerprints remain based on rule-bearing source text, so provenance metadata changes do not silently alter the rule-content identity.
