@@ -3,11 +3,11 @@
 **Updated:** 26 September 2026  
 **Repository:** `ibank31/scrapper-engine`  
 **Branch:** `main`  
-**Last implementation baseline:** `3a7bd0b257a2986d07335803ae36230431705fcf`
+**Last implementation baseline:** `465b2b6cf1d955e2c193aedba82a35937fa5a389`
 
 ## Mission
 
-Build a **campaign-agnostic Campaign Agent + Clipping Agent**.
+Build a **campaign-agnostic AI Clipping Agent**. Campaign discovery, evidence, material acquisition, clip selection, rendering, compliance, review, and publishing gates all exist to serve clipping.
 
 Ryan Zofay is a regression fixture, never a special production case. Campaign differences belong in source evidence and normalized rules.
 
@@ -15,7 +15,7 @@ Human review is basic QC. The machine is responsible for understanding campaign 
 
 ## Current milestone
 
-**CA-00 — Evidence Contract**
+**CA-01 — Canonical Campaign Brain**
 
 ### Completed and merged
 
@@ -37,9 +37,9 @@ PR #28 is merged as `c1ef801367cba42fe12178088dec099c055afae9`.
 
 This handoff snapshot is carried by documentation commit `3a65b1a8d05902c72a56852d59ca7124d26de6c8`.
 
-## Production acceptance
+## CA-00 production acceptance
 
-Still **OPEN**.
+**PASS.** Controlled production acceptance proved the generic AI router fallback path with evidence contract preservation.
 
 Production D1 was checked directly for Ryan Zofay after the merge. The stored intelligence remains legacy `schema_version=1`.
 
@@ -49,28 +49,19 @@ The remaining proof requires real generic re-analysis that stores the new eviden
 
 ## Exact next action
 
-When quota is available:
+Begin CA-01 as one bounded slice. Do not reopen CA-00 except for a regression proven by a failing fixture or production acceptance test.
 
-```
-CLIPPER_CAMPAIGN_IDS=926e1b7f-1030-4333-a557-f99d9f891437
-        ↓
-targeted campaign-sync-ai
-        ↓
-verify D1 evidence contract
-        ↓
-controlled production E2E
-```
-
-Required evidence:
+CA-00 acceptance evidence:
 
 - `schema_version=2`;
 - `source_hash`;
 - `source_ledger`;
+- verified evidence;
 - `evidence_contract`;
-- verified evidence for critical/mandatory rules;
-- no silent loss of CTA, handles, hashtags, duration.
-
-Until Gemini quota resets, do not begin CA-01 implementation. The deterministic CA-00 hardening is now merged; the remaining gate is production evidence-contract proof.
+- CTA retained;
+- platform handles retained;
+- hashtags retained;
+- controlled production acceptance `PASS`.
 
 ## Verification baseline
 
@@ -106,4 +97,6 @@ repeat E2E
 - manually mutate D1 to bypass acceptance;
 - rerun full AI migration when targeted migration is sufficient;
 - spend premium AI calls on deterministic work;
-- treat green CI as production proof.
+- treat green CI as production proof;
+- add unrelated product/affiliate automation to this repository;
+- revive obsolete Termux/product-image workflows; the repository scope is clipping only.
