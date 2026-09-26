@@ -119,6 +119,18 @@ class IntakeBudgetTests(unittest.TestCase):
             self.assertFalse(any((Path(tmp) / ".youtube-tmp").rglob("*")))
             self.assertIsNotNone(error)
 
+    @patch("modules.reward_campaign.intake.resolve_named_youtube_reference")
+    def test_policy_named_reference_resolves_even_when_not_symbolic_token(self, resolver):
+        resolver.return_value = {"status": "verified_candidate", "candidate": {"url": "https://www.youtube.com/watch?v=dardan123"}}
+        url, result = intake.resolve_policy_named_reference(
+            "Official Video: Dardan - Erinnerung",
+            {"Official Video: Dardan - Erinnerung": "music_video"},
+            {"title": "Dardan Music Clipping", "brand": "Dardan"},
+        )
+        self.assertEqual(url, "https://www.youtube.com/watch?v=dardan123")
+        self.assertEqual(result["status"], "verified_candidate")
+        resolver.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
