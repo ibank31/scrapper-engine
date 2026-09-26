@@ -2,7 +2,7 @@
 
 **Updated:** 26 September 2026  
 **Branch:** `main`  
-**Current HEAD:** `c1ef801367cba42fe12178088dec099c055afae9`  
+**Current HEAD:** `f10496158bc2a4612c91896973fefafc00325225`  
 **Current direction:** Campaign Agent Evolution  
 **Production:** Cloudflare Pages `clipper-engine`
 
@@ -20,7 +20,7 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-PR #28 (**CA-00 acceptance hardening**) is merged to `main` as `c1ef801367cba42fe12178088dec099c055afae9`.
+PR #28 (**CA-00 acceptance hardening**) is merged to `main` as `f10496158bc2a4612c91896973fefafc00325225`.
 
 CI runs associated with this merge:
 - tests: run 280, completed / success
@@ -28,7 +28,7 @@ CI runs associated with this merge:
 
 Production:
 - deployment: `a6eb49da` (success)
-- deployment commit: `c1ef801367cba42fe12178088dec099c055afae9`
+- deployment commit: `f10496158bc2a4612c91896973fefafc00325225`
 - deployment URL: https://a6eb49da.clipper-engine.pages.dev
 
 ## CA-00 status

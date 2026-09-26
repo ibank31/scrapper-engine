@@ -3,7 +3,7 @@
 **Updated:** 26 September 2026  
 **Repository:** `ibank31/scrapper-engine`  
 **Branch:** `main`  
-**HEAD:** `c1ef801367cba42fe12178088dec099c055afae9`
+**HEAD:** `f10496158bc2a4612c91896973fefafc00325225`
 
 ## Mission
 
@@ -31,6 +31,8 @@ Human review is basic QC. The machine is responsible for understanding campaign 
 - generic CA-00 acceptance fixtures and cache/migration regression tests.
 
 PR #28 is merged as `c1ef801367cba42fe12178088dec099c055afae9`.
+
+This handoff snapshot is carried by documentation commit `f10496158bc2a4612c91896973fefafc00325225`.
 
 ## Production acceptance
 
@@ -69,7 +71,7 @@ If Gemini remains unavailable, stay inside CA-00 with deterministic work. Do not
 
 ## Verification baseline
 
-Latest merged CI is represented by the post-merge Actions runs for `c1ef801367cba42fe12178088dec099c055afae9`.
+Latest merged CI is represented by the post-merge Actions runs for `f10496158bc2a4612c91896973fefafc00325225`.
 
 Current production deployment is tied to the same `main` commit through Cloudflare Pages.
 
