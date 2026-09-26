@@ -24,6 +24,7 @@ from core.campaign_priority import score_campaign
 from core.campaign_readiness import STATUS_KETAT, STATUS_SIAP, apply_readiness, readiness_sort_key
 from core.campaign_rules import compile_plan
 from core.campaign_exclusions import excluded_campaign_terms
+from core.material_acquisition import build_legacy_compatible_policy, material_plan_fingerprint, validate_material_policy
 from modules.reward_campaign.pull_detail import extract_detail
 
 DOC_ID_RE = re.compile(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", re.I)
@@ -231,7 +232,14 @@ def main() -> None:
         rh = rules_fingerprint(c)
         hashes[cid] = rh
         previous = existing.get(cid)
-        if not force_ai and previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json"):
+        cached_has_material = False
+        if previous and previous.get("ai_rules_json"):
+            try:
+                cached_obj = json.loads(previous["ai_rules_json"]) if isinstance(previous["ai_rules_json"], str) else previous["ai_rules_json"]
+                cached_has_material = bool((cached_obj.get("rules") or {}).get("material_policy"))
+            except Exception:
+                cached_has_material = False
+        if not force_ai and previous and previous.get("rules_hash") == rh and previous.get("ai_rules_json") and cached_has_material:
             _apply_ai(c, None, previous, rh)
         else:
             candidates.append(c)
