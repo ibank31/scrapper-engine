@@ -264,19 +264,9 @@ def semantic_model_decision(candidates: list[dict[str, Any]], plan: dict[str, An
     if not pair.get("ok"):
         return True, "deterministic_output_pair_unresolved"
 
-    per_tier: dict[str, list[float]] = {"tier_1": [], "tier_2": []}
-    for item in prepared:
-        tier = str(item.get("tier") or "")
-        if tier in per_tier:
-            per_tier[tier].append(float(item.get("score") or 0))
-    for tier, scores in per_tier.items():
-        if not scores:
-            return True, f"{tier}_not_classified"
-        if scores[0] < 0.70:
-            return True, f"{tier}_low_confidence"
-        if len(scores) > 1 and (scores[0] - scores[1]) < 0.08:
-            return True, f"{tier}_close_ranking"
-
+    # Audience classification is optional evidence. The two required tiers
+    # are distribution slots, so unknown/ambiguous audience classification must
+    # never force semantic work or block output selection.
     return False, "deterministic_confident"
 
 
