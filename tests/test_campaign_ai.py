@@ -78,6 +78,34 @@ class CampaignAITests(unittest.TestCase):
         )
         self.assertTrue(request_payload["provider"]["require_parameters"])
 
+
+    def test_openrouter_retries_empty_content_then_succeeds(self):
+        campaign = {"id": "c-empty-retry", "title": "Empty retry test"}
+        body = {
+            "choices": [{"message": {"content": json.dumps(valid_payload(("c-empty-retry",)))}}]
+        }
+        empty = FakeResponse({"choices": [{"message": {"content": ""}}]})
+        with patch.dict(
+            os.environ,
+            {
+                "GEMINI_API_KEY": "test-secret",
+                "OPENROUTER_API_KEY": "openrouter-secret",
+                "OPENROUTER_MAX_RETRIES": "1",
+            },
+            clear=False,
+        ), patch(
+            "core.campaign_ai._gemini_generate",
+            side_effect=campaign_ai.GeminiApiError("HTTP 429: quota"),
+        ), patch(
+            "core.campaign_ai.requests.post",
+            side_effect=[empty, FakeResponse(body)],
+        ) as post, patch("core.campaign_ai.time.sleep") as sleep:
+            result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
+
+        self.assertEqual(result["c-empty-retry"]["confidence"], 0.8)
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once()
+
     def test_ai_router_falls_back_to_openrouter_when_gemini_fails(self):
         campaign = {"id": "c-router", "title": "Router test"}
         openrouter_body = {
