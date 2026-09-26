@@ -1,0 +1,42 @@
+name: controlled-ryan-openrouter-acceptance
+
+on:
+  push:
+    paths:
+      - ".github/workflows/controlled-ryan-openrouter-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CLIPPER_CAMPAIGN_IDS: "926e1b7f-1030-4333-a557-f99d9f891437"
+      CLIPPER_FORCE_AI: "1"
+      CLIPPER_AI_BATCH_SIZE: "2"
+      CLIPPER_AUTO_QUEUE: "0"
+      GEMINI_MODEL: "__openrouter_fallback_test__"
+      OPENROUTER_MAX_RETRIES: "1"
+    steps:
+      - name: Checkout engine
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install scraper dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Targeted Ryan production re-analysis
+        env:
+          CLIPPER_API_URL: ${{ secrets.CLIPPER_API_URL }}
+          CLIPPER_WORKER_TOKEN: ${{ secrets.CLIPPER_WORKER_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -euo pipefail
+          python worker/sync_campaigns.py
