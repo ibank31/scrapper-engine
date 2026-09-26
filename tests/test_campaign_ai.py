@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from core import campaign_ai
 from core.campaign_ai import normalize_ai_result, rules_fingerprint
+from core.campaign_evidence import build_evidence_ledger, source_fingerprint, verify_ai_evidence
 
 
 def valid_payload(campaign_ids=("c-1",)):
@@ -168,6 +169,51 @@ class CampaignAITests(unittest.TestCase):
         self.assertEqual(result["rules"]["audience_tiers"]["tier_1"]["terms"], ["founders"])
         self.assertAlmostEqual(result["campaign_fit"]["score"], 0.82)
         self.assertAlmostEqual(result["confidence"], 0.91)
+
+    def test_evidence_ledger_has_stable_source_identity(self):
+        campaign = {
+            "id": "ryan-regression",
+            "description": "Follow and meet Ryan for more @.....",
+            "requirements": [{"text": "Clip Length: 15-60 seconds"}],
+            "docs_text": "Instagram: @ryan.zofay @thezofayexperiencepodcast\\nTikTok: @ryanzofay\\n#RyanZofay #ryanzofayexperiencepodcast",
+        }
+        first = build_evidence_ledger(campaign)
+        second = build_evidence_ledger(campaign)
+        self.assertEqual(first["source_hash"], second["source_hash"])
+        self.assertEqual(first["source_hash"], source_fingerprint(campaign))
+        self.assertEqual(len(first["documents"]), 3)
+
+    def test_ai_evidence_verification_rejects_quote_not_in_source(self):
+        campaign = {"id": "ryan-regression", "description": "Follow and meet Ryan for more @....."}
+        evidence = [
+            {"rule_path": "posting.cta", "quote": "Follow and meet Ryan for more @....."},
+            {"rule_path": "posting.hashtag", "quote": "#invented-tag"},
+        ]
+        result = verify_ai_evidence(campaign, evidence)
+        self.assertEqual(result["coverage"], 0.5)
+        self.assertEqual(len(result["verified"]), 1)
+        self.assertEqual(result["verified"][0]["status"], "verified")
+        self.assertEqual(result["unverified"][0]["reason"], "quote_not_found_in_current_sources")
+        self.assertTrue(result["verified"][0]["evidence_id"].startswith("evidence-v1:"))
+
+    def test_normalize_ai_result_attaches_verified_evidence_and_source_hash(self):
+        campaign = {
+            "id": "ryan-regression",
+            "description": "Follow and meet Ryan for more @.....",
+            "docs_text": "#RyanZofay",
+        }
+        item = valid_payload(("ryan-regression",))["campaigns"][0]
+        item["evidence"] = [
+            {"rule_path": "posting.cta", "quote": "Follow and meet Ryan for more @....."},
+            {"rule_path": "posting.hashtag", "quote": "#RyanZofay"},
+        ]
+        result = normalize_ai_result(item, "ryan-regression", campaign)
+        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["source_hash"], source_fingerprint(campaign))
+        self.assertEqual(result["evidence_contract"]["coverage"], 1.0)
+        self.assertEqual(len(result["evidence_contract"]["verified"]), 2)
+        self.assertFalse(result["evidence_contract"]["unverified"])
+        self.assertEqual(result["source_ledger"]["campaign_id"], "ryan-regression")
 
     def test_rules_fingerprint_changes_when_rules_change(self):
         base = {"id": "abc", "title": "Example", "brand": "Brand", "description": "Use official clips", "platforms": ["tiktok"], "type": "clipping", "requirements": [{"text": "9:16"}], "resources": [], "payouts": []}
