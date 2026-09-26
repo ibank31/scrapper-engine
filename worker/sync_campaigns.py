@@ -149,6 +149,36 @@ def _cache_is_current(previous: dict[str, Any] | None, rules_hash: str) -> bool:
     return True
 
 
+def _target_campaign_ids(value: str | None = None) -> set[str]:
+    raw = value if value is not None else os.getenv("CLIPPER_CAMPAIGN_IDS", "")
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
+def _campaigns_needing_ai(
+    campaigns: list[dict[str, Any]],
+    existing: dict[str, dict[str, Any]],
+    *,
+    force_ai: bool,
+    target_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Return only campaigns eligible for AI analysis in this run.
+
+    When targeted migration is requested, non-target campaigns are never sent to
+    the model, even when their cache is stale. This keeps migration bounded and
+    prevents a one-campaign repair from silently becoming a corpus migration.
+    """
+    candidates: list[dict[str, Any]] = []
+    for campaign in campaigns:
+        cid = str(campaign.get("id") or "")
+        if not cid or (target_ids and cid not in target_ids):
+            continue
+        rh = rules_fingerprint(campaign)
+        previous = existing.get(cid)
+        if force_ai or not _cache_is_current(previous, rh):
+            candidates.append(campaign)
+    return candidates
+
+
 def _apply_ai(campaign: dict[str, Any], ai: dict[str, Any] | None, previous: dict[str, Any] | None, rh: str) -> None:
     if ai:
         campaign["ai_rules"] = ai
@@ -249,31 +279,19 @@ def main() -> None:
 
     existing = _fetch_existing(api, token)
     force_ai = os.getenv("CLIPPER_FORCE_AI", "0").strip().lower() in {"1", "true", "yes"}
-    target_ids = {
-        item.strip()
-        for item in os.getenv("CLIPPER_CAMPAIGN_IDS", "").split(",")
-        if item.strip()
+    target_ids = _target_campaign_ids()
+    hashes: dict[str, str] = {
+        str(c.get("id") or ""): rules_fingerprint(c)
+        for c in campaigns
+        if c.get("id")
     }
-    candidates: list[dict[str, Any]] = []
-    hashes: dict[str, str] = {}
+    candidates = _campaigns_needing_ai(campaigns, existing, force_ai=force_ai, target_ids=target_ids)
     for c in campaigns:
         cid = str(c.get("id") or "")
-        if not cid:
+        if not cid or cid in {str(item.get("id") or "") for item in candidates}:
             continue
-        rh = rules_fingerprint(c)
-        hashes[cid] = rh
         previous = existing.get(cid)
-        targeted = not target_ids or cid in target_ids
-        if not targeted:
-            if not force_ai and _cache_is_current(previous, rh):
-                _apply_ai(c, None, previous, rh)
-            else:
-                _apply_ai(c, None, previous, rh)
-            continue
-        if not force_ai and _cache_is_current(previous, rh):
-            _apply_ai(c, None, previous, rh)
-        else:
-            candidates.append(c)
+        _apply_ai(c, None, previous, hashes.get(cid, ""))
 
     print(f"AI analysis needed: {len(candidates)} / {len(campaigns)}")
     ai_results: dict[str, dict[str, Any]] = {}
