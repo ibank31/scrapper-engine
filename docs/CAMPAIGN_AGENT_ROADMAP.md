@@ -2,12 +2,29 @@
 # Campaign Agent Evolution Roadmap v2
 
 **Repository:** ibank31/scrapper-engine  
-**Target:** mengubah Scrapper Engine menjadi AI Campaign Agent + Clipping Agent yang memahami campaign secara menyeluruh, mengubah rules menjadi kontrak produksi yang dapat dieksekusi, memverifikasi hasilnya, dan menyisakan review manusia hanya untuk hal yang benar-benar membutuhkan manusia.  
+**Target:** menjadikan Scrapper Engine sebagai **AI Clipping Agent terbaik untuk campaign-driven clipping**: memahami campaign, mengumpulkan evidence/material, menyusun kontrak produksi, memilih clip, merender, memverifikasi compliance, menyiapkan review, dan mengelola publishing secara aman.  
 **Strategi biaya:** free-first. Tidak ada kenaikan biaya AI sebelum ada bukti kualitas atau pendapatan yang membenarkan biaya tersebut.
 
 > Dokumen ini adalah roadmap evolution/intelligence aktif. Roadmap hardening lama `docs/IMPLEMENTATION_ROADMAP.md` telah diarsipkan di `docs/archive/2026-09-26/superseded/IMPLEMENTATION_ROADMAP.md` dan tidak lagi menjadi source of truth aktif. Jika referensi historis dan kontrak aktif bersinggungan, kontrak keselamatan dan gate yang lebih ketat selalu menang.
 
 ---
+
+## 0. Scope Lock
+
+Repository ini **clipping-only**. Semua komponen harus punya hubungan langsung dengan alur:
+
+`campaign → evidence → material → clip → render → compliance → review → publish → outcome`.
+
+Di luar scope dan tidak boleh ditambahkan kembali:
+
+- affiliate/product-image scraping;
+- produk atau situs affiliate lain;
+- personal automation yang tidak dibutuhkan pipeline clipping;
+- workflow Termux/Android sebagai produk tersendiri.
+
+Tooling lokal boleh dipakai untuk menjalankan worker, tetapi harus tetap menjadi implementation detail dari clipping pipeline.
+
+Data campaign dan material tetap berada di repository bila dibutuhkan sebagai evidence/fixture/operational input clipping.
 
 ## 0. North Star
 
@@ -955,7 +972,7 @@ Current state, latest verified evidence, active milestone, blockers.
 
 ### docs/IMPLEMENTATION_ROADMAP.md
 
-Hardening pipeline/provider.
+Roadmap hardening lama, sudah diarsipkan. Bukan source of truth aktif.
 
 ### docs/CAMPAIGN_AGENT_ROADMAP.md
 
@@ -1073,7 +1090,7 @@ NOW
  +-- CA-14 Economic Learning
 ~~~
 
-**Current priority: CA-00 acceptance hardening, then CA-01.**
+**Current priority: CA-01 — Canonical Campaign Brain. CA-00 acceptance sudah PASS dan ditutup.**
 
 Tidak ada gunanya membuat clipping semakin pintar jika Campaign Agent masih dapat kehilangan aturan campaign.
 
