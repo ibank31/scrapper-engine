@@ -1,6 +1,6 @@
 # Scrapper Engine Status
 
-**Updated:** 25 September 2026 — performance hardening implemented; controlled pilot pending
+**Updated:** 26 September 2026 — Cloudflare production state reconciled; PR #18 performance hardening pending CI/merge
 **Branch:** `main`
 
 ## Current milestone
@@ -36,7 +36,7 @@ The next integration hardening keeps stage contracts explicit: a cheap asset-dur
 The production funnel now avoids three major repeat costs:
 
 - Duration bands are generated in one candidate pass instead of launching `select_clips` once per band. The worker sends all active bands together through `--bands-json`.
-- Expensive silence/scene/visual media analysis is deferred until after deterministic candidate scoring and bounded to `CLIPPER_MEDIA_TOP_N` (production: 24 candidates/source).
+- Expensive silence/scene/visual media analysis is deferred until after deterministic candidate scoring and bounded to `CLIPPER_MEDIA_TOP_N` (production preview branch: 12 candidates/source; production remains at the last merged configuration until PR #18 is merged).
 - Semantic Qwen ranking is global rather than per source. The worker collects source candidates, then loads the local semantic model once for a bounded global shortlist (`CLIPPER_SEMANTIC_TOP_N`, production: 15). The deterministic local policy gate remains authoritative.
 - Face tracking during render is limited to the selected candidate window instead of scanning the entire source video.
 - Selector diagnostics now expose the single-pass funnel and media-analysis count.
@@ -83,11 +83,11 @@ The remaining implementation is split into bounded agent slices in `docs/IMPLEME
 
 Phase 0 provenance, approval, and stale-write fencing is implemented in commit `0b6e019`. Phase 1 through Phase 5 completion details are recorded in `docs/PHASE_1_COMPLETION_2026-09-24.md`, `docs/PHASE_2_COMPLETION_2026-09-24.md`, `docs/PHASE_3_COMPLETION_2026-09-24.md`, `docs/PHASE_4_COMPLETION_2026-09-24.md`, and `docs/PHASE_5_COMPLETION_2026-09-24.md`; superseded handoffs are archived under `docs/archive/2026-09-24/`. The old P1/P2/P3 labels in historical notes are retained for audit context; the actionable sequence is now P1-A through P5-C in the implementation roadmap. A green local suite is not proof of production readiness or a Cloudflare deployment.
 
-Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolved `env.GITHUB_ACTIONS_TOKEN` as empty in an older deployment. The current production deployment `e4b739ea` has the required secret names configured and successfully dispatched the manual worker. Clipping remains intentionally **manual-only** through the homepage; only `campaign-sync-ai.yml` runs daily at 00:00 WIB.
+Production diagnosis on 22 September 2026 found that the Pages project lists `GITHUB_ACTIONS_TOKEN`, but the active Function runtime resolved `env.GITHUB_ACTIONS_TOKEN` as empty in an older deployment. The Cloudflare production deployment currently points to commit `a7a1c33be9c8008ac46cf7afe37bfe0a6be157f4`. The Pages project has the required production secret bindings configured; secret values are not exposed. Manual clipping remains the intended execution path. Clipping remains intentionally **manual-only** through the homepage; only `campaign-sync-ai.yml` runs daily at 00:00 WIB.
 
 ## Latest quality implementation — 23 September 2026
 
-The quality-first production changes are in commits `4748e12`, `024c867`, and `3887172`. The Google Sheets asset-intake fix is implemented in `9a9ba780`; the intake helper compatibility repair is `d22dfb36c3da3fe50636fe768329392dc1309b74`; documentation was updated in `50651193c1ba8113638442e8c7ed77f0a263a703` and `186f93814608087c87beb78e34bb6d6725bcdcdf`. The selector now searches multiple editorial duration bands, removes duplicate intervals, and ranks candidates using opening hook, context, payoff timing, completed ending, speech activity, and multi-speaker framing signals. Campaign minimum and maximum duration rules remain authoritative. The renderer uses larger outlined subtitles by default and fails normal rendering when a transcript is absent, so every production preview is captioned. The Cloudflare Pages production deployment was last verified for the prior quality commit `3887172`. For commit `186f938...`, the GitHub Cloudflare Pages check completed successfully and reported deployment success for project `clipper-engine`; preview deployment `https://e32ee1e6.clipper-engine.pages.dev`. This verifies the Pages deployment pipeline. It does not replace a worker production smoke test.
+The quality-first production changes are in commits `4748e12`, `024c867`, and `3887172`. The Google Sheets asset-intake fix is implemented in `9a9ba780`; the intake helper compatibility repair is `d22dfb36c3da3fe50636fe768329392dc1309b74`; documentation was updated in `50651193c1ba8113638442e8c7ed77f0a263a703` and `186f93814608087c87beb78e34bb6d6725bcdcdf`. The selector now searches multiple editorial duration bands, removes duplicate intervals, and ranks candidates using opening hook, context, payoff timing, completed ending, speech activity, and multi-speaker framing signals. Campaign minimum and maximum duration rules remain authoritative. The renderer uses larger outlined subtitles by default and fails normal rendering when a transcript is absent, so every production preview is captioned. Cloudflare currently reports production deployment `b07d6510` for commit `a7a1c33be9c8008ac46cf7afe37bfe0a6be157f4`; the latest PR #18 preview is deployment `b27bf5b5` for commit `71c6b48b62aa9e84ec1992ab23752e5c8b32aa8d` and completed successfully. For commit `186f938...`, the GitHub Cloudflare Pages check completed successfully and reported deployment success for project `clipper-engine`; preview deployment `https://e32ee1e6.clipper-engine.pages.dev`. This verifies the Pages deployment pipeline. It does not replace a worker production smoke test.
 
 ## Documentation entry points
 
@@ -121,4 +121,4 @@ Operational note: the D1 job row retains the historical `run_id` `35863583776` b
 
 The production pipeline exposed multiple source classes rather than a single campaign-specific failure. Three generic fixes are now on main: YouTube channel/playlist references are expanded to individual video URLs during metadata-only discovery; a campaign with no accessible video source is recorded as an auditable blocked job instead of crashing the worker with MANUAL_ASSETS.md; and campaigns where speech is optional now have a bounded visual-candidate fallback so music, sports, gaming, reaction, and montage sources are not discarded solely because Whisper produced no usable candidate window.
 
-Production Pages deployment for commit aec5f6660180fe0372df0fb6a75fa8a4c22f9eab completed successfully. This deployment contains the source-adapter and visual-fallback changes. The changes have not yet been validated by a fresh production clipping job after deployment, so historical job cards must not be interpreted as results of the new code.
+The source-adapter and visual-fallback changes are present in repository history, but the current Cloudflare production deployment is `a7a1c33be9c8008ac46cf7afe37bfe0a6be157f4`. Therefore those changes must not be described as currently live unless they are included in that commit.
