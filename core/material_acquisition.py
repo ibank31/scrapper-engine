@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from typing import Any, Mapping
 
 SCHEMA_VERSION = 1
@@ -88,12 +87,17 @@ def validate_material_policy(policy: Mapping[str, Any] | None) -> list[str]:
         if asset["quantity"]["max"] < asset["quantity"]["min"]:
             errors.append(f'{asset["asset_id"]}: quantity.max < quantity.min')
         methods = asset["discovery_methods"] or p["discovery_methods"]
+        invalid_methods = [m for m in methods if m not in VALID_DISCOVERY_METHODS]
+        if invalid_methods:
+            errors.append(f'{asset["asset_id"]}: invalid discovery method(s): {invalid_methods}')
         if not methods:
             errors.append(f'{asset["asset_id"]}: no discovery method')
         forbidden = set(asset["forbidden_source_types"])
         allowed = set(asset["allowed_source_types"])
         if forbidden & allowed:
             errors.append(f'{asset["asset_id"]}: source type both allowed and forbidden')
+        if asset["required"] and asset["quantity"]["min"] < 1:
+            errors.append(f'{asset["asset_id"]}: required asset must have quantity.min >= 1')
     return errors
 
 
