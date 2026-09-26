@@ -369,8 +369,7 @@ def main() -> None:
             update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Bahan video campaign tidak dapat diakses", blocked_error)
             stage_event(args.api_base, args.job_id, args.worker_token, run_id, "asset_preflight", "completed", {"usable_sources": 0, "intake_returncode": intake.returncode}, "source_assets_unavailable", detail)
             return
-        # Prefer the highest-quality usable sources, not the smallest files.
-        sources.sort(key=source_priority, reverse=True)
+        # Quality is ranked from the single authoritative preflight pass below.
         if not sources:
             discovery = intake_manifest.get("discovery") or {}
             invalid_media = [
@@ -451,8 +450,29 @@ def main() -> None:
         preflight_records = []
         for source in sources:
             quality = source_quality_preflight(str(source))
-            record = {"source": str(source), "quality": quality}
-            preflight_records.append(record)
+            preflight_records.append({"source": str(source), "quality": quality})
+
+        def _quality_rank(record: dict) -> tuple:
+            quality = record.get("quality") or {}
+            resolution = quality.get("resolution") or {}
+            width = int(resolution.get("width") or 0)
+            height = int(resolution.get("height") or 0)
+            duration = float(quality.get("duration_seconds") or 0)
+            area = width * height
+            vertical_bonus = 1 if height >= width and height > 0 else 0
+            source_path = Path(str(record.get("source") or ""))
+            file_size = source_path.stat().st_size if source_path.exists() else 0
+            return (
+                bool(quality.get("available")),
+                bool(quality.get("has_video")),
+                bool(quality.get("has_audio")),
+                min(area, 16_000_000),
+                min(duration, 600.0),
+                vertical_bonus,
+                file_size,
+            )
+
+        preflight_records.sort(key=_quality_rank, reverse=True)
         selected_records, preflight_records = deduplicate_source_records(preflight_records, max_sources)
         selected_paths = {str(record.get("source")) for record in selected_records}
         usable_sources = []
@@ -585,7 +605,16 @@ def main() -> None:
             "shortlist_limit": int(os.environ.get("CLIPPER_SEMANTIC_TOP_N", "15")),
         })
         if all_candidates:
-            semantic_pool = [dict(item["candidate"], source=item["source"], _wrapper_index=index) for index, item in enumerate(all_candidates)]
+            semantic_pool = [
+                dict(
+                    item["candidate"],
+                    source=item["source"],
+                    _relevance_status=(item.get("relevance") or {}).get("status"),
+                    _relevance_reason=(item.get("relevance") or {}).get("reason"),
+                    _wrapper_index=index,
+                )
+                for index, item in enumerate(all_candidates)
+            ]
             ranked_pool, semantic_runtime = rank_global_candidates(
                 semantic_pool, plan, int(os.environ.get("CLIPPER_SEMANTIC_TOP_N", "15"))
             )
