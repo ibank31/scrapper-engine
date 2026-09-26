@@ -1,0 +1,24 @@
+{
+  "id": "fixture-material-heavy",
+  "title": "Asset-Heavy Product Campaign",
+  "brand": "Fixture Assets",
+  "description": "Product clips must use approved campaign assets.",
+  "platforms": ["tiktok"],
+  "requirements": [
+    {"text": "Use only approved product footage.", "isMandatory": true},
+    {"text": "Show the product logo in the opening or closing frame.", "isMandatory": true}
+  ],
+  "docs_text": "Approved footage source: https://example.test/assets/product-footage. Download the official logo from https://example.test/assets/logo. Do not substitute third-party product imagery.",
+  "source_of_truth": {
+    "docs_text": "Clip length: 10-25 seconds. CTA: Shop the product. Hashtag: #FixtureAssets."
+  },
+  "expected_evidence": [
+    {"rule_path": "rules.source_policy", "quote": "Use only approved product footage.", "mandatory": true},
+    {"rule_path": "rules.asset_sources", "quote": "Approved footage source: https://example.test/assets/product-footage.", "mandatory": true},
+    {"rule_path": "rules.asset_sources", "quote": "Download the official logo from https://example.test/assets/logo.", "mandatory": true},
+    {"rule_path": "rules.prohibited_content", "quote": "Do not substitute third-party product imagery.", "mandatory": true},
+    {"rule_path": "rules.duration", "quote": "Clip length: 10-25 seconds.", "mandatory": true},
+    {"rule_path": "rules.cta_text", "quote": "CTA: Shop the product.", "mandatory": true},
+    {"rule_path": "rules.hashtags", "quote": "Hashtag: #FixtureAssets.", "mandatory": true}
+  ]
+}

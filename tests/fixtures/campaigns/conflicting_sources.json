@@ -1,0 +1,20 @@
+{
+  "id": "fixture-conflicting-sources",
+  "title": "Current Rule Overrides Legacy Rule",
+  "brand": "Fixture Conflict",
+  "description": "A campaign with an older rule that conflicts with the current campaign instruction.",
+  "platforms": ["instagram", "tiktok"],
+  "requirements": [
+    {"text": "Current campaign instruction: clips must be 30-45 seconds.", "isMandatory": true}
+  ],
+  "docs_text": "Legacy brief: clips may be 15-60 seconds. Current campaign brief: clips must be 30-45 seconds. Use CTA: Start your free trial.",
+  "source_of_truth": {
+    "docs_text": "Current campaign brief: clips must be 30-45 seconds. Required hashtag: #ConflictCurrent."
+  },
+  "expected_evidence": [
+    {"rule_path": "rules.duration", "quote": "Current campaign instruction: clips must be 30-45 seconds.", "mandatory": true},
+    {"rule_path": "rules.duration", "quote": "Legacy brief: clips may be 15-60 seconds.", "mandatory": false},
+    {"rule_path": "rules.cta_text", "quote": "Use CTA: Start your free trial.", "mandatory": true},
+    {"rule_path": "rules.hashtags", "quote": "Required hashtag: #ConflictCurrent.", "mandatory": true}
+  ]
+}

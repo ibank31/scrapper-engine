@@ -56,6 +56,50 @@ class CampaignEvidenceAcceptanceTests(unittest.TestCase):
                 self.assertTrue(mandatory_quotes.issubset(verified_quotes))
                 self.assertTrue(all(item["evidence_id"].startswith("evidence-v1:") for item in result["verified"]))
 
+    def test_campaign_corpus_covers_distinct_rule_shapes(self):
+        campaigns = {campaign["id"]: campaign for _, campaign in load_fixtures()}
+        self.assertGreaterEqual(len(campaigns), 6)
+        for fixture_id in (
+            "fixture-document-only",
+            "fixture-platform-specific",
+            "fixture-restrictive-ambiguous",
+            "fixture-conflicting-sources",
+            "fixture-multilingual",
+            "fixture-material-heavy",
+        ):
+            self.assertIn(fixture_id, campaigns)
+
+        self.assertTrue(any(item["rule_path"].startswith("posting.") for item in campaigns["fixture-platform-specific"]["expected_evidence"]))
+        self.assertTrue(any("ambiguity" in item["rule_path"] for item in campaigns["fixture-restrictive-ambiguous"]["expected_evidence"]))
+        self.assertTrue(any("asset" in item["rule_path"] for item in campaigns["fixture-material-heavy"]["expected_evidence"]))
+        self.assertTrue(any("duration" in item["rule_path"] for item in campaigns["fixture-conflicting-sources"]["expected_evidence"]))
+        self.assertTrue(any("CTA" in item["quote"] for item in campaigns["fixture-multilingual"]["expected_evidence"]))
+
+    def test_ledger_contains_provenance_metadata_and_declared_urls(self):
+        campaign = {
+            "id": "metadata-fixture",
+            "description": "A rule-bearing description.",
+            "source_urls": [{"url": "https://example.test/brief", "fetched_at": "2026-09-26T00:00:00Z"}],
+            "source_metadata": {
+                "": {
+                    "source_url": "https://example.test/brief",
+                    "source_timestamp": "2026-09-26T00:00:00Z",
+                    "extraction_method": "html_text",
+                    "source_priority": 95,
+                }
+            },
+        }
+        ledger = build_evidence_ledger(campaign)
+        document = ledger["documents"][0]
+        self.assertEqual(ledger["source_references"][0]["url"], "https://example.test/brief")
+        self.assertEqual(document["source_url"], "https://example.test/brief")
+        self.assertEqual(document["source_timestamp"], "2026-09-26T00:00:00Z")
+        self.assertEqual(document["extraction_method"], "html_text")
+        self.assertEqual(document["source_priority"], 95)
+        self.assertEqual(document["span"], {"start": 0, "end": len("A rule-bearing description.")})
+        evidence = verify_ai_evidence(campaign, [{"rule_path": "rules.example", "quote": "A rule-bearing description."}])
+        self.assertEqual(evidence["verified"][0]["span"], {"start": 0, "end": len("A rule-bearing description.")})
+
     def test_document_only_change_changes_source_fingerprint(self):
         campaign = next(
             campaign for _, campaign in load_fixtures()
