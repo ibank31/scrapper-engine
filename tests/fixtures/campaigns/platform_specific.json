@@ -1,0 +1,20 @@
+{
+  "id": "fixture-platform-specific",
+  "title": "Platform Split Rules",
+  "brand": "Fixture Media",
+  "description": "Educational creator campaign.",
+  "platforms": ["instagram", "tiktok"],
+  "requirements": [],
+  "docs_text": "Instagram: caption must include #LearnWithFixture. TikTok: caption must include #FixtureTok. CTA: Watch the full lesson.",
+  "source_of_truth": {
+    "docs_text": "Instagram mention: @fixture.media. TikTok mention: @fixture_media. Duration: 20-45 seconds."
+  },
+  "expected_evidence": [
+    {"rule_path": "posting.instagram.hashtags", "quote": "Instagram: caption must include #LearnWithFixture.", "mandatory": true},
+    {"rule_path": "posting.tiktok.hashtags", "quote": "TikTok: caption must include #FixtureTok.", "mandatory": true},
+    {"rule_path": "posting.cta", "quote": "CTA: Watch the full lesson.", "mandatory": true},
+    {"rule_path": "posting.instagram.handle", "quote": "Instagram mention: @fixture.media.", "mandatory": true},
+    {"rule_path": "posting.tiktok.handle", "quote": "TikTok mention: @fixture_media.", "mandatory": true},
+    {"rule_path": "rules.duration", "quote": "Duration: 20-45 seconds.", "mandatory": true}
+  ]
+}
