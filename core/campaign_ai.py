@@ -80,7 +80,15 @@ class OpenRouterProvider(AIProvider):
             "model": OPENROUTER_MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
-            "response_format": {"type": "json_object"},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "campaign_analysis",
+                    "strict": True,
+                    "schema": GEMINI_RESPONSE_SCHEMA,
+                },
+            },
+            "provider": {"require_parameters": True},
         }
         headers = {
             "content-type": "application/json",
@@ -152,7 +160,10 @@ def _route_generate(prompt: str, timeout: int = 120) -> tuple[dict[str, Any], st
     for provider in _configured_ai_providers():
         try:
             text = provider.generate(prompt, timeout=timeout)
-            parsed = _json_from_text(text)
+            try:
+                parsed = _json_from_text(text)
+            except GeminiJsonError as exc:
+                raise AIProviderError(f"{provider.name} returned invalid JSON") from exc
             print(f"AI router: provider={provider.name} status=success")
             return parsed, provider.name
         except Exception as exc:
