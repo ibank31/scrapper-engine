@@ -450,7 +450,7 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
         fit_score = max(0.0, min(1.0, fit_score))
     confidence = max(0.0, min(1.0, _num(item.get("confidence"), 0.0) or 0.0))
     evidence = item.get("evidence") if isinstance(item.get("evidence"), list) else []
-    evidence_contract = verify_ai_evidence(campaign, evidence) if campaign is not None else {"schema_version": 1, "source_hash": None, "verified": [], "unverified": evidence, "coverage": 0.0}
+    evidence_contract = verify_ai_evidence(campaign, evidence, rules=rules) if campaign is not None else {"schema_version": 1, "source_hash": None, "verified": [], "unverified": evidence, "coverage": 0.0}
     ambiguities = [str(x) for x in (item.get("ambiguities") or [])]
     if evidence_contract["unverified"]:
         ambiguities.append("CRITICAL: %d AI evidence quote(s) could not be verified against current campaign sources." % len(evidence_contract["unverified"]))
@@ -498,7 +498,7 @@ def _prompt(batch: Iterable[dict[str, Any]]) -> str:
     profile = _load_profile()
     return """You are the campaign-intelligence layer of a clipping production engine.
 Read each campaign independently. Extract only what is supported by supplied text. Never invent a rule.
-Every evidence quote MUST be copied verbatim from the supplied campaign text and must be sufficient to support the stated rule. Do not cite general knowledge.
+Every evidence quote MUST be copied verbatim from the supplied campaign text and must be sufficient to support the stated rule. Do not cite general knowledge. Never concatenate multiple source lines or list items into one evidence quote. For list-valued rules, emit one evidence object per source-backed item and use a short exact contiguous quote for each.
 Identify every explicit production or posting rule that can affect clip validity.
 Build a campaign-specific material acquisition plan. Do not assume every campaign uses the same acquisition method. For every required material, identify intent, quantity, preferred/fallback sources, allowed/forbidden source types, discovery methods, identity fields, verification requirements, and evidence. Never treat an example/reference link as production footage unless the campaign explicitly says so. If acquisition is unclear, choose manual_required or unresolved rather than inventing a source.
 Record CRITICAL ambiguity only when an unknown could change asset selection, edit/render decisions, or posting compliance.
