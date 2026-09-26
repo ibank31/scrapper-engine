@@ -17,7 +17,13 @@ from core.campaign_evidence import build_evidence_ledger, source_fingerprint, ve
 
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+OPENROUTER_API_BASE = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
+# Free-first policy: never silently spend on a paid OpenRouter model.
+# Paid routing belongs to the explicit cost-governor milestone.
+OPENROUTER_FREE_MODEL = "openrouter/free"
+OPENROUTER_MODEL = OPENROUTER_FREE_MODEL
 TRANSIENT_GEMINI_STATUSES = {408, 429, 500, 502, 503, 504}
+TRANSIENT_OPENROUTER_STATUSES = {408, 429, 500, 502, 503, 504}
 
 DEFAULT_PROFILE = {
     "preferred_topics": ["technology", "artificial intelligence", "software", "coding", "developer", "business", "education", "science", "creator", "podcast", "gaming"],
@@ -37,6 +43,125 @@ class GeminiSafetyError(GeminiApiError):
 
 class GeminiJsonError(RuntimeError):
     """Gemini returned empty, invalid, or incomplete JSON."""
+
+
+class AIProviderError(RuntimeError):
+    """A provider could not produce a usable response."""
+
+
+class AIRoutingError(RuntimeError):
+    """All configured AI providers failed."""
+
+
+class AIProvider:
+    """Minimal provider contract. Providers return raw model text only."""
+
+    name = "unknown"
+
+    def generate(self, prompt: str, timeout: int = 120) -> str:
+        raise NotImplementedError
+
+
+class GeminiProvider(AIProvider):
+    name = "gemini"
+
+    def generate(self, prompt: str, timeout: int = 120) -> str:
+        return _gemini_generate(prompt, timeout=timeout)
+
+
+class OpenRouterProvider(AIProvider):
+    name = "openrouter"
+
+    def _api_key(self) -> str:
+        return os.environ["OPENROUTER_API_KEY"]
+
+    def generate(self, prompt: str, timeout: int = 120) -> str:
+        payload = {
+            "model": OPENROUTER_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+        headers = {
+            "content-type": "application/json",
+            "Authorization": f"Bearer {self._api_key()}",
+        }
+        site_url = os.getenv("OPENROUTER_SITE_URL")
+        site_name = os.getenv("OPENROUTER_SITE_NAME")
+        if site_url:
+            headers["HTTP-Referer"] = site_url
+        if site_name:
+            headers["X-Title"] = site_name
+
+        max_retries = max(0, min(3, int(os.getenv("OPENROUTER_MAX_RETRIES", "1"))))
+        for attempt in range(1, max_retries + 2):
+            try:
+                response = requests.post(
+                    f"{OPENROUTER_API_BASE.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=timeout,
+                )
+            except requests.RequestException as exc:
+                if attempt > max_retries:
+                    raise AIProviderError(
+                        f"OpenRouter request failed after {attempt} attempts: {type(exc).__name__}"
+                    ) from exc
+                time.sleep(min(10.0, 1.0 * (2 ** (attempt - 1))))
+                continue
+
+            if not response.ok:
+                status = int(response.status_code)
+                retryable = status in TRANSIENT_OPENROUTER_STATUSES
+                reason = _error_reason(response)
+                if not retryable or attempt > max_retries:
+                    raise AIProviderError(
+                        f"OpenRouter API request failed with HTTP {status}: {reason}"
+                    )
+                time.sleep(min(10.0, 1.0 * (2 ** (attempt - 1))))
+                continue
+
+            try:
+                body = response.json()
+                choices = body.get("choices") if isinstance(body, dict) else None
+                message = choices[0].get("message", {}) if choices else {}
+                text = message.get("content") if isinstance(message, dict) else None
+            except (ValueError, TypeError, IndexError, AttributeError) as exc:
+                raise AIProviderError("OpenRouter returned an invalid response envelope") from exc
+            if not isinstance(text, str) or not text.strip():
+                raise AIProviderError("OpenRouter returned empty content")
+            return text
+
+        raise AIProviderError("OpenRouter request exhausted retries")
+
+
+def _configured_ai_providers() -> list[AIProvider]:
+    providers: list[AIProvider] = [GeminiProvider()]
+    if os.getenv("OPENROUTER_API_KEY"):
+        providers.append(OpenRouterProvider())
+    return providers
+
+
+def _is_fallback_eligible(exc: Exception) -> bool:
+    return isinstance(exc, (GeminiApiError, GeminiJsonError, AIProviderError))
+
+
+def _route_generate(prompt: str, timeout: int = 120) -> tuple[dict[str, Any], str]:
+    """Run providers in order and only return a response that parses as campaign JSON."""
+    failures: list[str] = []
+    for provider in _configured_ai_providers():
+        try:
+            text = provider.generate(prompt, timeout=timeout)
+            parsed = _json_from_text(text)
+            print(f"AI router: provider={provider.name} status=success")
+            return parsed, provider.name
+        except Exception as exc:
+            if not _is_fallback_eligible(exc):
+                raise
+            reason = re.sub(r"AIza[0-9A-Za-z_-]{12,}", "[redacted]", str(exc))[:180]
+            failures.append(f"{provider.name}:{reason}")
+            print(f"AI router: provider={provider.name} status=failed reason={reason}")
+    raise AIRoutingError("All AI providers failed: " + " | ".join(failures))
 
 
 # Gemini structured output supports this OpenAPI/JSON-Schema subset. Keep the
@@ -369,6 +494,8 @@ Record CRITICAL ambiguity only when an unknown could change asset selection, edi
 Decide campaign_fit using this operator profile:
 """ + json.dumps(profile, ensure_ascii=False) + """
 Return one object matching the supplied response schema. Include one campaign result for every input campaign.
+The provider may not receive native schema enforcement, so follow this JSON Schema exactly:
+""" + json.dumps(GEMINI_RESPONSE_SCHEMA, ensure_ascii=False) + """
 Campaigns:
 """ + json.dumps([_campaign_prompt_payload(x) for x in batch], ensure_ascii=False)
 
@@ -399,7 +526,7 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
         batch = campaigns[start:start + batch_size]
         batch_no = start // batch_size + 1
         try:
-            parsed = _json_from_text(_gemini_generate(_prompt(batch)))
+            parsed, provider_name = _route_generate(_prompt(batch))
             items = parsed["campaigns"]
             by_id = {str(campaign.get("id") or ""): campaign for campaign in batch}
             for raw in items:
@@ -412,11 +539,11 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
                 cid = str(campaign.get("id") or "")
                 if cid not in results:
                     results[cid] = _fallback_result(campaign)
-        except (GeminiApiError, GeminiJsonError) as exc:
+        except (GeminiApiError, GeminiJsonError, AIRoutingError) as exc:
             reason = str(exc)
             print(
-                "(!) Gemini batch failed: "
-                f"batch={batch_no} campaigns={len(batch)} model={GEMINI_MODEL} "
+                "(!) AI router batch failed: "
+                f"batch={batch_no} campaigns={len(batch)} "
                 f"reason={reason[:240]}"
             )
             for campaign in batch:
@@ -428,4 +555,4 @@ def analyze_campaigns(campaigns: list[dict[str, Any]], batch_size: int = 8) -> d
     return results
 
 
-__all__ = ["GEMINI_RESPONSE_SCHEMA", "GeminiApiError", "GeminiJsonError", "GeminiSafetyError", "analyze_campaigns", "normalize_ai_result", "rules_fingerprint"]
+__all__ = ["GEMINI_RESPONSE_SCHEMA", "AIProvider", "AIProviderError", "AIRoutingError", "GeminiApiError", "GeminiJsonError", "GeminiSafetyError", "analyze_campaigns", "normalize_ai_result", "rules_fingerprint"]

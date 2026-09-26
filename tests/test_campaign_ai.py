@@ -40,6 +40,85 @@ class FakeResponse:
 
 
 class CampaignAITests(unittest.TestCase):
+    def test_openrouter_is_hard_locked_to_free_router(self):
+        self.assertEqual(campaign_ai.OPENROUTER_MODEL, "openrouter/free")
+        with patch.dict(os.environ, {"OPENROUTER_MODEL": "a-paid-model"}, clear=False):
+            self.assertEqual(campaign_ai.OPENROUTER_MODEL, "openrouter/free")
+
+    def test_openrouter_request_uses_free_router_even_if_env_requests_paid_model(self):
+        campaign = {"id": "c-free-lock", "title": "Free lock test"}
+        openrouter_body = {
+            "choices": [{"message": {"content": json.dumps(valid_payload(("c-free-lock",)))}}]
+        }
+        with patch.dict(
+            os.environ,
+            {
+                "GEMINI_API_KEY": "test-secret",
+                "OPENROUTER_API_KEY": "openrouter-secret",
+                "OPENROUTER_MODEL": "a-paid-model",
+            },
+            clear=False,
+        ), patch(
+            "core.campaign_ai._gemini_generate",
+            side_effect=campaign_ai.GeminiApiError("HTTP 429: quota"),
+        ), patch(
+            "core.campaign_ai.requests.post",
+            return_value=FakeResponse(openrouter_body),
+        ) as post:
+            result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
+
+        self.assertEqual(result["c-free-lock"]["confidence"], 0.8)
+        self.assertEqual(
+            post.call_args.kwargs["json"]["model"],
+            "openrouter/free",
+        )
+
+    def test_ai_router_falls_back_to_openrouter_when_gemini_fails(self):
+        campaign = {"id": "c-router", "title": "Router test"}
+        openrouter_body = {
+            "choices": [{"message": {"content": json.dumps(valid_payload(("c-router",)))}}]
+        }
+        with patch.dict(
+            os.environ,
+            {
+                "GEMINI_API_KEY": "test-secret",
+                "OPENROUTER_API_KEY": "openrouter-secret",
+                "OPENROUTER_MODEL": "openrouter/free",
+            },
+            clear=False,
+        ), patch(
+            "core.campaign_ai._gemini_generate",
+            side_effect=campaign_ai.GeminiApiError("HTTP 429: quota"),
+        ), patch(
+            "core.campaign_ai.requests.post",
+            return_value=FakeResponse(openrouter_body),
+        ) as post:
+            result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
+
+        self.assertEqual(result["c-router"]["confidence"], 0.8)
+        self.assertEqual(post.call_args.args[0], "https://openrouter.ai/api/v1/chat/completions")
+        self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], "Bearer openrouter-secret")
+
+    def test_ai_router_falls_back_when_primary_returns_invalid_json(self):
+        campaign = {"id": "c-router-json", "title": "Router JSON test"}
+        openrouter_body = {
+            "choices": [{"message": {"content": json.dumps(valid_payload(("c-router-json",)))}}]
+        }
+        with patch.dict(
+            os.environ,
+            {"GEMINI_API_KEY": "test-secret", "OPENROUTER_API_KEY": "openrouter-secret"},
+            clear=False,
+        ), patch(
+            "core.campaign_ai._gemini_generate",
+            return_value="not valid json",
+        ), patch(
+            "core.campaign_ai.requests.post",
+            return_value=FakeResponse(openrouter_body),
+        ):
+            result = campaign_ai.analyze_campaigns([campaign], batch_size=1)
+
+        self.assertEqual(result["c-router-json"]["confidence"], 0.8)
+
     def test_gemini_reads_key_uses_schema_and_normalizes_response(self):
         campaign = {"id": "c-1", "title": "Demo", "platforms": ["tiktok"]}
         body = {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": json.dumps(valid_payload())}]}}]}
