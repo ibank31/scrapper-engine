@@ -11,8 +11,8 @@ from typing import Any, Mapping
 from core.material_acquisition import normalize_material_policy
 
 SOURCE_TYPE_ALIASES = {
-    "youtube": {"youtube", "youtube_official", "public_url"},
-    "google_drive": {"google_drive", "google_drive_asset", "drive_file", "drive_folder"},
+    "youtube": {"youtube", "youtube_official", "official_publisher", "public_url"},
+    "google_drive": {"google_drive", "google_drive_asset", "drive_file", "drive_folder", "campaign_resource"},
     "google_drive_folder": {"google_drive_folder", "drive_folder"},
     "vimeo": {"vimeo", "public_url"},
     "direct_media": {"direct_media", "public_url"},
@@ -99,6 +99,24 @@ def match_candidate(policy: Mapping[str, Any], candidate: Mapping[str, Any]) -> 
     return None, "no_policy_match"
 
 
+def candidate_priority(policy: Mapping[str, Any], asset_id: str, candidate: Mapping[str, Any]) -> int:
+    asset = asset_policy(policy, asset_id)
+    if not asset:
+        return 10_000
+    haystack = " ".join(
+        str(candidate.get(key) or "").lower()
+        for key in ("source_type", "provider", "source_url", "reference_role")
+    )
+    preferred = [str(x).lower() for x in asset["preferred_sources"]]
+    fallback = [str(x).lower() for x in asset["fallback_sources"]]
+    for index, value in enumerate(preferred):
+        if value in haystack:
+            return index
+    for index, value in enumerate(fallback):
+        if value in haystack:
+            return 100 + index
+    return 500
+
 def required_asset_minimums(policy: Mapping[str, Any]) -> dict[str, int]:
     return {
         asset["asset_id"]: int(asset["quantity"]["min"])
@@ -113,5 +131,5 @@ __all__ = [
     "permitted_source",
     "provider_order",
     "match_candidate",
-    "required_asset_minimums",
+    "required_asset_minimums", "candidate_priority",
 ]
