@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest import mock
 
-from core.semantic_ranker import _normalize_model_results, rank_candidates, rank_candidates_with_metadata
+from core.semantic_ranker import _normalize_model_results, rank_candidates, rank_candidates_with_metadata, rank_global_candidates, semantic_model_decision
 
 
 class SemanticRankerTest(unittest.TestCase):
@@ -92,6 +92,60 @@ class SemanticRankerTest(unittest.TestCase):
         candidates = [{"rank": 1, "start": 0, "end": 5, "duration": 5, "text": "Complete point for the campaign."}]
         result = rank_candidates(candidates, plan)[0]
         self.assertNotEqual(result["semantic"]["decision"], "reject")
+
+
+    def test_global_gate_skips_semantic_ai_for_clear_pair(self):
+        plan = {
+            "ai_rules": {"confidence": 0.95},
+            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+        }
+        candidates = [
+            {
+                "candidate_id": "t1-a",
+                "tier": "tier_1",
+                "source_asset_id": "source-a",
+                "source_hash": "hash-a",
+                "transcript_hash": "tx-a",
+                "start": 0,
+                "end": 32,
+                "duration": 32,
+                "score": 0.92,
+                "text": "Here is the clearest business lesson with a complete payoff.",
+                "reasons": ["clear opening beat", "complete ending", "payoff or takeaway"],
+            },
+            {
+                "candidate_id": "t2-b",
+                "tier": "tier_2",
+                "source_asset_id": "source-b",
+                "source_hash": "hash-b",
+                "transcript_hash": "tx-b",
+                "start": 40,
+                "end": 72,
+                "duration": 32,
+                "score": 0.90,
+                "text": "The strongest secondary audience example with a complete payoff.",
+                "reasons": ["clear opening beat", "complete ending", "payoff or takeaway"],
+            },
+        ]
+        self.assertEqual(semantic_model_decision(candidates, plan, 15), (False, "deterministic_confident"))
+        with mock.patch("core.semantic_ranker._model_rank", side_effect=AssertionError("semantic model should be skipped")):
+            ranked, runtime = rank_global_candidates(candidates, plan, 15)
+        self.assertEqual(runtime["decision"], "semantic_skipped")
+        self.assertEqual(runtime["decision_reason"], "deterministic_confident")
+        self.assertEqual(len(ranked), 2)
+
+    def test_global_gate_keeps_semantic_ai_for_ambiguous_pair(self):
+        plan = {
+            "ai_rules": {"confidence": 0.95},
+            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+        }
+        candidates = [
+            {"candidate_id": "t1-a", "tier": "tier_1", "source_asset_id": "a", "start": 0, "end": 30, "duration": 30, "score": 0.74, "text": "Business point A."},
+            {"candidate_id": "t1-b", "tier": "tier_1", "source_asset_id": "b", "start": 35, "end": 65, "duration": 30, "score": 0.70, "text": "Business point B."},
+            {"candidate_id": "t2-a", "tier": "tier_2", "source_asset_id": "c", "start": 70, "end": 100, "duration": 30, "score": 0.76, "text": "Secondary point A."},
+            {"candidate_id": "t2-b", "tier": "tier_2", "source_asset_id": "d", "start": 105, "end": 135, "duration": 30, "score": 0.71, "text": "Secondary point B."},
+        ]
+        self.assertEqual(semantic_model_decision(candidates, plan, 15), (True, "tier_1_close_ranking"))
 
 
 if __name__ == "__main__":
