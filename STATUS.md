@@ -2,12 +2,12 @@
 
 **Updated:** 26 September 2026  
 **Branch:** `main`  
-**Current direction:** Campaign Agent Evolution  
+**Current direction:** AI Agent untuk clipping campaign  
 **Production:** Cloudflare Pages `clipper-engine`
 
 ## Mission
 
-Build a **campaign-agnostic Campaign Agent + Clipping Agent**.
+Build a **campaign-agnostic AI Clipping Agent**. Campaign discovery/intake/evidence/material intelligence adalah bagian dari pipeline clipping, bukan produk terpisah.
 
 ```
 campaign source → evidence → campaign brain → critic
@@ -32,7 +32,9 @@ Production:
 
 **Implementation:** merged.  
 **Deterministic acceptance hardening:** merged.  
-**Production acceptance gate:** **OPEN**.
+**Controlled production acceptance:** **PASS**.
+
+CA-00 sekarang ditutup. Jangan menambah fitur CA-00 lagi kecuali regression fix yang dibuktikan oleh test.
 
 The production D1 row for Ryan Zofay was re-read after the merge and still contains legacy `ai_rules_json.schema_version=1`. It has not been manually rewritten.
 
@@ -71,7 +73,7 @@ Treat this strictly as regression evidence. Never add Ryan-specific runtime logi
 
 ## Next exact slice
 
-**CA-00 production acceptance.**
+**CA-01 — Canonical Campaign Brain.**
 
 When Gemini quota is available:
 
@@ -81,7 +83,7 @@ When Gemini quota is available:
 4. run controlled production E2E;
 5. if E2E finds a new valid bug: STOP and fix only that bug.
 
-While Gemini remains unavailable, CA-00 production acceptance remains blocked. No CA-01 implementation should be merged before the production evidence contract is proven.
+CA-00 production evidence-contract proof sudah terbukti melalui controlled OpenRouter fallback E2E. CA-01 menjadi milestone aktif berikutnya.
 
 ## Permanent rules
 
@@ -90,5 +92,7 @@ While Gemini remains unavailable, CA-00 production acceptance remains blocked. N
 - Ambiguity is explicit data.
 - Campaign-specific behavior is never hardcoded by campaign name.
 - Do not manually mutate production D1 to make acceptance green.
-- Do not spend quota on full-corpus migration when one campaign is sufficient.
+- Do not spend quota on full-corpus migration when targeted proof is sufficient.
 - Buffer/provider mutation remains behind approval gates.
+- Scope is clipping only. Affiliate/product-image work, unrelated scrapers, and personal automation do not belong in this repository.
+- Local execution tooling is implementation detail, not a separate product workflow.
