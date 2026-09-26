@@ -163,6 +163,67 @@ class CampaignBrainTests(unittest.TestCase):
         brain = normalize_ai_result(item, campaign["id"], campaign)["campaign_brain"]
         self.assertEqual(brain["rules"], [])
 
+    def test_platform_scope_is_recovered_from_source_quote_for_flat_rule(self):
+        campaign = {"id": "flat-platform-scope"}
+        item = {
+            "campaign_fit": {"score": 0.9, "label": "high", "reason": "fixture"},
+            "rules": {"hashtags": ["#FixtureTag"]},
+            "ambiguities": [],
+            "evidence": [{
+                "rule_path": "rules.hashtags",
+                "quote": "Instagram: caption must include #FixtureTag.",
+            }],
+            "confidence": 0.9,
+        }
+        brain = normalize_ai_result(item, campaign["id"], campaign)["campaign_brain"]
+        hashtag = next(rule for rule in brain["rules"] if rule["source_rule_path"] == "rules.hashtags")
+        self.assertEqual(hashtag["scope"]["platforms"], ["instagram"])
+        self.assertEqual(hashtag["source"]["type"], "campaign_evidence")
+
+    def test_preservation_gate_fails_when_evidence_is_not_bound_to_a_rule(self):
+        campaign = {
+            "id": "unbound-rule",
+            "description": "Duration is mandatory: 15-30 seconds.",
+            "expected_evidence": [{
+                "rule_path": "rules.duration",
+                "quote": "Duration is mandatory: 15-30 seconds.",
+                "mandatory": True,
+            }],
+        }
+        item = {
+            "campaign_fit": {"score": 0.9, "label": "high", "reason": "fixture"},
+            "rules": {},
+            "ambiguities": [],
+            "evidence": list(campaign["expected_evidence"]),
+            "confidence": 0.9,
+        }
+        brain = normalize_ai_result(item, campaign["id"], campaign)["campaign_brain"]
+        evaluation = evaluate_rule_preservation(campaign, brain)
+        self.assertEqual(evaluation["status"], "fail")
+        self.assertEqual(evaluation["mandatory_preserved"], 0)
+        self.assertEqual(evaluation["silent_rule_loss"], 1)
+        self.assertEqual(len(evaluation["unbound"]), 1)
+
+    def test_platform_specific_evidence_cannot_bind_to_same_leaf_on_another_platform(self):
+        campaign = {"id": "strict-platform-path"}
+        item = {
+            "campaign_fit": {"score": 0.9, "label": "high", "reason": "fixture"},
+            "rules": {"posting": {
+                "instagram": {"handle": "@fixture.media"},
+            }},
+            "ambiguities": [],
+            "evidence": [{
+                "rule_path": "posting.tiktok.handle",
+                "quote": "TikTok mention: @fixture_media.",
+            }],
+            "confidence": 0.9,
+        }
+        brain = normalize_ai_result(item, campaign["id"], campaign)["campaign_brain"]
+        instagram = brain["rules"][0]
+        self.assertEqual(instagram["source_rule_path"], "rules.posting.instagram.handle")
+        self.assertEqual(instagram["status"], "unsupported")
+        self.assertEqual(instagram["evidence_ids"], [])
+
     def test_cta_text_can_bind_to_cta_requirement_evidence(self):
         campaign = {
             "id": "cta-alias",
