@@ -3,6 +3,7 @@ name: controlled-ryan-openrouter-acceptance
 
 on:
   push:
+    branches: [main]
     paths:
       - ".github/workflows/controlled-ryan-openrouter-acceptance.yml"
 
@@ -77,6 +78,12 @@ jobs:
 
           assert ai["schema_version"] == 2
           assert ai["source_hash"]
+          brain = ai["campaign_brain"]
+          assert brain["schema_version"] == 1
+          assert brain["brain_id"].startswith("brain-v1:")
+          assert brain["source_hash"] == ai["source_hash"]
+          assert isinstance(brain["rules"], list)
+          assert brain["evidence"]["coverage"] == 1.0
           contract = ai["evidence_contract"]
           assert contract["schema_version"] == 1
           assert contract["coverage"] == 1.0, contract
