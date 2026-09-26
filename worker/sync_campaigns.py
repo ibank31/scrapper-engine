@@ -23,7 +23,7 @@ from core.campaign_ai import analyze_campaigns, rules_fingerprint
 from core.campaign_priority import score_campaign
 from core.campaign_readiness import STATUS_KETAT, STATUS_SIAP, apply_readiness, readiness_sort_key
 from core.campaign_rules import compile_plan
-from core.campaign_exclusions import excluded_campaign_terms
+from core.campaign_exclusions import excluded_campaign_terms\nfrom core.material_acquisition import build_legacy_compatible_policy, material_plan_fingerprint, validate_material_policy
 from modules.reward_campaign.pull_detail import extract_detail
 
 DOC_ID_RE = re.compile(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", re.I)
