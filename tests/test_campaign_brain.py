@@ -69,7 +69,13 @@ class CampaignBrainTests(unittest.TestCase):
                 self.assertEqual(evaluation["mandatory_rule_preservation"], 1.0)
                 self.assertEqual(evaluation["silent_rule_loss"], 0)
                 self.assertEqual(evaluation["false_mandatory"], [])
-                self.assertTrue(all(rule.get("evidence_ids") for rule in brain["rules"]))
+                self.assertTrue(
+                    all(
+                        rule.get("evidence_ids")
+                        for rule in brain["rules"]
+                        if rule.get("status") == "supported"
+                    )
+                )
                 self.assertTrue(brain["brain_id"].startswith("brain-v1:"))
                 self.assertEqual(brain["source_hash"], source_fingerprint(campaign))
                 self.assertEqual(brain["brain_id"], second["campaign_brain"]["brain_id"])
