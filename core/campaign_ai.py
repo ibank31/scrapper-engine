@@ -472,6 +472,25 @@ def _int_or_none(value: Any) -> int | None:
     return int(number) if number is not None else None
 
 
+def _strip_wrapping_quote_marks(value: str) -> str:
+    """Remove one pair of editorial quote marks around a field value.
+
+    Campaign briefs commonly use quotation marks as instruction delimiters.
+    They are not part of the CTA token that must be published verbatim.
+    """
+    text = value.strip()
+    pairs = (
+        ("\u201c", "\u201d"),
+        ("\u2018", "\u2019"),
+        ('"', '"'),
+        ("'", "'"),
+    )
+    for left, right in pairs:
+        if len(text) >= 2 and text.startswith(left) and text.endswith(right):
+            return text[1:-1].strip()
+    return text
+
+
 def _recover_source_backed_cta_text(
     campaign: dict[str, Any] | None,
     cta_text: Any,
@@ -481,7 +500,7 @@ def _recover_source_backed_cta_text(
     """Recover a source-backed CTA when an AI provider mutates the literal CTA."""
     if not cta_required or campaign is None or not isinstance(cta_text, str) or not cta_text.strip():
         return cta_text if isinstance(cta_text, str) and cta_text.strip() else None
-    normalized = cta_text.strip()
+    normalized = _strip_wrapping_quote_marks(cta_text)
     if verify_quote(campaign, normalized)["status"] == "verified":
         return normalized
 
@@ -494,7 +513,7 @@ def _recover_source_backed_cta_text(
         if rule_path not in {"cta_text", "cta_required"}:
             continue
         for match in quote_re.finditer(str(item.get("quote") or "")):
-            candidate = (match.group(1) or match.group(2) or "").strip()
+            candidate = _strip_wrapping_quote_marks(match.group(1) or match.group(2) or "")
             if candidate:
                 evidence_candidates.append(candidate)
 
