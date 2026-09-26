@@ -444,6 +444,11 @@ def _num(value: Any, default: float | None = None) -> float | None:
         return default
 
 
+def _int_or_none(value: Any) -> int | None:
+    number = _num(value)
+    return int(number) if number is not None else None
+
+
 def _recover_source_backed_cta_text(
     campaign: dict[str, Any] | None,
     cta_text: Any,
