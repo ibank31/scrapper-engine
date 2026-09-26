@@ -274,7 +274,7 @@ GEMINI_RESPONSE_SCHEMA: dict[str, Any] = {
                     },
                     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                 },
-                "required": ["campaign_id", "campaign_fit", "rules", "ambiguities", "evidence", "confidence"],
+                "required": ["campaign_id", "campaign_fit", "rules", "rule_annotations", "ambiguities", "evidence", "confidence"],
             },
         },
     },
