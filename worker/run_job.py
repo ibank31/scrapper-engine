@@ -139,23 +139,6 @@ def run(
         raise PipelineStageTimeout(stage, int(timeout or 0)) from exc
 
 
-def source_priority(path: Path) -> tuple[float, int]:
-    """Prefer usable high-resolution sources; size alone is a poor quality proxy."""
-    try:
-        probe = subprocess.check_output([
-            "ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)
-        ], text=True)
-        data = json.loads(probe)
-        video = next((stream for stream in data.get("streams", []) if stream.get("codec_type") == "video"), {})
-        width, height = int(video.get("width") or 0), int(video.get("height") or 0)
-        duration = float((data.get("format") or {}).get("duration") or 0)
-        area_score = min(4.0, (width * height) / 2_000_000)
-        duration_score = min(1.0, duration / 90.0) if duration >= 20 else 0.0
-        vertical_bonus = 0.35 if height >= width else 0.0
-        return area_score + duration_score + vertical_bonus, -path.stat().st_size
-    except Exception:
-        return 0.0, -path.stat().st_size
-
 
 def upload_r2(api_base: str, job_id: str, token: str, path: str, key: str, content_type: str):
     """Upload with bounded retries; object key is stable so retries are idempotent."""
