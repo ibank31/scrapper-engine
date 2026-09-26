@@ -120,6 +120,7 @@ def _path_match(left: str, right: str) -> bool:
         {a_leaf, b_leaf} == {"cta_text", "cta_required"}
         and (a_parent == b_parent or not a_parent or not b_parent)
     )
+
 def _scope(path: str, annotation: dict[str, Any] | None, quotes: list[str]) -> dict[str, list[str]]:
     raw = annotation.get("scope") if isinstance(annotation, dict) else {}
     raw = raw if isinstance(raw, dict) else {}
@@ -128,7 +129,7 @@ def _scope(path: str, annotation: dict[str, Any] | None, quotes: list[str]) -> d
     audiences = [str(x).strip() for x in raw.get("audiences", []) or [] if str(x).strip()]
     path_text = _norm(path).lower()
     quote_text = " ".join(quotes).lower()
-    for segment in re.split(r"[.:/\\[\\]]", path_text):
+    for segment in re.split(r"[.:/\[\]]", path_text):
         if segment in PLATFORMS:
             platforms.append(segment)
         if segment in LANGUAGES:
@@ -136,12 +137,12 @@ def _scope(path: str, annotation: dict[str, Any] | None, quotes: list[str]) -> d
     # Platform scope may live only in the source quote, especially for flat
     # handle/hashtag rules such as “Instagram handle: ...”.
     for platform in (name for name in PLATFORMS if len(name) > 1):
-        if re.search(rf"\b{re.escape(platform)}\\b", quote_text):
+        if re.search(rf"\b{re.escape(platform)}\b", quote_text):
             platforms.append(platform)
     for label, code in LANGUAGES.items():
-        if re.search(rf"\b{re.escape(label)}\\b", quote_text):
+        if re.search(rf"\b{re.escape(label)}\b", quote_text):
             languages.append(code)
-    if not languages and re.search(r"\b(gunakan|durasi|detik|wajib|bahasa)\\b", quote_text):
+    if not languages and re.search(r"\b(gunakan|durasi|detik|wajib|bahasa)\b", quote_text):
         languages.append("id")
     return {
         "platforms": list(dict.fromkeys(platforms)),
@@ -159,6 +160,7 @@ def _verified_matches(path: str, value: Any, verified: list[dict[str, Any]]) -> 
         if isinstance(value, bool) or (value_text and (value_text in quote.lower() or quote.lower() in value_text)):
             matches.append(item)
     return matches
+
 
 
 def _requirement_level(campaign: dict[str, Any], evidence: list[dict[str, Any]], annotation: dict[str, Any] | None) -> tuple[str, str]:
