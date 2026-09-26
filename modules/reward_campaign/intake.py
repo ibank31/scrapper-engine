@@ -115,6 +115,19 @@ def _reference_urls(url: str) -> list[str]:
     return [u.rstrip(".,;") for u in URL_RE.findall(text)]
 
 
+def resolve_policy_named_reference(raw_reference: str, generated_policy_references: dict[str, str], campaign_context: dict) -> tuple[str | None, dict]:
+    """Resolve a policy-generated named reference without relying on symbolic-token syntax."""
+    if raw_reference not in generated_policy_references:
+        return None, {"status": "not_policy_reference"}
+    resolution = resolve_named_youtube_reference(
+        raw_reference,
+        campaign_title=str(campaign_context.get("title") or ""),
+        brand=str(campaign_context.get("brand") or ""),
+    )
+    resolved_url = str((resolution.get("candidate") or {}).get("url") or "")
+    return resolved_url or None, resolution
+
+
 def download_youtube(url: str, destination: str, required_size: int = 0, safety_margin: int | None = None, max_bytes: int = 0) -> tuple[str, str | None]:
     """Download at most the first five minutes into an isolated temporary directory."""
     destination_path = Path(destination)
@@ -352,12 +365,9 @@ def main() -> None:
     explicit_reference_values = [str(value).strip() for value in references if str(value).strip()]
     for raw_reference in explicit_reference_values:
         if raw_reference in generated_policy_references:
-            resolution = resolve_named_youtube_reference(
-                raw_reference,
-                campaign_title=str(campaign_context.get("title") or ""),
-                brand=str(campaign_context.get("brand") or ""),
+            resolved_url, resolution = resolve_policy_named_reference(
+                raw_reference, generated_policy_references, campaign_context
             )
-            resolved_url = str((resolution.get("candidate") or {}).get("url") or "")
             reference_manifest.append({
                 "reference": raw_reference,
                 "kind": "POLICY_NAMED_SEARCH",
