@@ -212,6 +212,34 @@ class CampaignAITests(unittest.TestCase):
         self.assertEqual(result["evidence_contract"]["unverified"], [])
 
 
+    def test_normalize_reconciles_expanded_cta_to_verified_source_quote(self):
+        campaign = {
+            "id": "cta-expanded-source",
+            "description": "Follow and meet Alex for more @.....",
+            "docs_text": "All pieces of content should have “Follow and meet Alex for more @.....”",
+        }
+        item = {
+            "campaign_fit": {"score": 1, "label": "high", "reason": "matches"},
+            "rules": {
+                "cta_required": True,
+                "cta_text": "Follow and meet Alex for more @alex (Instagram) / @alexclips (TikTok)",
+                "handles": ["@alex", "@alexclips"],
+                "hashtags": [],
+            },
+            "evidence": [{
+                "rule_path": "rules.cta_text",
+                "quote": "All pieces of content should have “Follow and meet Alex for more @.....”",
+            }],
+            "confidence": 0.9,
+        }
+
+        result = normalize_ai_result(item, "cta-expanded-source", campaign)
+
+        self.assertEqual(result["rules"]["cta_text"], "Follow and meet Alex for more @.....")
+        self.assertEqual(result["evidence_contract"]["coverage"], 1.0)
+        self.assertEqual(result["evidence_contract"]["unverified"], [])
+
+
     def test_legacy_campaign_ai_cache_is_stale_without_evidence_contract(self):
         campaign_hash = "same-rules-hash"
         legacy = {

@@ -453,13 +453,39 @@ def _recover_source_backed_cta_text(
     campaign: dict[str, Any] | None,
     cta_text: Any,
     cta_required: bool,
+    evidence: list[Any],
 ) -> str | None:
-    """Recover a source-backed CTA when an AI provider emits a placeholder."""
+    """Recover a source-backed CTA when an AI provider mutates the literal CTA."""
     if not cta_required or campaign is None or not isinstance(cta_text, str) or not cta_text.strip():
         return cta_text if isinstance(cta_text, str) and cta_text.strip() else None
     normalized = cta_text.strip()
     if verify_quote(campaign, normalized)["status"] == "verified":
         return normalized
+
+    evidence_candidates: list[str] = []
+    quote_re = re.compile(r"[“\"]([^”\"]{4,})[”\"]|[‘']([^’']{4,})[’']")
+    for item in evidence:
+        if not isinstance(item, dict):
+            continue
+        rule_path = str(item.get("rule_path") or "").split(".")[-1]
+        if rule_path not in {"cta_text", "cta_required"}:
+            continue
+        for match in quote_re.finditer(str(item.get("quote") or "")):
+            candidate = (match.group(1) or match.group(2) or "").strip()
+            if candidate:
+                evidence_candidates.append(candidate)
+
+    current_words = set(re.findall(r"[a-z0-9@#]+", normalized.lower()))
+    ranked: list[tuple[int, int, int, str]] = []
+    for candidate in evidence_candidates:
+        if verify_quote(campaign, candidate)["status"] != "verified":
+            continue
+        candidate_words = set(re.findall(r"[a-z0-9@#]+", candidate.lower()))
+        overlap = len(current_words & candidate_words)
+        ranked.append((overlap, int("@" in candidate), -len(candidate), candidate))
+    if ranked:
+        ranked.sort(reverse=True)
+        return ranked[0][3]
 
     placeholder_re = re.compile(
         r"@\s*(?:\[[^\]]+\]|\{[^}]+\}|<[^>]+>|handle|username|user|account)",
@@ -503,7 +529,7 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
             "max_duration_seconds": _int_or_none(rules.get("max_duration_seconds")), "subtitle_required": bool(rules.get("subtitle_required")),
             "subtitle_style": str(rules.get("subtitle_style") or "campaign_defined"), "watermark_required": bool(rules.get("watermark_required")),
             "third_party_watermark_allowed": bool(rules.get("third_party_watermark_allowed")), "official_audio_required": bool(rules.get("official_audio_required")),
-            "cta_required": bool(rules.get("cta_required")), "cta_text": _recover_source_backed_cta_text(campaign, rules.get("cta_text"), bool(rules.get("cta_required"))), "handles": list(rules.get("handles") or []),
+            "cta_required": bool(rules.get("cta_required")), "cta_text": _recover_source_backed_cta_text(campaign, rules.get("cta_text"), bool(rules.get("cta_required")), evidence), "handles": list(rules.get("handles") or []),
             "hashtags": list(rules.get("hashtags") or []), "disclosures": list(rules.get("disclosures") or []), "topic_terms": list(rules.get("topic_terms") or []),
             "allowed_content": list(rules.get("allowed_content") or []), "prohibited_content": list(rules.get("prohibited_content") or []),
             "asset_sources": list(rules.get("asset_sources") or []), "posting_rules": list(rules.get("posting_rules") or []), "account_rules": list(rules.get("account_rules") or []),
