@@ -2,12 +2,12 @@
 
 **Updated:** 26 September 2026  
 **Branch:** `main`  
-**Current direction:** AI Agent untuk clipping campaign  
+**Current direction:** Campaign Agent; clipping adalah vertical pertama  
 **Production:** Cloudflare Pages `clipper-engine`
 
 ## Mission
 
-Build a **campaign-agnostic AI Clipping Agent**. Campaign discovery/intake/evidence/material intelligence adalah bagian dari pipeline clipping, bukan produk terpisah.
+Build a **campaign-agnostic Campaign Agent**. Clipping adalah vertical pertama yang sedang dibuktikan production-grade; campaign intelligence, evidence, material intelligence, execution, compliance, review, publishing, outcome, dan learning adalah lapisan reusable.
 
 ```
 campaign source → evidence → campaign brain → critic
@@ -37,17 +37,7 @@ Production:
 
 CA-00 sekarang ditutup. Jangan menambah fitur CA-00 lagi kecuali regression fix yang dibuktikan oleh test.
 
-The production D1 row for Ryan Zofay was re-read after the merge and still contains legacy `ai_rules_json.schema_version=1`. It has not been manually rewritten.
-
-CA-00 therefore is **not** declared complete yet. The remaining proof is a real campaign re-analysis through the generic AI path that persists:
-
-- `schema_version=2`;
-- `source_hash`;
-- `source_ledger`;
-- verified evidence;
-- `evidence_contract`.
-
-Gemini previously returned 503 high-demand responses followed by 429 quota exhaustion. Do not rerun a corpus-wide migration.
+The prior Ryan production row may remain legacy until a future bounded re-analysis writes CA-01 brain data. Do not manually mutate D1 to simulate acceptance.
 
 ## Current acceptance coverage
 
@@ -68,7 +58,7 @@ This is deterministic proof. It is not yet production proof.
 
 ## Known regression
 
-Ryan Zofay historically lost CTA, platform-specific handles, and hashtags during AI normalization.
+Ryan Zofay historically lost CTA, platform-specific handles, and hashtags during AI normalization. Keep the fix generic: source-backed reconciliation and canonical brain preservation, never Ryan-specific branching.
 
 Treat this strictly as regression evidence. Never add Ryan-specific runtime logic.
 
@@ -76,15 +66,15 @@ Treat this strictly as regression evidence. Never add Ryan-specific runtime logi
 
 **CA-01 — Canonical Campaign Brain.**
 
-When Gemini quota is available:
+Bounded implementation:
 
-1. run targeted migration for campaign `926e1b7f-1030-4333-a557-f99d9f891437`;
-2. verify D1 contains evidence-contract `schema_version=2`;
-3. verify CTA, hashtags, platform handles, duration, and provenance are represented without silent loss;
-4. run controlled production E2E;
-5. if E2E finds a new valid bug: STOP and fix only that bug.
+1. canonicalize AI output into campaign_brain;
+2. prove preservation on the existing six-shape corpus;
+3. persist the brain without changing downstream consumers;
+4. invalidate evidence-only caches;
+5. after merge, use the bounded Ryan workflow to verify production persistence.
 
-CA-00 production evidence-contract proof sudah terbukti melalui controlled OpenRouter fallback E2E. CA-01 menjadi milestone aktif berikutnya.
+Do not run a corpus-wide AI migration.
 
 ## Permanent rules
 
