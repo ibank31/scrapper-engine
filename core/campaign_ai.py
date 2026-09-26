@@ -13,6 +13,8 @@ from typing import Any, Iterable
 
 import requests
 
+from core.campaign_evidence import build_evidence_ledger, source_fingerprint, verify_ai_evidence
+
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 TRANSIENT_GEMINI_STATUSES = {408, 429, 500, 502, 503, 504}
@@ -304,15 +306,20 @@ def _int_or_none(value: Any) -> int | None:
     return int(number) if number is not None else None
 
 
-def normalize_ai_result(item: dict[str, Any], campaign_id: str) -> dict[str, Any]:
+def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[str, Any] | None = None) -> dict[str, Any]:
     rules = item.get("rules") if isinstance(item.get("rules"), dict) else {}
     fit = item.get("campaign_fit") if isinstance(item.get("campaign_fit"), dict) else {}
     fit_score = _num(fit.get("score"))
     if fit_score is not None:
         fit_score = max(0.0, min(1.0, fit_score))
     confidence = max(0.0, min(1.0, _num(item.get("confidence"), 0.0) or 0.0))
+    evidence = item.get("evidence") if isinstance(item.get("evidence"), list) else []
+    evidence_contract = verify_ai_evidence(campaign, evidence) if campaign is not None else {"schema_version": 1, "source_hash": None, "verified": [], "unverified": evidence, "coverage": 0.0}
+    ambiguities = [str(x) for x in (item.get("ambiguities") or [])]
+    if evidence_contract["unverified"]:
+        ambiguities.append("CRITICAL: %d AI evidence quote(s) could not be verified against current campaign sources." % len(evidence_contract["unverified"]))
     return {
-        "schema_version": 1, "campaign_id": campaign_id,
+        "schema_version": 2, "campaign_id": campaign_id,
         "campaign_fit": {"score": fit_score, "label": str(fit.get("label") or "unknown"), "reason": str(fit.get("reason") or "")},
         "rules": {
             "source_policy": str(rules.get("source_policy") or "campaign_defined"), "platforms": list(rules.get("platforms") or []),
@@ -331,8 +338,11 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str) -> dict[str, Any
             "native_tags": list(rules.get("native_tags") or []),
             "material_policy": rules.get("material_policy") if isinstance(rules.get("material_policy"), dict) else {},
         },
-        "ambiguities": [str(x) for x in (item.get("ambiguities") or [])],
-        "evidence": item.get("evidence") if isinstance(item.get("evidence"), list) else [],
+        "ambiguities": ambiguities,
+        "evidence": evidence,
+        "evidence_contract": evidence_contract,
+        "source_hash": source_fingerprint(campaign) if campaign is not None else None,
+        "source_ledger": build_evidence_ledger(campaign) if campaign is not None else None,
         "confidence": confidence,
     }
 
@@ -344,6 +354,7 @@ def _campaign_prompt_payload(campaign: dict[str, Any]) -> dict[str, Any]:
         "requirements": campaign.get("requirements") or [], "resources": campaign.get("resources") or [], "payouts": campaign.get("payouts") or [],
         "docs_text": campaign.get("docs_text") or "", "source_urls": campaign.get("source_urls") or campaign.get("asset_urls") or [],
         "source_of_truth": campaign.get("source_of_truth") or {},
+        "source_hash": source_fingerprint(campaign),
     }
 
 
@@ -351,6 +362,7 @@ def _prompt(batch: Iterable[dict[str, Any]]) -> str:
     profile = _load_profile()
     return """You are the campaign-intelligence layer of a clipping production engine.
 Read each campaign independently. Extract only what is supported by supplied text. Never invent a rule.
+Every evidence quote MUST be copied verbatim from the supplied campaign text and must be sufficient to support the stated rule. Do not cite general knowledge.
 Identify every explicit production or posting rule that can affect clip validity.
 Build a campaign-specific material acquisition plan. Do not assume every campaign uses the same acquisition method. For every required material, identify intent, quantity, preferred/fallback sources, allowed/forbidden source types, discovery methods, identity fields, verification requirements, and evidence. Never treat an example/reference link as production footage unless the campaign explicitly says so. If acquisition is unclear, choose manual_required or unresolved rather than inventing a source.
 Record CRITICAL ambiguity only when an unknown could change asset selection, edit/render decisions, or posting compliance.
