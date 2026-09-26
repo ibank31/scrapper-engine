@@ -1,5 +1,5 @@
-# CA-00 acceptance rerun: validate Gemini->OpenRouter fallback and source-backed CTA integrity
-name: controlled-ryan-openrouter-acceptance
+# CA-01 bounded production acceptance: validate canonical Campaign Brain and clipping compatibility
+name: ca01-controlled-ryan-acceptance
 
 on:
   push:
