@@ -32,6 +32,7 @@ No second corpus is introduced.
 - unavailable AI does not create false boolean facts
 - deterministic brain_id for identical source and meaning
 - legacy ai_rules.rules remains available to current downstream consumers
+- rule_annotations is an optional exception channel, not an output-size requirement for every rule
 - evidence-only cache is stale
 
 ## Production gate

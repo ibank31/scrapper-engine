@@ -1099,6 +1099,7 @@ Create a canonical Campaign Brain with:
 - structured rule records;
 - domain;
 - explicit platform/language/audience scope;
+- optional rule annotations for cases where scope, requirement, interpretation, or variants cannot be recovered safely from flat rules plus evidence;
 - priority;
 - requirement level: mandatory / optional / unknown;
 - interpretation type: explicit / inferred / conflicting / ambiguous / unsupported / manual_required;
