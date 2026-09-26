@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/controlled-ryan-openrouter-acceptance.yml"
+      - "core/campaign_ai.py"
+      - "core/campaign_brain.py"
+      - "core/campaign_evidence.py"
+      - "worker/sync_campaigns.py"
 
 permissions:
   contents: read

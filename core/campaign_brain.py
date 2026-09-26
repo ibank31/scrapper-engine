@@ -109,10 +109,17 @@ def _path_match(left: str, right: str) -> bool:
     b = _norm(right).lower().removeprefix("rules.")
     if not a or not b:
         return False
-    if a == b or a.endswith("." + b) or b.endswith("." + a) or _leaf(a) == _leaf(b):
+    if a == b or a.endswith("." + b) or b.endswith("." + a):
         return True
-    return {_leaf(a), _leaf(b)} == {"cta_text", "cta_required"}
-
+    # CTA required/text are one semantic rule family, but do not allow a
+    # platform-specific CTA to bind across unrelated parents.
+    a_leaf, b_leaf = _leaf(a), _leaf(b)
+    a_parent = ".".join(a.split(".")[:-1])
+    b_parent = ".".join(b.split(".")[:-1])
+    return (
+        {a_leaf, b_leaf} == {"cta_text", "cta_required"}
+        and (a_parent == b_parent or not a_parent or not b_parent)
+    )
 
 def _scope(path: str, annotation: dict[str, Any] | None, quotes: list[str]) -> dict[str, list[str]]:
     raw = annotation.get("scope") if isinstance(annotation, dict) else {}
@@ -120,24 +127,28 @@ def _scope(path: str, annotation: dict[str, Any] | None, quotes: list[str]) -> d
     platforms = [str(x).strip().lower() for x in raw.get("platforms", []) or [] if str(x).strip()]
     languages = [str(x).strip().lower() for x in raw.get("languages", []) or [] if str(x).strip()]
     audiences = [str(x).strip() for x in raw.get("audiences", []) or [] if str(x).strip()]
-    for segment in re.split(r"[.:/\[\]]", path.lower()):
+    path_text = _norm(path).lower()
+    quote_text = " ".join(quotes).lower()
+    for segment in re.split(r"[.:/\[\]]", path_text):
         if segment in PLATFORMS:
             platforms.append(segment)
         if segment in LANGUAGES:
             languages.append(LANGUAGES[segment])
-    text = " ".join(quotes).lower()
+    # Platform scope may live only in the source quote, especially for flat
+    # handle/hashtag rules such as “Instagram handle: ...”.
+    for platform in (name for name in PLATFORMS if len(name) > 1):
+        if re.search(rf"\b{re.escape(platform)}\b", quote_text):
+            platforms.append(platform)
     for label, code in LANGUAGES.items():
-        if re.search(rf"\b{re.escape(label)}\b", text):
+        if re.search(rf"\b{re.escape(label)}\b", quote_text):
             languages.append(code)
-    if not languages and re.search(r"\b(gunakan|durasi|detik|wajib|bahasa)\b", text):
+    if not languages and re.search(r"\b(gunakan|durasi|detik|wajib|bahasa)\b", quote_text):
         languages.append("id")
     return {
         "platforms": list(dict.fromkeys(platforms)),
         "languages": list(dict.fromkeys(languages)),
         "audiences": list(dict.fromkeys(audiences)),
     }
-
-
 def _verified_matches(path: str, value: Any, verified: list[dict[str, Any]]) -> list[dict[str, Any]]:
     value_text = _norm(value).lower()
     matches = []
@@ -149,6 +160,7 @@ def _verified_matches(path: str, value: Any, verified: list[dict[str, Any]]) -> 
         if isinstance(value, bool) or (value_text and (value_text in quote.lower() or quote.lower() in value_text)):
             matches.append(item)
     return matches
+
 
 
 def _requirement_level(campaign: dict[str, Any], evidence: list[dict[str, Any]], annotation: dict[str, Any] | None) -> tuple[str, str]:
@@ -220,6 +232,10 @@ def _build_rule(campaign: dict[str, Any], source_hash: str, path: str, value: An
             {"source_type": str(x.get("source_type") or ""), "location": str(x.get("location") or ""), "source_url": x.get("source_url")}
             for x in evidence
         ], key=lambda x: (x["source_type"], x["location"], str(x["source_url"] or ""))),
+        "source": {
+            "type": "campaign_evidence" if evidence else "unverified_model_output",
+            "evidence_ids": sorted({str(x.get("evidence_id")) for x in evidence if x.get("evidence_id")}),
+        },
     }
 
 
@@ -346,66 +362,83 @@ def build_campaign_brain(
 
 
 def evaluate_rule_preservation(campaign: dict[str, Any], brain: dict[str, Any]) -> dict[str, Any]:
-    """Golden-fixture gate. Production rows without a manifest are not_evaluable."""
+    """Deterministic golden-fixture gate for source rule -> canonical rule preservation."""
     expected = [x for x in campaign.get("expected_evidence") or [] if isinstance(x, dict) and _norm(x.get("quote"))]
     if not expected:
         return {"status": "not_evaluable", "reason": "campaign has no deterministic expected_evidence manifest"}
+
     brain_rules = [x for x in brain.get("rules") or [] if isinstance(x, dict)]
     verified = [x for x in (brain.get("evidence") or {}).get("verified") or [] if isinstance(x, dict)]
-    verified_keys = {(_norm(x.get("rule_path")).lower(), _norm(x.get("quote")).lower()) for x in verified}
-    missing = [x for x in expected if (_norm(x.get("rule_path")).lower(), _norm(x.get("quote")).lower()) not in verified_keys]
+    verified_by_key = {
+        (_norm(x.get("rule_path")).lower(), _norm(x.get("quote")).lower()): x
+        for x in verified
+    }
+
+    def bound_rule(expected_item: dict[str, Any]) -> dict[str, Any] | None:
+        path = _norm(expected_item.get("rule_path")).lower()
+        quote = _norm(expected_item.get("quote")).lower()
+        evidence_item = verified_by_key.get((path, quote))
+        evidence_id = str((evidence_item or {}).get("evidence_id") or "")
+        if not evidence_id:
+            return None
+        for rule in brain_rules:
+            if evidence_id in (rule.get("evidence_ids") or []) and _path_match(rule.get("source_rule_path"), path):
+                return rule
+        return None
+
+    missing_evidence = [
+        x for x in expected
+        if (_norm(x.get("rule_path")).lower(), _norm(x.get("quote")).lower()) not in verified_by_key
+    ]
+    unbound = [x for x in expected if x not in missing_evidence and bound_rule(x) is None]
+
     mandatory = [x for x in expected if bool(x.get("mandatory"))]
-    mandatory_missing = [x for x in mandatory if (_norm(x.get("rule_path")).lower(), _norm(x.get("quote")).lower()) not in verified_keys]
+    mandatory_missing = [x for x in mandatory if x in missing_evidence or x in unbound]
 
     platform_missing = []
     for item in expected:
         path = _norm(item.get("rule_path")).lower()
-        match = re.search(r"\b(" + "|".join(sorted(map(re.escape, PLATFORMS))) + r")\b", path)
+        quote = _norm(item.get("quote")).lower()
+        rule = bound_rule(item)
+        match = re.search(r"\b(" + "|".join(sorted(map(re.escape, PLATFORMS))) + r")\\b", path)
+        if not match:
+            match = re.search(r"\b(" + "|".join(sorted(name for name in PLATFORMS if len(name) > 1)) + r")\\b", quote)
         if not match:
             continue
         platform = match.group(1)
-        quote = _norm(item.get("quote")).lower()
-        if not any(
-            _path_match(rule.get("source_rule_path"), path)
-            and platform in (rule.get("scope") or {}).get("platforms", [])
-            and quote in {
-                _norm(ev.get("quote")).lower()
-                for ev in verified
-                if ev.get("evidence_id") in (rule.get("evidence_ids") or [])
-            }
-            for rule in brain_rules
-        ):
+        if rule is None or platform not in (rule.get("scope") or {}).get("platforms", []):
             platform_missing.append(item)
 
     supported_without_evidence = [x for x in brain_rules if x.get("status") == "supported" and not x.get("evidence_ids")]
     mandatory_without_evidence = [x for x in brain_rules if x.get("requirement_level") == "mandatory" and not x.get("evidence_ids")]
-    mandatory_paths = {_norm(x.get("rule_path")).lower() for x in mandatory}
+    expected_evidence_ids = {
+        str((verified_by_key.get((_norm(x.get("rule_path")).lower(), _norm(x.get("quote")).lower())) or {}).get("evidence_id") or "")
+        for x in expected
+    }
     false_mandatory = [
         x for x in brain_rules
         if x.get("requirement_level") == "mandatory"
-        and _norm(x.get("source_rule_path")).lower() not in mandatory_paths
-        and not any(
-            ev.get("evidence_id") in (x.get("evidence_ids") or [])
-            and any(_norm(m.get("quote")).lower() == _norm(ev.get("quote")).lower() and bool(m.get("mandatory")) for m in expected)
-            for ev in verified
-        )
+        and not set(x.get("evidence_ids") or []).intersection(expected_evidence_ids)
     ]
-    failed = bool(missing or platform_missing or supported_without_evidence or mandatory_without_evidence or false_mandatory)
+    failed = bool(missing_evidence or unbound or platform_missing or supported_without_evidence or mandatory_without_evidence or false_mandatory)
+    preserved = len(expected) - len(missing_evidence) - len(unbound)
+    mandatory_preserved = len(mandatory) - len(mandatory_missing)
     return {
         "status": "fail" if failed else "pass",
         "expected_count": len(expected),
-        "preserved_count": len(expected) - len(missing),
+        "preserved_count": preserved,
         "mandatory_expected": len(mandatory),
-        "mandatory_preserved": len(mandatory) - len(mandatory_missing),
-        "missing": missing,
+        "mandatory_preserved": mandatory_preserved,
+        "missing": missing_evidence,
+        "unbound": unbound,
         "mandatory_missing": mandatory_missing,
         "platform_missing": platform_missing,
         "supported_without_evidence": supported_without_evidence,
         "mandatory_without_evidence": mandatory_without_evidence,
         "false_mandatory": false_mandatory,
-        "silent_rule_loss": len(missing),
-        "critical_rule_preservation": (len(mandatory) - len(mandatory_missing)) / len(mandatory) if mandatory else 1.0,
-        "mandatory_rule_preservation": (len(mandatory) - len(mandatory_missing)) / len(mandatory) if mandatory else 1.0,
+        "silent_rule_loss": len(missing_evidence) + len(unbound),
+        "critical_rule_preservation": mandatory_preserved / len(mandatory) if mandatory else 1.0,
+        "mandatory_rule_preservation": mandatory_preserved / len(mandatory) if mandatory else 1.0,
     }
 
 
