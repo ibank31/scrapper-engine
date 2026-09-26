@@ -86,6 +86,7 @@ GEMINI_RESPONSE_SCHEMA: dict[str, Any] = {
                             "subtitle_delivery_profile": {"type": "string"},
                             "sound_policy": {"type": "string"},
                             "native_tags": {"type": "array", "items": {"type": "string"}},
+                            "material_policy": {"type": "object"},
                         },
                         "required": [
                             "source_policy", "platforms",
@@ -328,6 +329,7 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str) -> dict[str, Any
             "subtitle_delivery_profile": str(rules.get("subtitle_delivery_profile") or ""),
             "sound_policy": str(rules.get("sound_policy") or "manual_required"),
             "native_tags": list(rules.get("native_tags") or []),
+            "material_policy": rules.get("material_policy") if isinstance(rules.get("material_policy"), dict) else {},
         },
         "ambiguities": [str(x) for x in (item.get("ambiguities") or [])],
         "evidence": item.get("evidence") if isinstance(item.get("evidence"), list) else [],
@@ -349,7 +351,7 @@ def _prompt(batch: Iterable[dict[str, Any]]) -> str:
     profile = _load_profile()
     return """You are the campaign-intelligence layer of a clipping production engine.
 Read each campaign independently. Extract only what is supported by supplied text. Never invent a rule.
-Identify every explicit production or posting rule that can affect clip validity.
+Identify every explicit production or posting rule that can affect clip validity.\nBuild a campaign-specific material acquisition plan. Do not assume every campaign uses the same acquisition method.\nFor every required material, identify intent, quantity, preferred/fallback sources, allowed/forbidden source types, discovery methods, identity fields, verification requirements, and evidence.\nNever treat an example/reference link as production footage unless the campaign explicitly says so. If acquisition is unclear, choose manual_required or unresolved rather than inventing a source.
 Record CRITICAL ambiguity only when an unknown could change asset selection, edit/render decisions, or posting compliance.
 Decide campaign_fit using this operator profile:
 """ + json.dumps(profile, ensure_ascii=False) + """
