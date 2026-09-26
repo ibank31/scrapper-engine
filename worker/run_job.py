@@ -699,10 +699,14 @@ def main() -> None:
                 final_candidates.append(dict(local_item, rank=global_rank, source=item["source"], relevance=item["relevance"]))
         all_candidates = final_candidates
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "completed", {"rendered_count": len(all_candidates)})
-        render_gate = evaluate_output_pair(all_candidates, [])
-        if not render_gate["ok"]:
-            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "blocked", render_gate["evidence"])
-            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Pasangan output tidak lengkap setelah render", json.dumps(render_gate, ensure_ascii=False))
+        expected_count = int((plan.get("output_contract") or {}).get("expected_count") or 2)
+        if len(all_candidates) != expected_count:
+            render_evidence = {
+                "expected_count": expected_count,
+                "rendered_count": len(all_candidates),
+            }
+            stage_event(args.api_base, args.job_id, args.worker_token, run_id, "render", "blocked", render_evidence, "render_incomplete")
+            update(args.api_base, args.job_id, args.worker_token, "blocked", 100, "Output tidak lengkap setelah render", json.dumps({"reason": "render_incomplete", "evidence": render_evidence}, ensure_ascii=False))
             return
         transcript_dir = transcript_root
         (transcript_dir / "candidates.json").write_text(json.dumps({"schema_version": 1, "candidates": all_candidates}, ensure_ascii=False, indent=2), encoding="utf-8")
