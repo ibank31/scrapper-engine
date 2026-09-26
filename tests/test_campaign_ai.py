@@ -8,7 +8,7 @@ from unittest.mock import patch
 from core import campaign_ai
 from core.campaign_ai import normalize_ai_result, rules_fingerprint
 from core.campaign_evidence import build_evidence_ledger, source_fingerprint, verify_ai_evidence
-from worker.sync_campaigns import _cache_is_current
+from worker.sync_campaigns import _cache_is_current, _headers
 
 
 def valid_payload(campaign_ids=("c-1",)):
@@ -66,6 +66,11 @@ class CampaignAITests(unittest.TestCase):
         self.assertEqual(result["c-evidence"]["source_hash"], source_fingerprint(campaign))
         self.assertEqual(result["c-evidence"]["evidence_contract"]["coverage"], 1.0)
         self.assertEqual(len(result["c-evidence"]["evidence_contract"]["verified"]), 1)
+
+    def test_campaign_sync_uses_api_bearer_auth_header(self):
+        headers = _headers("worker-secret")
+        self.assertEqual(headers["authorization"], "Bearer worker-secret")
+        self.assertEqual(headers["x-worker-token"], "worker-secret")
 
     def test_legacy_campaign_ai_cache_is_stale_without_evidence_contract(self):
         campaign_hash = "same-rules-hash"
