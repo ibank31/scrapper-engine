@@ -397,7 +397,6 @@ function startPolling() {
   if (cfg.DEMO_MODE || state.pollTimer) return;
   state.pollTimer = setInterval(async () => {
     await loadJobs();
-    await refreshVisibleJobStages();
     if (!state.jobs.some((j) => j.status === "queued" || j.status === "processing")) {
       clearInterval(state.pollTimer);
       state.pollTimer = null;
