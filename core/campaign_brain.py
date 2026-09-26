@@ -12,7 +12,7 @@ import json
 import re
 from typing import Any, Iterable
 
-from core.campaign_evidence import source_fingerprint
+from core.campaign_evidence import source_fingerprint, verify_quote
 
 SCHEMA_VERSION = 1
 BRAIN_ID_PREFIX = "brain-v1:"
@@ -239,6 +239,27 @@ def _build_rule(campaign: dict[str, Any], source_hash: str, path: str, value: An
     }
 
 
+def _structured_requirement_evidence(campaign: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build source-backed evidence for structured campaign requirements.
+
+    The requirement metadata is part of the campaign source contract, so
+    mandatory/optional requirements must not depend on an LLM remembering to
+    quote them.
+    """
+    evidence: list[dict[str, Any]] = []
+    for item in campaign.get("requirements") or []:
+        text = _norm(item.get("text") if isinstance(item, dict) else item)
+        if not text:
+            continue
+        result = verify_quote(campaign, text)
+        if result.get("status") != "verified":
+            continue
+        result = dict(result)
+        result["rule_path"] = "rules.requirements"
+        evidence.append(result)
+    return evidence
+
+
 def _detect_variants(verified: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for item in verified:
@@ -287,10 +308,28 @@ def build_campaign_brain(
     campaign_id = str(campaign.get("id") or "")
     source_hash = source_fingerprint(campaign)
     verified = [x for x in ((evidence_contract or {}).get("verified") or []) if isinstance(x, dict)]
+    structured_requirements = _structured_requirement_evidence(campaign)
+    seen_evidence = {str(x.get("evidence_id")) for x in verified if x.get("evidence_id")}
+    for item in structured_requirements:
+        if str(item.get("evidence_id")) not in seen_evidence:
+            verified.append(item)
+            seen_evidence.add(str(item.get("evidence_id")))
     annotations = [x for x in (rule_annotations or []) if isinstance(x, dict) and _annotation_path(x)]
     records: dict[tuple[str, str], dict[str, Any]] = {}
 
     annotated_paths = {_annotation_path(x) for x in annotations}
+
+    for index, item in enumerate(campaign.get("requirements") or []):
+        requirement_text = _norm(item.get("text") if isinstance(item, dict) else item)
+        if not requirement_text:
+            continue
+        requirement_evidence = [x for x in verified if x.get("rule_path") == "rules.requirements" and _norm(x.get("quote")).lower() == requirement_text.lower()]
+        requirement_value: Any = requirement_text
+        record = _build_rule(campaign, source_hash, "rules.requirements", requirement_value, None, requirement_evidence, ai_available)
+        if record:
+            record["key"] = "requirement"
+            record["requirement_index"] = index
+            records[(f"requirements[{index}]", _value_key(requirement_value))] = record
     for path, value in _iter_rules(rules if isinstance(rules, dict) else {}):
         # When the model supplied canonical annotations for a path, use those
         # atomic records instead of also emitting the flat aggregate value.
