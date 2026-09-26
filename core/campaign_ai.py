@@ -137,6 +137,13 @@ class OpenRouterProvider(AIProvider):
             except (ValueError, TypeError, IndexError, AttributeError) as exc:
                 raise AIProviderError("OpenRouter returned an invalid response envelope") from exc
             if not isinstance(text, str) or not text.strip():
+                if attempt <= max_retries:
+                    print(
+                        "AI provider: provider=openrouter status=retry "
+                        "reason=empty_content"
+                    )
+                    time.sleep(min(10.0, 1.0 * (2 ** (attempt - 1))))
+                    continue
                 raise AIProviderError("OpenRouter returned empty content")
             return text
 
