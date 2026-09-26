@@ -12,7 +12,6 @@ Usage:
   python run.py render_clips <video> <candidates.json> [--transcript transcript.json]
   python run.py validate_clips --plan plan.json --glob 'renders/*.mp4'
   python run.py review_queue --plan plan.json --candidates candidates.json --validation validation.json --rendered-dir renders --out-dir review
-  python run.py product_image --manifest manifests/xxx.json --repo ~/situs
 """
 import os, runpy, sys
 
@@ -28,7 +27,6 @@ MODULES = {
     "render_clips": "modules/clipping/render.py",
     "validate_clips": "modules/clipping/validate.py",
     "review_queue": "modules/clipping/review_queue.py",
-    "product_image": "modules/product_image/run.py",
 }
 
 def main():
