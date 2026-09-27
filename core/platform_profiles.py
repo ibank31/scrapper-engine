@@ -45,7 +45,7 @@ def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], 
         for match in re.finditer(r"(@[A-Za-z0-9_.-]+)\\s+for\\s+(Instagram|TikTok|YouTube)", source_text, re.I):
             platform = match.group(2).lower()
             platform_handle_overrides.setdefault(platform, [])
-            if match.group(1) not in platform_handle_overrides[platform]:
+            if "....." not in match.group(1) and match.group(1) not in platform_handle_overrides[platform]:
                 platform_handle_overrides[platform].append(match.group(1))
     global_hashtags = _values(production.get("hashtags"))
     global_disclosures = _values(production.get("disclosures"))
@@ -58,7 +58,13 @@ def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], 
         if not isinstance(item, dict):
             continue
         if item.get("mandatory") and item.get("platform", "all") in ("all", None):
-            required_phrases.append(str(item.get("text") or "").strip())
+            text = str(item.get("text") or "").strip()
+            # Requirements such as "Include demographic information" describe
+            # a production obligation, not literal caption text. Only explicit
+            # caption/field phrases belong in required_phrases.
+            kind = str(item.get("kind") or item.get("field") or item.get("type") or "").lower()
+            if kind in {"caption", "phrase", "caption_phrase"}:
+                required_phrases.append(text)
     result = {}
     for platform in _platforms(detail):
         override = platform_rules.get(platform) if isinstance(platform_rules.get(platform), dict) else {}
