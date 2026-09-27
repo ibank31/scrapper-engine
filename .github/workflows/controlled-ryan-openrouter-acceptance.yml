@@ -90,7 +90,11 @@ jobs:
           assert brain["brain_id"].startswith("brain-v1:")
           assert brain["source_hash"] == ai["source_hash"]
           assert isinstance(brain["rules"], list)
-          assert brain["evidence"]["coverage"] == 1.0
+          assert brain["evidence"]["coverage"] == 1.0, {
+              "coverage": brain["evidence"].get("coverage"),
+              "verified_count": len(brain["evidence"].get("verified", [])),
+              "unverified_count": len(brain["evidence"].get("unverified", [])),
+          }
           brain_cta = next(
               rule for rule in brain["rules"]
               if rule["source_rule_path"] == "rules.cta_text"
@@ -122,8 +126,12 @@ jobs:
           assert unresolved_ids.issubset(represented_unresolved_ids), (unresolved_ids, represented_unresolved_ids)
           contract = ai["evidence_contract"]
           assert contract["schema_version"] == 1
-          assert contract["coverage"] == 1.0, contract
-          assert contract["unverified"] == [], contract["unverified"]
+          assert contract["coverage"] == 1.0, {
+              "coverage": contract.get("coverage"),
+              "verified_count": len(contract.get("verified", [])),
+              "unverified_count": len(contract.get("unverified", [])),
+          }
+          assert contract["unverified"] == [], {"unverified_count": len(contract["unverified"])}
           rules = ai["rules"]
           assert isinstance(rules, dict)  # legacy ai_rules.rules projection stays available
           assert rules["cta_required"] is True
