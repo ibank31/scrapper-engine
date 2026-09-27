@@ -63,6 +63,33 @@ class PostingPackageTests(unittest.TestCase):
         changed["clip_strategy_id"] = "clip-strategy-v1:changed"
         self.assertFalse(posting_package_is_current(first, self.contract, changed))
 
+    def test_campaign_fallback_requires_provenance(self):
+        campaign = {
+            "id": "campaign-1",
+            "platforms": ["instagram"],
+            "posting": {"cta": {"instagram": "Campaign CTA"}},
+            "posting_provenance": prov("e-campaign-cta"),
+        }
+        package = compile_posting_package(self.contract, self.strategy, campaign)
+        self.assertEqual(package["status"], "ready")
+        self.assertEqual(package["summary"]["provenance_coverage"], 1.0)
+
+        campaign["posting_provenance"]["evidence_ids"] = []
+        blocked = compile_posting_package(self.contract, self.strategy, campaign)
+        self.assertEqual(blocked["status"], "blocked")
+        self.assertEqual(blocked["summary"]["provenance_coverage"], 7 / 8)
+        self.assertTrue(any(i["type"] == "provenance_invalid" and i["field"] == "cta" for i in blocked["issues"]))
+
+    def test_manual_native_requirement_is_explicit_and_blocks_mandatory(self):
+        contract = copy.deepcopy(self.contract)
+        manual = req("native_tag_requirements", {"tag": "native"}, "e-native", {"platforms": ["instagram"]})
+        manual["provenance"]["interpretation_type"] = "manual_required"
+        contract["posting"]["native_tag_requirements"] = [manual]
+        package = compile_posting_package(contract, self.strategy)
+        self.assertEqual(package["status"], "blocked")
+        self.assertTrue(package["platforms"]["instagram"]["manual_actions"])
+        self.assertTrue(any(i["type"] == "mandatory_uncertain" for i in package["issues"]))
+
     def test_caption_and_schedule_are_only_copied_when_explicit(self):
         campaign = {"id": "campaign-1", "platforms": ["instagram"], "posting": {"caption": {"instagram": "Exact campaign caption"}, "schedule_intent": {"instagram": "next approved slot"}}}
         package = compile_posting_package(self.contract, self.strategy, campaign)
