@@ -677,7 +677,9 @@ def main() -> None:
                 if wrapper_index < 0 or wrapper_index >= len(all_candidates):
                     continue
                 wrapper = all_candidates[wrapper_index]
-                candidate = dict(ranked_item)
+                # Semantic scoring must not erase deterministic lineage fields.
+                candidate = dict(wrapper.get("candidate") or {})
+                candidate.update(ranked_item)
                 candidate.pop("_wrapper_index", None)
                 semantic = candidate.get("semantic") or {}
                 if semantic.get("decision") == "reject":
