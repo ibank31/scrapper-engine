@@ -43,6 +43,37 @@ def main() -> None:
     changed["clip_strategy_id"] = "clip-strategy-v1:changed"
     assert not posting_package_is_current(package, contract, changed)
 
+    campaign = {
+        "id": "ca07-acceptance",
+        "platforms": ["instagram"],
+        "posting": {
+            "caption": {"instagram": "Exact caption"},
+            "schedule_intent": {"instagram": "next approved slot"},
+            "cta": {"instagram": "Campaign CTA"},
+        },
+        "posting_provenance": provenance("e-campaign-cta"),
+    }
+    fallback = compile_posting_package(contract, strategy, campaign)
+    assert fallback["status"] == "ready"
+    assert fallback["summary"]["provenance_coverage"] == 1.0
+    assert fallback["platforms"]["instagram"]["caption"][0]["value"] == "Exact caption"
+    assert fallback["platforms"]["instagram"]["schedule_intent"][0]["value"] == "next approved slot"
+
+    campaign["posting_provenance"]["evidence_ids"] = []
+    fallback_blocked = compile_posting_package(contract, strategy, campaign)
+    assert fallback_blocked["status"] == "blocked"
+    assert fallback_blocked["summary"]["provenance_coverage"] == 7 / 8
+    assert any(i["type"] == "provenance_invalid" and i["field"] == "cta" for i in fallback_blocked["issues"])
+
+    manual_contract = copy.deepcopy(contract)
+    manual = posting_item("native_tag_requirements", {"tag": "native"}, "e-native", "instagram")
+    manual["provenance"]["interpretation_type"] = "manual_required"
+    manual_contract["posting"]["native_tag_requirements"] = [manual]
+    manual_package = compile_posting_package(manual_contract, strategy)
+    assert manual_package["status"] == "blocked"
+    assert manual_package["platforms"]["instagram"]["manual_actions"]
+    assert any(i["type"] == "mandatory_uncertain" for i in manual_package["issues"])
+
     legacy = {"rules": {"cta_required": True, "hashtags": ["#legacy"]}}
     assert legacy["rules"]["hashtags"] == ["#legacy"]
     print("POSTING_PACKAGE_PRESENT=true")
