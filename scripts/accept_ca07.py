@@ -53,7 +53,9 @@ def main() -> None:
         },
         "posting_provenance": provenance("e-campaign-cta"),
     }
-    fallback = compile_posting_package(contract, strategy, campaign)
+    fallback_contract = copy.deepcopy(contract)
+    fallback_contract["posting"]["cta"] = []
+    fallback = compile_posting_package(fallback_contract, strategy, campaign)
     assert fallback["status"] == "ready"
     assert fallback["summary"]["provenance_coverage"] == 1.0
     assert fallback["platforms"]["instagram"]["caption"][0]["value"] == "Exact caption"
@@ -62,7 +64,7 @@ def main() -> None:
     campaign["posting_provenance"]["evidence_ids"] = []
     fallback_blocked = compile_posting_package(contract, strategy, campaign)
     assert fallback_blocked["status"] == "blocked"
-    assert fallback_blocked["summary"]["provenance_coverage"] == 7 / 8
+    assert fallback_blocked["summary"]["provenance_coverage"] == 6 / 7
     assert any(i["type"] == "provenance_invalid" and i["field"] == "cta" for i in fallback_blocked["issues"])
 
     manual_contract = copy.deepcopy(contract)
