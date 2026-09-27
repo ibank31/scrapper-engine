@@ -187,7 +187,7 @@ class ComplianceGateTests(unittest.TestCase):
 
     def test_valid_chain_is_ready_and_current(self):
         gate = self.gate()
-        self.assertEqual(gate["status"], "ready", gate["issues"])
+        self.assertEqual(gate["status"], "ready")
         self.assertTrue(all(gate["checks"].values()), gate["issues"])
         self.assertTrue(gate["compliance_gate_id"].startswith("compliance-gate-v1:"))
         self.assertTrue(compliance_gate_is_current(
