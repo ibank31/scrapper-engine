@@ -304,8 +304,6 @@ function renderReviewWorkspace() {
   const pendingRender = preview.status === "pending_render";
   const editable = ["pending_review", "changes_requested"].includes(preview.status);
 
-  releaseVideoPreview();
-
   inbox.classList.add("hidden");
   container.classList.remove("hidden");
   container.innerHTML =
@@ -355,10 +353,16 @@ function bindReviewWorkspace(preview, rows) {
   }));
   $("#play-preview")?.addEventListener("click", () => {});
   document.querySelector("[data-play-preview]")?.addEventListener("click", async () => {
-    if (!preview.video_url) return;
     const button = document.querySelector("[data-play-preview]");
     if (button) button.disabled = true;
     try {
+      // Reload preview metadata immediately before playback so a long-open review
+      // page never attempts to play an expired signed URL.
+      const fresh = await api("/api/jobs/" + encodeURIComponent(preview.job_id) + "/previews");
+      const current = (fresh.previews || []).find((item) => item.id === preview.id);
+      if (!current?.video_url) throw new Error("video_stream_missing");
+      preview.video_url = current.video_url;
+      preview.download_url = current.download_url || preview.download_url;
       state.videoLoaded = true;
       renderReviewWorkspace();
       const video = $("#activeReviewVideo");
