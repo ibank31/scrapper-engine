@@ -25,6 +25,12 @@ jobs:
         env:
           CLIPPER_SEMANTIC_ENABLED: "false"
         run: python -m unittest discover -s tests -v
+      - name: Run CA-08 bounded acceptance
+        run: python scripts/accept_ca08.py
+      - name: Run compile and dependency checks
+        run: |
+          python -m compileall -q core modules worker
+          python -m pip check
       - name: Evaluate semantic golden fixture
         env:
           CLIPPER_SEMANTIC_ENABLED: "false"
