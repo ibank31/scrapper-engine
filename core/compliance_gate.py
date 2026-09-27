@@ -12,6 +12,8 @@ import json
 from copy import deepcopy
 from typing import Any, Mapping
 
+from core.campaign_evidence import source_fingerprint
+
 SCHEMA_VERSION = 1
 _ALLOWED_STATUSES = {"ready", "review", "blocked", "pass"}
 _MANDATORY_INTERPRETATIONS = {"unsupported", "ambiguous", "conflicting", "manual_required"}
@@ -191,6 +193,8 @@ def _check_identity_and_schema(artifacts: Mapping[str, Mapping[str, Any]], campa
     issues: list[dict[str, Any]] = []
     expected_campaign = str(campaign.get("id") or "")
     expected_source_hash = str(campaign.get("source_hash") or "")
+    if not expected_source_hash and expected_campaign:
+        expected_source_hash = source_fingerprint(dict(campaign))
     for name, expected_schema in _SCHEMA_KEYS.items():
         artifact = artifacts.get(name)
         if not isinstance(artifact, Mapping):
@@ -351,9 +355,8 @@ def _check_platform_and_restrictions(production: Mapping[str, Any], material: Ma
     for item in production_domain.get("requirements", []) or []:
         if isinstance(item, Mapping):
             expected_platforms.update(_scope(item.get("scope")).get("platforms", []))
-    for item in material.get("requirements") or []:
-        if isinstance(item, Mapping):
-            expected_platforms.update(_scope(item.get("scope")).get("platforms", []))
+    # Material scope describes acquisition applicability, not necessarily the
+    # publication platform set. Publication scope is owned by posting/clip.
     actual_platforms = {str(x).strip().lower() for x in (posting.get("platforms") or {}).keys() if str(x).strip()}
     missing_platforms = sorted(expected_platforms - actual_platforms)
     if missing_platforms:
