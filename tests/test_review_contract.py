@@ -66,6 +66,14 @@ class ReviewContractTests(unittest.TestCase):
         self.assertEqual(contract["decision_state"], "blocked")
         self.assertFalse(contract["review_actions"]["approve"])
 
+    def test_failed_video_validation_blocks_approval(self):
+        preview = copy.deepcopy(self.preview)
+        preview["validation"] = {"status": "fail"}
+        contract = compile_review_contract(self.gate, preview)
+        self.assertEqual(contract["decision_state"], "blocked")
+        self.assertFalse(contract["review_actions"]["approve"])
+        self.assertTrue(any(item["code"] == "review_check_blocked" for item in contract["issues"]))
+
     def test_deterministic_and_input_immutable(self):
         gate = copy.deepcopy(self.gate)
         preview = copy.deepcopy(self.preview)
