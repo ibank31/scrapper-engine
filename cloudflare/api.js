@@ -322,7 +322,7 @@ export default {
         const preview = await env.DB.prepare("SELECT p.id,p.status,p.video_key,p.caption_draft,p.artifact_hash,p.caption_revision_id,p.approval_artifact_hash,p.approval_caption_revision_id,p.approval_rules_hash,p.approval_review_contract_id,p.approval_compliance_gate_id,p.platform,p.platform_profile_json,j.rules_hash FROM previews p JOIN jobs j ON j.id=p.job_id WHERE p.id=?").bind(parts[2]).first();
         if (!preview || !preview.video_key) return json({ error: "preview_not_found" }, 404);
         if (preview.status !== "approved_for_manual_post") return json({ error: "preview_not_approved", status: preview.status }, 409);
-        if (!preview.approval_artifact_hash || preview.approval_artifact_hash !== preview.artifact_hash || preview.approval_caption_revision_id !== preview.caption_revision_id || preview.approval_rules_hash !== preview.rules_hash) return json({ error: "approval_provenance_invalid" }, 409);
+        if (!preview.approval_artifact_hash || preview.approval_artifact_hash !== preview.artifact_hash || preview.approval_caption_revision_id !== preview.caption_revision_id || preview.approval_rules_hash !== preview.rules_hash || !preview.approval_review_contract_id || !preview.approval_compliance_gate_id) return json({ error: "approval_provenance_invalid" }, 409);
         if (String(body.artifact_hash || "") !== preview.approval_artifact_hash || String(body.caption_revision_id || "") !== preview.approval_caption_revision_id) return json({ error: "approval_revision_mismatch" }, 409);
         const channelIds = [...new Set((body.channel_ids || []).map(String).filter(Boolean))].slice(0, 3);
         if (!channelIds.length) return json({ error: "channel_ids_required" }, 400);
