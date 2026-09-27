@@ -299,10 +299,14 @@ def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any
 
     use_semantic, decision_reason = semantic_model_decision(prepared, plan, semantic_limit)
     if use_semantic:
+        # Semantic ranking is mandatory in this branch. Evaluate the full deterministic
+        # candidate pool so the final output contract can never select a candidate that
+        # only received the low-cost deterministic relevance fallback.
         shortlist = prepared[:max(1, int(semantic_limit))]
+        semantic_candidates = prepared
         ranked_shortlist: list[dict[str, Any]] = []
         model_runtimes: list[dict[str, Any]] = []
-        for index, candidate in enumerate(shortlist, 1):
+        for index, candidate in enumerate(semantic_candidates, 1):
             item = dict(candidate)
             item["rank"] = index
             ranked_one, one_runtime = rank_candidates_with_metadata([item], plan)
