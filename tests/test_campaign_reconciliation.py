@@ -243,10 +243,13 @@ class CampaignReconciliationTests(unittest.TestCase):
         ev = evidence(campaign, "rules.aspect_ratio", "Use either a 1:1 or 9:16 crop.")
         ambiguous_rule = rule("rules.aspect_ratio", "1:1 or 9:16", ev)
         ambiguous_rule["interpretation_type"] = "ambiguous"
-        contract, brain, critic = make_inputs(campaign, [ambiguous_rule], evidence_items=[ev])
+        duplicate = copy.deepcopy(ambiguous_rule)
+        duplicate["rule_id"] = "rule:ambiguous-duplicate"
+        contract, brain, critic = make_inputs(campaign, [ambiguous_rule, duplicate], evidence_items=[ev])
         result = reconcile_campaign_rules(campaign, contract, brain, critic)
         self.assertEqual(result["status"], "review")
         self.assertEqual(result["rules"][0]["resolution"]["status"], "unresolved")
+        self.assertEqual(result["rules"][0]["resolution"]["method"], "exact_agreement_with_ambiguity")
         self.assertTrue(any(item["kind"] == "brain_semantic_ambiguity" for item in result["conflicts"]))
 
     def test_real_critic_findings_are_all_accounted_for(self):

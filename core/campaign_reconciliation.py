@@ -246,7 +246,10 @@ def reconcile_campaign_rules(
         base["brain_rule_ids"] = sorted({rid for item in group for rid in item["brain_rule_ids"]})
         base["source_priority"] = max(item["source_priority"] for item in group)
         if len(group) > 1:
-            base["resolution"] = {"status": "resolved", "method": "exact_agreement", "reason": "Equivalent value, requirement semantics, and scope were coalesced; all provenance was retained."}
+            if all(item["resolution"]["status"] == "resolved" for item in group):
+                base["resolution"] = {"status": "resolved", "method": "exact_agreement", "reason": "Equivalent value, requirement semantics, and scope were coalesced; all provenance was retained."}
+            else:
+                base["resolution"] = {"status": "unresolved", "method": "exact_agreement_with_ambiguity", "reason": "Equivalent source-backed values were coalesced, but at least one Brain interpretation remains explicitly ambiguous."}
         agreed.append(base)
 
     conflicts: list[dict[str, Any]] = []
