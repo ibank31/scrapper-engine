@@ -391,8 +391,8 @@ def select_candidates_for_bands(
         # identity here once the authoritative source path is known so band-mode
         # candidates cannot silently become "unknown-source".
         source_hash = (quality or {}).get("duplicate_hash")
-        for item in selected:
-            item = annotate_candidate(item, source_path, source_hash, transcript, plan)
+        for index, item in enumerate(selected):
+            selected[index] = annotate_candidate(item, source_path, source_hash, transcript, plan)
         selected.sort(key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
 
     for rank, item in enumerate(selected, 1):
