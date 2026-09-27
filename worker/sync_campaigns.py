@@ -28,6 +28,7 @@ from core.material_acquisition import build_legacy_compatible_policy, material_p
 from core.material_intelligence import material_plan_is_current
 from core.clip_strategy import clip_strategy_is_current
 from core.posting_package import posting_package_is_current
+from core.compliance_gate import compliance_gate_is_current
 from modules.reward_campaign.pull_detail import extract_detail
 
 DOC_ID_RE = re.compile(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", re.I)
@@ -165,6 +166,21 @@ def _cache_is_current(previous: dict[str, Any] | None, rules_hash: str) -> bool:
     if "clip_strategy" in cached and not clip_strategy_is_current(cached.get("clip_strategy"), production_contract, cached.get("material_plan")):
         return False
     if "clip_strategy" in cached and ("posting_package" not in cached or not posting_package_is_current(cached.get("posting_package"), production_contract, cached.get("clip_strategy"))):
+        return False
+    # CA-08 is additive: validate the final compliance gate whenever a cached
+    # envelope contains it. Older CA-07 envelopes remain readable until the
+    # bounded CA-08 migration is intentionally requested.
+    if "compliance_gate" in cached and not compliance_gate_is_current(
+        cached.get("compliance_gate"),
+        cached.get("evidence_contract"),
+        cached.get("campaign_brain"),
+        cached.get("campaign_critic"),
+        cached.get("campaign_reconciliation"),
+        cached.get("production_contract"),
+        cached.get("material_plan"),
+        cached.get("clip_strategy"),
+        cached.get("posting_package"),
+    ):
         return False
     critic = cached.get("campaign_critic")
     if not isinstance(critic, dict) or not critic.get("critic_id"):
