@@ -20,6 +20,7 @@ from core.production_contract import compile_production_contract
 from core.material_intelligence import compile_material_plan
 from core.clip_strategy import compile_clip_strategy
 from core.posting_package import compile_posting_package
+from core.compliance_gate import compile_compliance_gate
 from core.campaign_evidence import build_evidence_ledger, source_documents, source_fingerprint, verify_ai_evidence, verify_quote
 
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
@@ -616,6 +617,10 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
     material_plan = compile_material_plan(production_contract)
     clip_strategy = compile_clip_strategy(production_contract, material_plan, platform_hints=list(rules.get("platforms") or []))
     posting_package = compile_posting_package(production_contract, clip_strategy, campaign or {"id": campaign_id, "rules": rules})
+    compliance_gate = compile_compliance_gate(
+        campaign or {"id": campaign_id}, evidence_contract, brain, critic,
+        reconciliation, production_contract, material_plan, clip_strategy, posting_package,
+    )
     return {
         "schema_version": 2, "campaign_id": campaign_id,
         "campaign_fit": {"score": fit_score, "label": str(fit.get("label") or "unknown"), "reason": str(fit.get("reason") or "")},
@@ -626,6 +631,7 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
         "material_plan": material_plan,
         "clip_strategy": clip_strategy,
         "posting_package": posting_package,
+        "compliance_gate": compliance_gate,
         "rules": {
             "source_policy": str(rules.get("source_policy") or "campaign_defined"), "platforms": list(rules.get("platforms") or []),
             "aspect_ratio": rules.get("aspect_ratio"), "min_duration_seconds": _int_or_none(rules.get("min_duration_seconds")),
