@@ -25,7 +25,7 @@ if str(_REPO_ROOT) not in sys.path:
 import requests
 
 from core.relevance import check_candidate
-from core.candidate_identity import deduplicate_source_records
+from core.candidate_identity import annotate_candidate, deduplicate_source_records
 from core.output_selection import select_required_output_pair
 from core.output_gate import evaluate_output_pair, evaluate_render_pair
 from core.review_contract import compile_review_contract
@@ -532,6 +532,15 @@ def main() -> None:
             "downloaded_bytes": intake_discovery.get("downloaded_bytes", 0),
         })
         sources = usable_sources
+        # Build a durable lineage map from the authoritative intake manifest.
+        # Candidate identity must point to the campaign asset ID, never to an
+        # ephemeral runner path or a truthy placeholder such as "unknown-source".
+        asset_by_local_path = {}
+        for asset in intake_manifest.get("asset_manifest", []):
+            local_path = str(asset.get("local_path") or "").strip()
+            if not local_path or not asset.get("asset_id"):
+                continue
+            asset_by_local_path[str((workspace / local_path).resolve())] = asset
         if not sources:
             rejected = []
             for record in preflight_records:
@@ -614,6 +623,15 @@ def main() -> None:
             ], timeout=stage_timeout("selector", 180), stage="selector")
             local_candidates = json.loads(band_path.read_text(encoding="utf-8"))
             selection = local_candidates.get("selection") or {}
+            transcript_payload = json.loads((transcript_dir / "transcript.json").read_text(encoding="utf-8"))
+            asset_meta = asset_by_local_path.get(str(Path(source).resolve())) or {}
+            source_asset_id = str(asset_meta.get("asset_id") or "unknown-source")
+            source_hash = str(asset_meta.get("sha256") or "")
+            if not source_hash:
+                source_hash = _sha256_file(Path(source)) if Path(source).exists() else ""
+            for local_item in local_candidates.get("candidates", []):
+                local_item.update(annotate_candidate(local_item, source_asset_id, source_hash or None, transcript_payload, plan))
+                local_item["source"] = str(source)
             stage_event(args.api_base, args.job_id, args.worker_token, run_id, "selector", "completed", {
                 "source_index": source_index,
                 "duration_bands": selection.get("diagnostics", {}).get("bands") or [],
@@ -844,7 +862,8 @@ def main() -> None:
             artifact_hash = _sha256_file(video_path)
             distinctness = selection_diagnostics.get("pairwise_distinctness") or {}
             revision = item.get("caption_revision") or {}
-            preview_payload = {"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "caption_revision_id": revision.get("revision_id") or f"{args.job_id}-{item['rank']}-caption-v1", "caption_hash": revision.get("caption_hash"), "caption_revision": revision, "platform": item.get("platform"), "platform_profile": item.get("platform_profile"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_hash": artifact_hash, "distinctness": distinctness, "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])}
+            preview_tier = candidate_payload.get("distribution_slot") or candidate_payload.get("tier")
+            preview_payload = {"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "tier": preview_tier, "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "caption_revision_id": revision.get("revision_id") or f"{args.job_id}-{item['rank']}-caption-v1", "caption_hash": revision.get("caption_hash"), "caption_revision": revision, "platform": item.get("platform"), "platform_profile": item.get("platform_profile"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_hash": artifact_hash, "distinctness": distinctness, "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])}
             review_contract = compile_review_contract(compliance_gate, preview_payload, campaign_id=str(job["campaign_id"]))
             if review_contract.get("decision_state") != "ready_for_review":
                 if not render_only_without_compliance:
@@ -866,7 +885,7 @@ def main() -> None:
                 }, "ca08_compliance_pending", "Preview dirender; approval ditahan sampai CA-08/CA-09 tersedia")
             preview_payload["review_contract"] = review_contract
             previews.append(preview_payload)
-            manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "platform": item.get("platform"), "caption_revision_id": revision.get("revision_id"), "caption_hash": revision.get("caption_hash"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_key": prefix + ".mp4", "artifact_hash": artifact_hash, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
+            manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "tier": preview_tier, "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "platform": item.get("platform"), "caption_revision_id": revision.get("revision_id"), "caption_hash": revision.get("caption_hash"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_key": prefix + ".mp4", "artifact_hash": artifact_hash, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
         manifest = {"schema_version": 2, "job_id": args.job_id, "run_id": run_id, "output_contract": plan.get("output_contract") or {}, "output_selection": selection_diagnostics, "provenance": {"rules_hash": job.get("rules_hash"), "plan_schema_version": job.get("plan_schema_version"), "source_fingerprint": json.loads(job.get("source_fingerprint_json") or "{}") if isinstance(job.get("source_fingerprint_json"), str) else job.get("source_fingerprint_json") or {}, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1"))}, "intake": {"reference_count": (intake_manifest.get("discovery") or {}).get("reference_count", 0), "discovered_media_sources": (intake_manifest.get("discovery") or {}).get("discovered_media_sources", 0), "selected_media_sources": (intake_manifest.get("discovery") or {}).get("selected_media_sources", 0), "discovered_asset_count": (intake_manifest.get("discovery") or {}).get("discovered_asset_count", 0), "source_manifest": intake_manifest.get("source_manifest", []), "asset_manifest": intake_manifest.get("asset_manifest", [])}, "source_preflight": {"source_count": len(preflight_records), "usable_sources": len(sources), "records": [{"source_asset_id": Path(item.get("source", "")).name, "quality": item.get("quality", {}), "duplicate_of": Path(item["duplicate_of"]).name if item.get("duplicate_of") else None, "excluded_before_transcription": item.get("excluded_before_transcription", False)} for item in preflight_records]}, "transcript_summary": {"source_count": candidate_stats["transcribed"]}, "selector": candidate_stats, "validation": {"result_count": len(results), "statuses": [item.get("status") for item in results]}, "review": {"item_count": len(manifest_previews), "items": manifest_previews}}
         manifest_path = workspace / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
