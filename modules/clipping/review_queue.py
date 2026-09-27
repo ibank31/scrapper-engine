@@ -109,6 +109,9 @@ def _checklist(plan: dict, validation: dict) -> list[str]:
         tasks.append("Add required handles in the platform's native tagging field.")
     if production.get("cta_urls"):
         tasks.append("Add the required CTA in the location stated by the campaign.")
+    unresolved_cta = [str(x).strip() for x in (production.get("unresolved_cta") or []) if str(x).strip()]
+    for value in unresolved_cta:
+        tasks.append("MANDATORY campaign requirement: Resolve CTA placeholder before submission: " + value)
     if production.get("prohibited"):
         tasks.append("Confirm the clip does not contain any prohibited content or format.")
     tasks.extend(validation.get("review") or [])
