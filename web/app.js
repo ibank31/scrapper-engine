@@ -804,4 +804,4 @@ function demoPreview(job, rank) {
       checks: [
         { id: "campaign_compliance", status: "pass", label: "Aturan campaign", detail: "Semua pemeriksaan wajib lolos." },
         { id: "video_identity", status: "pass", label: "Identitas potongan", detail: "Potongan dan bahan sumber teridentifikasi." },
-        { id: "validation", status: "pass", label: "Pemeriksaan video", detail: "Pemeriksaan teknis dasar lolos." }
+        { id: "validation", status: "pass", label: "Pemeriksaan video", detail: "Pemeriksaan dasar lolos. Pemeriksaan teknis video juga sudah selesai." }
