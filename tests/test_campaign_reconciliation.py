@@ -180,6 +180,19 @@ class CampaignReconciliationTests(unittest.TestCase):
         self.assertEqual(result["findings"][0]["method"], "rejected_unsupported_inference")
         self.assertEqual(result["status"], "resolved")
 
+    def test_evidence_linked_inference_is_demoted_from_mandatory(self):
+        campaign = {"id": "inference-demotion", "description": "Consider adding a 15 second duration."}
+        ev = evidence(campaign, "rules.duration", "Consider adding a 15 second duration.")
+        inferred = rule("rules.duration", "15 seconds", ev, requirement="mandatory")
+        inferred["interpretation_type"] = "inferred"
+        contract, brain, _ = make_inputs(campaign, [inferred], evidence_items=[ev])
+        critic = critique_campaign(campaign, brain)
+        result = reconcile_campaign_rules(campaign, contract, brain, critic)
+        self.assertEqual(result["rules"][0]["requirement_level"], "unknown")
+        self.assertEqual(result["rules"][0]["resolution"]["method"], "demoted_unsupported_mandatory_inference")
+        finding_record = next(item for item in result["findings"] if item["code"] == "UNSUPPORTED_MANDATORY_INFERENCE")
+        self.assertEqual(finding_record["status"], "resolved")
+
     def test_mandatory_optional_disagreement_is_not_silently_overwritten(self):
         campaign = {"id": "semantics", "description": "A subtitle is recommended; subtitles are required."}
         optional = evidence(campaign, "rules.subtitle", "A subtitle is recommended;")

@@ -192,7 +192,7 @@ def reconcile_campaign_rules(
             continue
         candidate = _candidate(
             path=str(rule.get("source_rule_path") or ""), value=rule.get("value"),
-            requirement=str(rule.get("requirement_level") or "unknown"), scope=rule.get("scope"),
+            requirement=("unknown" if interpretation == "inferred" and str(rule.get("requirement_level") or "").lower() == "mandatory" else str(rule.get("requirement_level") or "unknown")), scope=rule.get("scope"),
             evidence_ids=evidence_ids, evidence_index=evidence_by_id,
             brain_rule_ids=[str(rule.get("rule_id") or "")], method="evidence_backed_brain_rule",
             reason="Retained the canonical Brain value because its linked evidence is present in the current evidence contract.",
@@ -202,6 +202,16 @@ def reconcile_campaign_rules(
             candidate["resolution"] = {
                 "status": "unresolved", "method": "brain_semantics_require_review",
                 "reason": f"The source-backed Brain rule is marked {interpretation}; CA-03 preserves it but cannot assert a unique canonical interpretation.",
+            }
+        elif interpretation == "inferred" and str(rule.get("requirement_level") or "").lower() == "mandatory":
+            candidate["resolution"] = {
+                "status": "resolved", "method": "demoted_unsupported_mandatory_inference",
+                "reason": "The source-linked value is retained at unknown requirement level; an inferred interpretation cannot be promoted to mandatory.",
+            }
+        elif interpretation == "inferred":
+            candidate["resolution"] = {
+                "status": "unresolved", "method": "inferred_semantics_require_review",
+                "reason": "The source-linked rule remains an inference; CA-03 does not assert it as canonical without deterministic semantic proof.",
             }
         candidates.append(candidate)
 
@@ -343,7 +353,9 @@ def reconcile_campaign_rules(
         finding_evidence = {str(item) for item in finding.get("evidence_ids") or []}
         matching = [rule for rule in resolved_rules if _path(rule["source_rule_path"]) == path and finding_evidence.intersection(rule["evidence_ids"])]
         reconstructed = reconstructed_by_finding.get(fid, [])
-        if fid in rejected_finding_ids:
+        if code.upper() == "UNSUPPORTED_MANDATORY_INFERENCE" and matching:
+            status, method, reason = "resolved", "demoted_unsupported_mandatory_inference", "The source-linked value is retained only at unknown requirement level; it is no longer represented as mandatory."
+        elif fid in rejected_finding_ids:
             status, method, reason = "resolved", "rejected_unsupported_inference", "The unsupported model-only inference was excluded from canonical reconciled rules; no evidence was available to promote it."
         elif code.upper() in {"MISSING_RULE", "MISSING_MATERIAL_REQUIREMENT"} and reconstructed:
             status, method, reason = "resolved", "reconstructed_from_evidence", "The missing rule was reconstructed from its verified source evidence and retained with provenance."
