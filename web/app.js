@@ -354,14 +354,21 @@ function bindReviewWorkspace(preview, rows) {
     renderReviewWorkspace();
   }));
   $("#play-preview")?.addEventListener("click", () => {});
-  document.querySelector("[data-play-preview]")?.addEventListener("click", () => {
+  document.querySelector("[data-play-preview]")?.addEventListener("click", async () => {
     if (!preview.video_url) return;
-    state.videoLoaded = true;
-    renderReviewWorkspace();
-    const video = $("#activeReviewVideo");
-    if (video) {
-      video.addEventListener("loadedmetadata", () => { video.play().catch(() => {}); }, { once: true });
+    const button = document.querySelector("[data-play-preview]");
+    if (button) button.disabled = true;
+    try {
+      state.videoLoaded = true;
+      renderReviewWorkspace();
+      const video = $("#activeReviewVideo");
+      if (!video) throw new Error("video_element_missing");
       video.load();
+      await video.play();
+    } catch (error) {
+      state.videoLoaded = false;
+      renderReviewWorkspace();
+      showToast("Preview video gagal diputar: " + friendlyError(error.message));
     }
   });
   $("#prevCandidate")?.addEventListener("click", () => {
@@ -798,206 +805,3 @@ function demoPreview(job, rank) {
         { id: "campaign_compliance", status: "pass", label: "Aturan campaign", detail: "Semua pemeriksaan wajib lolos." },
         { id: "video_identity", status: "pass", label: "Identitas potongan", detail: "Potongan dan bahan sumber teridentifikasi." },
         { id: "validation", status: "pass", label: "Pemeriksaan video", detail: "Pemeriksaan teknis dasar lolos." }
-      ],
-      exceptions: [],
-      review_actions: { approve: true, reject: true, request_changes: true },
-      provenance: {}
-    },
-    validation: { status: "pass" },
-    operations: []
-  };
-}
-
-async function loadCampaigns() {
-  try {
-    state.campaigns = cfg.DEMO_MODE ? demoCampaigns : ((await api("/api/campaigns")).campaigns || []);
-  } catch (error) {
-    state.campaigns = [];
-    showToast("Campaign belum dapat dimuat: " + friendlyError(error.message));
-  }
-  renderCampaigns();
-}
-
-async function loadPreviews(job) {
-  if (cfg.DEMO_MODE || String(job.id).startsWith("local-")) return;
-  try {
-    const response = await api("/api/jobs/" + encodeURIComponent(job.id) + "/previews");
-    return (response.previews || []).map((preview) => Object.assign({}, preview, {
-      title: (job.campaign_title || "Campaign") + " · Video " + preview.rank,
-      job
-    }));
-  } catch (_) {
-    return [];
-  }
-}
-
-async function loadJobs(options = {}) {
-  try {
-    if (!cfg.DEMO_MODE) {
-      const response = await api("/api/jobs");
-      state.jobs = response.jobs || [];
-    }
-    state.reviews = [];
-    const visibleJobs = state.jobs.filter((job) => ["queued", "processing", "review", "blocked", "error"].includes(job.status)).slice(0, 8);
-    await Promise.all(visibleJobs.map(loadStageData));
-    const jobsToLoad = state.jobs.filter((job) => ["review"].includes(job.status));
-    const groups = await Promise.all(jobsToLoad.map((job) => loadPreviews(job)));
-    state.reviews = groups.flat();
-    if (state.activeReviewJobId && !state.jobs.some((job) => job.id === state.activeReviewJobId)) {
-      state.activeReviewJobId = null;
-    }
-    renderJobs();
-    renderReviewInbox();
-    renderHome();
-    if (options.preserveReview && state.activeReviewJobId) renderReviewWorkspace();
-  } catch (error) {
-    showToast("Status mesin belum dapat diambil: " + friendlyError(error.message));
-  }
-  const active = state.jobs.some((job) => ["queued", "processing"].includes(job.status));
-  if (active) startPolling();
-}
-
-function renderJobs() {
-  const active = state.jobs.filter((job) => ["queued", "processing"].includes(job.status)).length;
-  const processing = state.jobs.filter((job) => job.status === "processing").length;
-  const queued = state.jobs.filter((job) => job.status === "queued").length;
-  const alerts = state.jobs.filter((job) => ["error", "blocked"].includes(job.status)).length;
-  $("#queueCount").textContent = String(active);
-
-  $("#queueSummary").innerHTML =
-    '<div><span class="summary-kicker">STATUS MESIN</span><strong>' + (active ? "Mesin sedang bekerja" : "Tidak ada proses aktif") + '</strong><small>' + (active ? "Status diperbarui otomatis." : "Pilih campaign untuk memulai pekerjaan.") + '</small></div>' +
-    '<div class="queue-mini"><span><b>' + processing + '</b> diproses</span><span><b>' + queued + '</b> menunggu</span><span class="' + (alerts ? "alert-text" : "") + '"><b>' + alerts + '</b> perlu perhatian</span></div>';
-
-  $("#jobsList").innerHTML = state.jobs.map((job) => {
-    const progress = Math.max(0, Math.min(100, Number(job.progress || 0)));
-    const stage = jobPhase(job);
-    return '<article class="job-card">' +
-      '<div class="job-indicator ' + (job.status === "processing" ? "spinning" : "") + '">' + (job.status === "review" ? "✓" : ["error", "blocked"].includes(job.status) ? "!" : "◷") + '</div>' +
-      '<div class="job-content"><div class="job-heading"><div><strong>' + escapeHtml(job.campaign_title || job.campaign_id) + '</strong><span>' + escapeHtml(stage.label) + '</span></div><span class="status-pill ' + reviewBadgeClass(job.status === "review" ? "ready" : job.status === "blocked" || job.status === "error" ? "blocked" : "attention") + '">' + escapeHtml(statusLabel(job.status)) + '</span></div>' +
-      '<p>' + escapeHtml(stage.detail) + '</p>' +
-      '<div class="progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><b>' + progress + '%</b></div>' +
-      (job.error ? '<div class="job-alert">' + escapeHtml(friendlyError(job.error)) + '</div>' : '') +
-      stageLabels(job) +
-      '<div class="job-bottom"><span>' + escapeHtml(formatAge(job.updated_at || job.created_at)) + '</span>' + ((job.status === "queued" || job.status === "processing") ? '<button class="link-button danger-link" data-stop-job="' + escapeHtml(job.id) + '" type="button">Hentikan</button>' : '') + (job.status === "review" ? '<button class="link-button" data-open-job-review="' + escapeHtml(job.id) + '" type="button">Buka review →</button>' : '') + '</div>' +
-      '</div></article>';
-  }).join("") || '<div class="empty-work"><div class="empty-icon">◷</div><h2>Belum ada proses</h2><p>Pilih campaign untuk memulai pekerjaan.</p></div>';
-
-  document.querySelectorAll("[data-stop-job]").forEach((button) => button.addEventListener("click", () => cancelJob(button.dataset.stopJob)));
-  document.querySelectorAll("[data-open-job-review]").forEach((button) => button.addEventListener("click", () => {
-    state.activeReviewJobId = button.dataset.openJobReview;
-    state.activeReviewIndex = 0;
-    showView("review");
-    renderReviewWorkspace();
-  }));
-}
-
-function jobPhase(job) {
-  if (job.status === "queued") return { label: "Menunggu giliran", detail: job.message || "Campaign masuk antrean worker." };
-  if (job.status === "review") return { label: "Siap ditinjau", detail: "Video selesai dan menunggu keputusan Anda." };
-  if (job.status === "blocked") return { label: "Belum bisa dilanjutkan", detail: friendlyError(job.error || job.message) };
-  if (job.status === "error") return { label: "Perlu diperbaiki", detail: friendlyError(job.error || job.message) };
-  const progress = Number(job.progress || 0);
-  if (progress < 25) return { label: "Menyiapkan bahan", detail: job.message || "Memeriksa bahan campaign." };
-  if (progress < 78) return { label: "Mencari potongan", detail: job.message || "Mencari kandidat video." };
-  if (progress < 92) return { label: "Memeriksa hasil", detail: job.message || "Memastikan video memenuhi syarat." };
-  return { label: "Menyiapkan review", detail: job.message || "Menyiapkan preview untuk Anda." };
-}
-
-function formatAge(value) {
-  if (!value) return "belum ada pembaruan";
-  const age = Math.max(0, Date.now() - new Date(value).getTime());
-  const seconds = Math.floor(age / 1000);
-  if (seconds < 60) return seconds + " detik lalu";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return minutes + " menit lalu";
-  return Math.floor(minutes / 60) + " jam lalu";
-}
-
-async function cancelJob(jobId) {
-  const job = state.jobs.find((item) => item.id === jobId);
-  if (!job || !["queued", "processing"].includes(job.status)) return;
-  if (!window.confirm("Hentikan proses campaign ini?")) return;
-  try {
-    await api("/api/jobs/" + encodeURIComponent(jobId) + "/cancel", { method: "POST" });
-    showToast("Proses dihentikan");
-    await loadJobs();
-  } catch (error) {
-    showToast("Proses belum dapat dihentikan: " + friendlyError(error.message));
-  }
-}
-
-function showView(name) {
-  state.activeView = name;
-  document.querySelectorAll(".view").forEach((view) => view.classList.add("hidden"));
-  const target = $("#" + name + "View");
-  if (target) target.classList.remove("hidden");
-  document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
-  $("#pageTitle").textContent = name === "home" ? "Beranda" : name === "campaigns" ? "Campaign" : name === "review" ? "Review" : "Proses";
-  $("#pageEyebrow").textContent = name === "review" ? "RUANG KEPUTUSAN" : name.toUpperCase();
-  if (name === "home") renderHome();
-  if (name === "campaigns") renderCampaigns();
-  if (name === "review") renderReviewInbox();
-  if (name === "jobs") renderJobs();
-}
-
-function startPolling() {
-  if (cfg.DEMO_MODE || state.pollTimer) return;
-  state.pollTimer = setInterval(async () => {
-    await loadJobs({ preserveReview: true });
-    if (!state.jobs.some((job) => ["queued", "processing"].includes(job.status))) {
-      clearInterval(state.pollTimer);
-      state.pollTimer = null;
-    }
-  }, 7000);
-}
-
-document.querySelectorAll(".nav-item").forEach((item) => item.addEventListener("click", (event) => {
-  event.preventDefault();
-  showView(item.dataset.view);
-}));
-
-document.querySelectorAll("[data-view='campaigns'], .text-button").forEach((item) => item.addEventListener("click", () => showView("campaigns")));
-$("#refreshButton").addEventListener("click", async () => {
-  $("#refreshButton").disabled = true;
-  await Promise.all([loadCampaigns(), loadJobs({ preserveReview: true })]);
-  $("#refreshButton").disabled = false;
-  showToast("Data diperbarui");
-});
-$("#searchInput")?.addEventListener("input", renderCampaigns);
-$("#platformFilter")?.addEventListener("change", renderCampaigns);
-$("#sortSelect")?.addEventListener("change", renderCampaigns);
-document.querySelectorAll("[data-close]").forEach((item) => item.addEventListener("click", closeDetailModal));
-document.querySelectorAll("[data-close-decision]").forEach((item) => item.addEventListener("click", () => { $("#decisionModal").classList.add("hidden"); state.pendingDecision = null; }));
-$("#decisionConfirm").addEventListener("click", executeDecision);
-
-function stageLabels(job) {
-  const rows = Array.isArray(job.stages) ? job.stages : [];
-  if (!rows.length) return "";
-  const latest = new Map();
-  rows.forEach((row) => latest.set(row.stage, row));
-  return '<details class="simple-detail job-detail"><summary>Lihat tahapan mesin</summary><div class="simple-detail-body">' +
-    [...latest.values()].map((row) => '<div class="rule-line"><span>' + escapeHtml(stageNames[row.stage] || row.stage) + '</span><strong>' + escapeHtml(String(row.status || "").replace(/_/g, " ")) + '</strong></div>').join("") +
-  '</div></details>';
-}
-
-function loadStageData(job) {
-  if (cfg.DEMO_MODE || String(job.id).startsWith("local-")) return Promise.resolve();
-  return api("/api/jobs/" + encodeURIComponent(job.id) + "/stages").then((response) => { job.stages = response.stages || []; }).catch(() => {});
-}
-
-$("#workerStatus").textContent = cfg.DEMO_MODE ? "mode demo" : "pembaruan otomatis aktif";
-// Keep the main human flow explicit for the review surface and legacy acceptance contract.
-const HUMAN_FLOW_COPY = "Proses berjalan · Tinjau video · ACC · render ulang · submit manual ke Whop · Pemeriksaan dasar lolos · Status pengiriman Buffer";
-
-loadCampaigns();
-loadJobs();
-renderHome();
-setInterval(() => {
-  document.querySelectorAll(".job-bottom > span").forEach((node) => {
-    const text = node.textContent;
-    if (text && text.includes("lalu")) {
-      // The list is refreshed during normal polling. This keeps the UI static
-      // between polls without turning every second into an API request.
-    }
-  });
-}, 1000);
