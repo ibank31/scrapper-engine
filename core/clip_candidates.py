@@ -386,6 +386,13 @@ def select_candidates_for_bands(
             item["score"] = round(max(0.0, min(1.0, float(item.get("score") or 0) + adjustment)), 4)
             item["reasons"] = list(item.get("reasons") or []) + signal_reasons
             media_count += 1
+        # Broad candidate generation intentionally avoids media work, but the
+        # final candidate contract still needs durable source identity. Rebuild
+        # identity here once the authoritative source path is known so band-mode
+        # candidates cannot silently become "unknown-source".
+        source_hash = (quality or {}).get("duplicate_hash")
+        for item in selected:
+            item = annotate_candidate(item, source_path, source_hash, transcript, plan)
         selected.sort(key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
 
     for rank, item in enumerate(selected, 1):
