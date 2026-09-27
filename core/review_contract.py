@@ -294,6 +294,7 @@ def compile_review_contract(
         },
         "checks": checks,
         "exceptions": sorted(exceptions, key=lambda x: (x.get("severity") != "critical", x.get("code", ""), x.get("id", ""))),
+        "issues": sorted(issues, key=lambda x: (str(x.get("severity") or ""), str(x.get("code") or ""), str(x.get("field") or ""))),
         "review_actions": {
             "approve": decision_state == "ready_for_review" and bool(item.get("artifact_hash")) and bool(item.get("caption_revision_id")),
             "reject": decision_state == "ready_for_review",
