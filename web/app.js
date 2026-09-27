@@ -260,7 +260,7 @@ function renderOperations(preview) {
   return '<section class="review-section delivery-section"><div class="section-label">PENGIRIMAN</div>' +
     '<div class="safe-note buffer-safe-note"><strong>Persetujuan tetap menjadi syarat pengiriman.</strong><span>Buffer hanya menerima versi video, caption, dan aturan yang sudah disetujui.</span></div>' +
     operations.map((operation) =>
-      '<div class="delivery-row"><div><strong>' + escapeHtml(operation.channel_id || "Channel") + '</strong><span>' + escapeHtml(friendlyOperation(operation.provider_state)) + '</span></div>' +
+      '<div class="delivery-row"><div><small>Status pengiriman Buffer</small><strong>' + escapeHtml(operation.channel_id || "Channel") + '</strong><span>' + escapeHtml(friendlyOperation(operation.provider_state)) + '</span></div>' +
       '<div class="delivery-actions">' +
       (operation.provider_state === "failed" ? '<button class="link-button operation-retry-button" data-retry-operation="' + escapeHtml(operation.operation_key) + '" type="button">Coba lagi</button>' : '') +
       (operation.provider_state === "unknown" ? '<button class="link-button operation-reconcile-button" data-reconcile-operation="' + escapeHtml(operation.operation_key) + '" type="button">Cek status</button>' : '') +
