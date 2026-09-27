@@ -27,7 +27,9 @@ class UILanguageTests(unittest.TestCase):
     def test_review_playback_keeps_loaded_state_and_refreshes_media_url(self):
         self.assertIn('state.videoLoaded = true;', APP)
         self.assertIn('/api/jobs/" + encodeURIComponent(preview.job_id) + "/previews', APP)
-        self.assertNotIn('releaseVideoPreview();\n\n  inbox.classList.add("hidden");', APP)
+        start = APP.index("function renderReviewWorkspace")
+        end = APP.index("function bindReviewWorkspace", start)
+        self.assertNotIn("releaseVideoPreview();", APP[start:end])
         self.assertIn('video.load();', APP)
         self.assertIn('await video.play();', APP)
 
