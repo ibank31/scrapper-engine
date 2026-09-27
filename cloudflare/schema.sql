@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS previews (
   tier TEXT,
   candidate_id TEXT,
   source_asset_id TEXT,
+  source_hash TEXT,
   video_key TEXT,
   review_video_key TEXT,
   thumbnail_key TEXT,
