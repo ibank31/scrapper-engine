@@ -514,6 +514,9 @@ def _recover_source_backed_cta_text(
         rule_path = str(item.get("rule_path") or "").split(".")[-1]
         if rule_path not in {"cta_text", "cta_required"}:
             continue
+        source_quote = _strip_wrapping_quote_marks(str(item.get("quote") or ""))
+        if source_quote and verify_quote(campaign, source_quote)["status"] == "verified":
+            evidence_candidates.append(source_quote)
         for match in quote_re.finditer(str(item.get("quote") or "")):
             candidate = _strip_wrapping_quote_marks(match.group(1) or match.group(2) or "")
             if candidate:
@@ -571,12 +574,26 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
         bool(rules.get("cta_required")),
         evidence,
     )
+    normalized_annotations = []
+    for annotation in rule_annotations:
+        normalized_annotation = dict(annotation)
+        annotation_path = str(annotation.get("rule_path") or annotation.get("path") or "").split(".")[-1].lower()
+        if annotation_path == "cta_text" and campaign is not None:
+            annotation_value = annotation.get("value") if "value" in annotation else annotation.get("rule_value")
+            recovered_value = _recover_source_backed_cta_text(
+                campaign, annotation_value, True, evidence
+            )
+            if "value" in annotation or "rule_value" not in annotation:
+                normalized_annotation["value"] = recovered_value
+            else:
+                normalized_annotation["rule_value"] = recovered_value
+        normalized_annotations.append(normalized_annotation)
     brain_rules = dict(rules)
     brain_rules["cta_text"] = normalized_cta
     brain = build_campaign_brain(
         campaign or {"id": campaign_id},
         rules=brain_rules,
-        rule_annotations=rule_annotations,
+        rule_annotations=normalized_annotations,
         evidence_contract=evidence_contract,
         ambiguities=ambiguities,
         confidence=confidence,
