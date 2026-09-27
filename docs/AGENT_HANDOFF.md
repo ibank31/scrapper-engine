@@ -2,9 +2,8 @@
 
 **Updated:** 27 September 2026
 **Repository:** `ibank31/scrapper-engine`
-**Branch:** `feat/ca03-rule-reconciliation` (PR #48)
-**Verified main baseline:** `38a7850087a010ca9e5040e815edac2e80d6cde7`
-**CA-03 final verified SHA:** `383e8fc77a7c18cc7e9194024d0cbee53ccc3c64`
+**Branch:** `main`
+**Latest merged SHA:** `803997a3a3b221acd6c29e65b2a6003e7a7d9fb8` (PRs #48 and #49)
 
 ## Mission
 
@@ -67,13 +66,13 @@ The same SHA passed tests run `36284355788` and phase5-acceptance run `362843557
 - seeded negative tests cover all ten required categories;
 - Brain remains unchanged by critique.
 
-## CA-03 — Rule Reconciliation (PASS; PR awaits merge)
+## CA-03 — Rule Reconciliation (PASS / CLOSED)
 
-Implementation is committed and pushed to `feat/ca03-rule-reconciliation`; PR #48 is open. `campaign_reconciliation` is emitted beside Brain/Critic in normalized and persisted intelligence. The cache gate requires the reconciliation contract and matching Brain/Critic/source/campaign identities. The legacy rules projection remains unchanged.
+`campaign_reconciliation` is emitted beside Brain/Critic in normalized and persisted intelligence. The cache gate requires the reconciliation contract and matching Brain/Critic/source/campaign identities. The legacy rules projection remains unchanged. Follow-up PR #49 ensures CTA rule annotations use the same deterministic source-evidence recovery as the flat CTA projection.
 
-Local verification: **245 tests passed**; `py_compile`, `compileall`, `pip check`, and `git diff --check` passed. PR tests and phase-5 acceptance passed. Bounded production acceptance run `36286329412` passed on SHA `383e8fc`: reconciliation `review`, 17 rules, one Critic finding preserved unresolved, 14 verified evidence items, zero unverified evidence, full coverage, legacy compatibility, and no Buffer mutation. Two intervening provider reruns failed the unchanged strict upstream Brain evidence-coverage gate; the final run passed it without a waiver or manual D1 changes.
+Local verification: **246 tests passed**; `py_compile`, `compileall`, `pip check`, and `git diff --check` passed. Main test run `36287752375` and phase-5 run `36287752363` passed. Final bounded production acceptance run `36287752424` passed on main: reconciliation `review`, 40 rules, two Critic findings preserved (one unresolved), 34 verified evidence items, zero unverified, full coverage, CTA and legacy compatibility, and no Buffer mutation. Several earlier provider reruns failed strict evidence/CTA assertions; the final successful run kept all gates unchanged and involved no manual D1 changes.
 
-See `docs/CA03_ACCEPTANCE_CONTRACT.md` for schema, policy, and gates. Unresolved findings remain observable; historical Ryan findings are not hard-coded. Merge PR #48 and STOP. Do not implement CA-04 in this task.
+See `docs/CA03_ACCEPTANCE_CONTRACT.md` for schema, policy, and gates. Unresolved findings remain observable; campaign behavior is not hard-coded. CA-04 Production Contract Compiler is next and was not started in this task.
 
 ## Do not
 

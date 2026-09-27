@@ -86,7 +86,9 @@ The existing controlled Ryan workflow is extended to verify one targeted campaig
 - legacy `ai_rules.rules` remains present and compatible;
 - sync uses `CLIPPER_AUTO_QUEUE=0` and invokes no Buffer publishing path.
 
-Final bounded production acceptance passed in GitHub Actions run `36286329412` on branch SHA `383e8fc77a7c18cc7e9194024d0cbee53ccc3c64`. Persisted output: status `review`; 17 reconciled rules; one Critic finding retained as one unresolved finding; 14 verified evidence items; zero unverified evidence; coverage 1.0. Legacy rules compatibility passed, and `CLIPPER_AUTO_QUEUE=0` confirmed no Buffer publishing mutation. The PR test and phase-5 checks also passed. This is a bounded campaign acceptance, not a campaign-corpus migration. Two earlier fresh-AI attempts failed the unchanged pre-existing 100% Brain evidence-coverage gate; the final run passed without weakening that gate or changing production data manually.
+Final post-merge bounded production acceptance passed in GitHub Actions run `36287752424` on main SHA `803997a3a3b221acd6c29e65b2a6003e7a7d9fb8` (PRs #48 and #49). Persisted output: reconciliation status `review`; 40 reconciled rules; two Critic findings represented, one unresolved; 34 verified evidence items; zero unverified evidence; coverage 1.0; CTA retained; legacy rules compatibility. `CLIPPER_AUTO_QUEUE=0` confirmed no Buffer publishing mutation. Main regression tests (`36287752375`) and phase-5 acceptance (`36287752363`) passed. Several earlier fresh-AI attempts failed strict existing evidence/CTA assertions; the final run passed without weakening assertions or manually changing D1. This is a bounded campaign acceptance, not a campaign-corpus migration.
+
+Follow-up PR #49 fixed a generic pipeline path: CTA annotations are now reconciled to verified source quotes before canonical Brain construction. A regression test covers provider-expanded annotated CTA values. The strict production CTA assertion remains unchanged.
 
 ## Deliberate limitations
 

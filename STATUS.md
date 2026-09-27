@@ -1,7 +1,7 @@
 # Scrapper Engine — Current Status
 
 **Updated:** 27 September 2026
-**Branch:** `feat/ca03-rule-reconciliation` (CA-03 pull request #48)
+**Branch:** `main`
 **Current direction:** Campaign Agent; clipping adalah vertical pertama
 **Production:** Cloudflare Pages `clipper-engine`
 
@@ -19,7 +19,7 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-Freshly verified `main` baseline at task start: `38a7850087a010ca9e5040e815edac2e80d6cde7`. Recorded CA-00 → CA-02 production acceptance evidence remains on earlier SHA `47ab5d11935fe74406ed210a2db122a3d02e5f2d`; the later main commit updated documentation only. No CA-00/CA-01/CA-02 implementation regression was found during this slice.
+Current merged `main`: `803997a3a3b221acd6c29e65b2a6003e7a7d9fb8` (CA-03 PR #48 plus generic CTA recovery PR #49). CA-00 → CA-02 historical acceptance remains recorded on `47ab5d11935fe74406ed210a2db122a3d02e5f2d`. No CA-00/CA-01/CA-02 implementation regression was found during this slice.
 
 **Foundation chain verified:** CA-00 → CA-01 → CA-02 is executable, integrated, and has controlled production acceptance evidence. This proves the intelligence foundation, not the complete downstream Campaign Agent.
 
@@ -76,13 +76,13 @@ These counts are accepted only where recorded by the CA-02 verification evidence
 
 ## Next exact slice
 
-**CA-03 — Rule Reconciliation: PASS (bounded production acceptance complete; PR #48 awaits merge).**
+**CA-03 — Rule Reconciliation: PASS / CLOSED** (merged PRs #48 and #49; main SHA `803997a3a3b221acd6c29e65b2a6003e7a7d9fb8`).
 
-Implemented on `feat/ca03-rule-reconciliation`, PR #48; final implementation/workflow SHA `383e8fc77a7c18cc7e9194024d0cbee53ccc3c64`. `normalize_ai_result()` persists `campaign_reconciliation` beside Brain and Critic; stale/mismatched cache identities are rejected. Final local verification: **245 tests passed**, and Python compile, dependency, and diff checks passed. PR CI and phase-5 acceptance passed.
+`normalize_ai_result()` persists `campaign_reconciliation` beside Brain and Critic; stale/mismatched cache identities are rejected. The follow-up makes annotated CTA values undergo the same deterministic source-evidence recovery as flat CTA values. **246 local tests passed**; Python compile, dependency, and diff checks passed. Main-branch tests (`36287752375`) and phase-5 acceptance (`36287752363`) passed.
 
-Bounded production run `36286329412` on the final branch SHA passed: persisted reconciliation status `review`, 17 rules, one Critic finding retained as one unresolved finding, 14 verified evidence items, zero unverified evidence, and 100% evidence coverage. Legacy compatibility passed; `CLIPPER_AUTO_QUEUE=0`, with no Buffer publishing mutation. Two earlier fresh AI reruns failed the unchanged, strict pre-existing Brain evidence-coverage gate; the final bounded rerun passed without weakening the gate or manually editing production data.
+Final bounded production run `36287752424` passed on merged main: reconciliation `review`, 40 rules, two Critic findings retained (one unresolved), 34 verified evidence items, zero unverified evidence, 100% evidence coverage, CTA preserved, and legacy compatibility. `CLIPPER_AUTO_QUEUE=0`; no Buffer publishing mutation or manual D1 edit. Several intervening provider reruns failed strict pre-existing evidence/CTA assertions; acceptance criteria were not weakened. The final main run passed after the generic annotation recovery fix.
 
-CA-03 preserves evidence IDs/source references, stable rule/conflict links, requirement semantics, and scoped variants. No-precedence ambiguity remains explicit, evidence-only missing rules are reconstructed as quoted source text, and unsupported inference is not promoted. CA-02 remains detection-only. See `docs/CA03_ACCEPTANCE_CONTRACT.md`. Do not start CA-04 in this task; merge PR #48, then stop.
+CA-03 preserves evidence IDs/source references, stable rule/conflict links, requirement semantics, and scoped variants. No-precedence ambiguity remains explicit, evidence-only missing rules are reconstructed as quoted source text, and unsupported inference is not promoted. CA-02 remains detection-only. See `docs/CA03_ACCEPTANCE_CONTRACT.md`. Next phase is CA-04 Production Contract Compiler; it was not started in this task.
 
 ## Permanent rules
 
