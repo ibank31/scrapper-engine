@@ -70,14 +70,16 @@ class PostingPackageTests(unittest.TestCase):
             "posting": {"cta": {"instagram": "Campaign CTA"}},
             "posting_provenance": prov("e-campaign-cta"),
         }
-        package = compile_posting_package(self.contract, self.strategy, campaign)
+        contract = copy.deepcopy(self.contract)
+        contract["posting"]["cta"] = []
+        package = compile_posting_package(contract, self.strategy, campaign)
         self.assertEqual(package["status"], "ready")
         self.assertEqual(package["summary"]["provenance_coverage"], 1.0)
 
         campaign["posting_provenance"]["evidence_ids"] = []
         blocked = compile_posting_package(self.contract, self.strategy, campaign)
         self.assertEqual(blocked["status"], "blocked")
-        self.assertEqual(blocked["summary"]["provenance_coverage"], 7 / 8)
+        self.assertEqual(blocked["summary"]["provenance_coverage"], 6 / 7)
         self.assertTrue(any(i["type"] == "provenance_invalid" and i["field"] == "cta" for i in blocked["issues"]))
 
     def test_manual_native_requirement_is_explicit_and_blocks_mandatory(self):
