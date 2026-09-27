@@ -8,6 +8,7 @@ on:
       - ".github/workflows/controlled-ryan-openrouter-acceptance.yml"
       - "core/campaign_ai.py"
       - "core/campaign_brain.py"
+      - "core/campaign_critic.py"
       - "core/campaign_evidence.py"
       - "worker/sync_campaigns.py"
 
@@ -94,6 +95,12 @@ jobs:
           )
           assert brain_cta["value"] == "Follow and meet Ryan for more @....."
           assert brain_cta["evidence_ids"]
+          critic = ai["campaign_critic"]
+          assert critic["schema_version"] == 1
+          assert critic["brain_id"] == brain["brain_id"]
+          assert critic["source_hash"] == ai["source_hash"]
+          assert critic["status"] in {"pass", "review", "blocked"}
+          assert critic["summary"]["by_severity"]["CRITICAL"] == 0, critic
           contract = ai["evidence_contract"]
           assert contract["schema_version"] == 1
           assert contract["coverage"] == 1.0, contract
@@ -115,4 +122,6 @@ jobs:
           print("CTA_RETAINED="+str(rules["cta_required"]))
           print("HANDLES_RETAINED="+str(len(rules["handles"])))
           print("HASHTAGS_RETAINED="+str(len(rules["hashtags"])))
+          print("CRITIC_STATUS="+str(critic["status"]))
+          print("CRITIC_FINDINGS="+str(critic["summary"]["finding_count"]))
           PY

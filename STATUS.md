@@ -1,7 +1,7 @@
 # Scrapper Engine — Current Status
 
 **Updated:** 27 September 2026
-**Branch:** `main`
+**Branch:** `feat/ca02-campaign-critic`
 **Current direction:** Campaign Agent; clipping adalah vertical pertama
 **Production:** Cloudflare Pages `clipper-engine`
 
@@ -19,57 +19,50 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-CA-00 and CA-01 implementation are merged on `main`.
+CA-00 and CA-01 implementation are merged on `main` at `b0180f1d96644f3d114c4860be4ba744b76e70b0`.
 
-**Latest main SHA:** `b0180f1d96644f3d114c4860be4ba744b76e70b0`
-
-CA-01 implementation spans PR #38–#44 and includes the canonical Campaign Brain, deterministic identity, source-backed rule/evidence linkage, structured mandatory/optional requirements, platform/language scope, variants/conflicts, and legacy compatibility projection.
-
-The bounded CA-01 production acceptance was verified by GitHub Actions run `36279279316`. Its `targeted-acceptance` job completed successfully, including both:
-- Targeted Ryan production re-analysis
-- Verify persisted acceptance contract
-
-The acceptance run proved persisted `schema_version=2`, canonical `campaign_brain` presence, matching source hashes, brain identity, evidence coverage, CTA preservation, and legacy handles/hashtags compatibility.
+CA-01 production acceptance was verified by GitHub Actions run `36279279316`, including targeted Ryan re-analysis and persisted Campaign Brain verification. Do not claim that every production campaign has been migrated.
 
 ## CA-00 status
 
-**PASS.** CA-00 is closed. Do not add CA-00 features except regression fixes backed by evidence.
+**PASS / CLOSED.** Do not add CA-00 features except regression fixes backed by evidence.
 
 ## CA-01 status
 
-**PASS.**
+**PASS / CLOSED.** The canonical Brain, deterministic identity, source-backed rule/evidence linkage, structured requirements, scope, variants/conflicts, compatibility projection, six-shape corpus, and bounded Ryan persistence are accepted.
 
-Verified acceptance gates:
+Audit limitations retained from the CA-01 handoff:
 
-- canonical `campaign_brain`;
-- deterministic `brain_id`;
-- source fingerprint / `source_hash`;
-- structured rule records;
-- mandatory / optional / unknown semantics;
-- direct evidence linkage;
-- platform and language scope;
-- conflict / variant preservation;
-- unavailable-AI protection against false boolean facts;
-- legacy `ai_rules.rules` compatibility projection;
-- existing six-shape corpus acceptance;
-- bounded Ryan production persistence acceptance.
+- Do not cite the historical **219 tests** claim as independently verified from CI artifacts.
+- `critical_rule_preservation` currently derives from mandatory preservation; platform scope is exercised through targeted checks. This is accepted CA-01 baseline behavior, not a claim that those metrics are conceptually identical.
 
-CA-01 production acceptance is a targeted proof, not a claim that every production campaign has already been migrated.
+## CA-02 status
 
-## CA-01 audit finding
+**Implementation:** complete on the CA-02 branch; controlled production acceptance is pending merge.
 
-The implementation is accepted, but the acceptance evidence has two documentation/test-quality limitations:
+The deterministic Campaign Critic now:
 
-1. `STATUS.md` and `docs/AGENT_HANDOFF.md` previously described CA-01 as the next unfinished milestone. That was stale and has now been corrected.
-2. The repository does not currently expose an authoritative CI artifact proving the exact claimed total of **219 tests** through the available connector. Do not repeat that number as independently verified. The CA-01-specific tests and production acceptance are verified from repository/workflow definitions and the successful bounded run.
+- compares source/evidence against the canonical Brain without mutating it;
+- emits stable, serializable findings with `finding_id`, severity, category, rule/evidence links, and status;
+- detects missing rules, duplicates, contradictions, unsupported inference, scope mismatch, lost values, wrong CTA/handle/hashtag, and missing material requirements;
+- preserves legitimate variants and unresolved conflicts as non-duplicate/non-contradictory cases;
+- is exposed as `campaign_critic` beside the authoritative `campaign_brain` and legacy compatibility projection.
 
-The acceptance contract also lists critical-rule preservation and platform-scope preservation as metrics. Current deterministic evaluation derives critical preservation from mandatory preservation and exercises platform scope through targeted fixtures. This is sufficient for the existing CA-01 gate, but these metrics should be made independently explicit in a future hardening change rather than silently assuming they are identical.
+Local CA-02 verification:
+
+- six-shape corpus: clean Brain produces zero critic findings;
+- seeded negative tests cover all ten required detection categories;
+- focused CA-01/CA-02 tests: **52 passed**;
+- full repository suite: **230 passed**;
+- `py_compile`, `compileall`, `pip check`, and `git diff --check`: passed.
+
+Production acceptance is intentionally not claimed until the merged controlled workflow verifies that the critic result persists and contains zero critical findings for the bounded Ryan run.
 
 ## Next exact slice
 
-**CA-02 — Campaign Critic.**
+After the CA-02 production gate passes: **CA-03 — Rule Reconciliation.**
 
-Do not begin CA-02 implementation in the same documentation patch. CA-01 is closed; the next engineering slice must define its hypothesis, seeded critic findings, acceptance metrics, and regression tests before implementation.
+CA-03 owns resolution of conflicts; CA-02 must remain detection-only.
 
 ## Permanent rules
 

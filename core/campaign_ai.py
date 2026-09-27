@@ -14,6 +14,7 @@ from typing import Any, Iterable
 import requests
 
 from core.campaign_brain import build_campaign_brain
+from core.campaign_critic import critique_campaign
 from core.campaign_evidence import build_evidence_ledger, source_documents, source_fingerprint, verify_ai_evidence, verify_quote
 
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
@@ -585,10 +586,12 @@ def normalize_ai_result(item: dict[str, Any], campaign_id: str, campaign: dict[s
         },
         ai_available=not (confidence == 0.0 and fit_score is None and str(fit.get("reason") or "") == "AI analysis unavailable"),
     )
+    critic = critique_campaign(campaign or {"id": campaign_id}, brain)
     return {
         "schema_version": 2, "campaign_id": campaign_id,
         "campaign_fit": {"score": fit_score, "label": str(fit.get("label") or "unknown"), "reason": str(fit.get("reason") or "")},
         "campaign_brain": brain,
+        "campaign_critic": critic,
         "rules": {
             "source_policy": str(rules.get("source_policy") or "campaign_defined"), "platforms": list(rules.get("platforms") or []),
             "aspect_ratio": rules.get("aspect_ratio"), "min_duration_seconds": _int_or_none(rules.get("min_duration_seconds")),

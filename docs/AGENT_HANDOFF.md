@@ -2,8 +2,8 @@
 
 **Updated:** 27 September 2026
 **Repository:** `ibank31/scrapper-engine`
-**Branch:** `main`
-**Latest main SHA:** `b0180f1d96644f3d114c4860be4ba744b76e70b0`
+**Branch:** `feat/ca02-campaign-critic`
+**CA-01 main baseline:** `b0180f1d96644f3d114c4860be4ba744b76e70b0`
 
 ## Mission
 
@@ -15,88 +15,71 @@ Ryan Zofay is a regression fixture, never a special production case.
 
 ### CA-00 — Evidence Contract
 
-**PASS / CLOSED.**
-
-Evidence ledger, source fingerprinting, provenance, cache invalidation, targeted migration, and controlled production acceptance are complete.
+**PASS / CLOSED.** Evidence ledger, source fingerprinting, provenance, cache invalidation, targeted migration, and controlled production acceptance are complete.
 
 ### CA-01 — Canonical Campaign Brain
 
-**PASS / CLOSED.**
+**PASS / CLOSED.** Merged implementation covers canonical `campaign_brain`, deterministic `brain_id`, source hash, structured rules, requirement semantics, evidence linkage, scope, variants/conflicts, compatibility projection, six-shape corpus acceptance, and bounded Ryan persistence.
 
-Merged implementation covers:
+Production acceptance: GitHub Actions run `36279279316`, successful `targeted-acceptance` job.
 
-- canonical `campaign_brain`;
-- deterministic `brain_id`;
-- source hash;
-- structured rule records;
-- mandatory / optional / unknown requirements;
-- evidence IDs and source references;
-- platform/language/audience scope;
-- variants and unresolved conflicts;
-- legacy `ai_rules.rules` compatibility projection;
-- six-shape deterministic corpus acceptance;
-- bounded Ryan production persistence.
+Do not cite the historical **219 tests** claim as independently verified from CI artifacts. The CA-01 preservation gate also maps critical preservation to mandatory preservation; this remains an accepted baseline limitation.
 
-CA-01 production acceptance: GitHub Actions run `36279279316`.
+## Current milestone
 
-Successful job:
-`targeted-acceptance`
+### CA-02 — Campaign Critic
 
-Successful steps:
-- Targeted Ryan production re-analysis
-- Verify persisted acceptance contract
+**Implementation complete; production acceptance pending merge.**
 
-## Important audit note
+The critic is deterministic and read-only. It compares source/evidence against the canonical Brain and does not reconcile or mutate it. CA-03 owns conflict resolution.
 
-Do not cite **219 tests passed** as independently verified from this agent session. The available GitHub connector does not expose the complete CI test artifact/count. The repository's CA-01 test definitions and bounded production acceptance are verified, but the exact aggregate test count remains unverified.
+Implemented in `core/campaign_critic.py` with minimal integration in `normalize_ai_result` as `campaign_critic`.
 
-Also note that the current preservation gate maps `critical_rule_preservation` to mandatory preservation and has targeted platform-scope checks. That is an acceptable CA-01 baseline, but not proof that the two metrics are conceptually independent. Future hardening should make that distinction explicit.
+Required detection categories are covered:
 
-## Exact next slice
+1. missing rule;
+2. duplicate rule;
+3. contradiction;
+4. unsupported inference;
+5. platform scope mismatch;
+6. lost value;
+7. wrong CTA;
+8. wrong handle;
+9. wrong hashtag;
+10. missing material requirement.
 
-**CA-02 — Campaign Critic**
+Findings are stable and serializable with deterministic `finding_id`, exact severity (`CRITICAL`, `WARNING`, `AMBIGUITY`, `INFO`), category, rule path, Brain rule IDs, evidence IDs, source references, reason, and `status=open`.
 
-Before implementation:
+## Verification baseline
 
-1. define critic hypothesis;
-2. define seeded findings from the existing golden corpus;
-3. define severity contract: CRITICAL / WARNING / AMBIGUITY / INFO;
-4. define acceptance metrics;
-5. add regression fixtures/tests;
-6. implement the smallest critic slice;
-7. run deterministic tests;
-8. run controlled E2E only where required;
-9. document evidence;
-10. stop at the CA-02 gate.
+- focused CA-01/CA-02 tests: **52 passed**;
+- full repository suite: **230 passed**;
+- `python3 -m py_compile core/*.py modules/*/*.py worker/*.py tests/*.py`: passed;
+- `python3 -m compileall -q core modules worker`: passed;
+- `python3 -m pip check`: passed;
+- `git diff --check`: passed;
+- six-shape clean corpus produces no critic findings;
+- seeded negative tests cover all ten required categories;
+- Brain remains byte-for-byte unchanged by critique.
 
-Do not reopen CA-00 or CA-01 unless a regression is proven.
+The controlled workflow has been extended to persist and verify `campaign_critic` for the bounded Ryan acceptance. It will assert Brain/critic identity and source-hash linkage and reject critical findings. No production acceptance claim is made until that merged workflow completes.
 
-## Operating protocol
+## Exact next action
 
-```
-PLAN → EXECUTE → VERIFY → DOCUMENT → CONTINUE
-```
-
-If E2E finds a new valid bug:
-
-```
-STOP
-preserve evidence
-add regression
-fix root cause
-verify
-document
-repeat E2E
-```
+1. Commit and push CA-02 implementation and documentation.
+2. Open/merge the bounded CA-02 pull request without Buffer or publishing mutation.
+3. Verify the controlled Ryan workflow and persisted critic result.
+4. If it passes, close CA-02 and begin **CA-03 — Rule Reconciliation**.
 
 ## Do not
 
 - hard-code Ryan Zofay or any campaign;
 - invent campaign rules;
-- trust valid JSON as proof of correct intelligence;
+- let the critic mutate or silently repair the Brain;
+- resolve conflicts in CA-02;
 - manually mutate D1 to bypass acceptance;
 - rerun full AI migration when targeted migration is sufficient;
 - spend premium AI calls on deterministic work;
 - treat green CI as production proof;
-- add unrelated product/affiliate automation to this repository;
-- revive obsolete Termux/product-image workflows; repository scope is clipping only.
+- add unrelated product/affiliate automation;
+- modify rendering, subtitles, Buffer publishing, or material downloader architecture.
