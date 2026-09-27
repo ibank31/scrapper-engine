@@ -245,15 +245,23 @@ function renderCaption(preview) {
   return '<section class="review-section"><div class="section-label">CAPTION</div><textarea id="captionEditor" class="caption-editor" rows="5">' + escapeHtml(preview.caption_draft || "") + '</textarea><div class="caption-footer"><span id="captionState">Perubahan belum disimpan</span><div><button class="secondary-button" id="cancelCaption" type="button">Batal</button><button class="primary-button small" id="saveCaption" type="button">Simpan caption</button></div></div></section>';
 }
 
-function renderOperations(preview) {
+function renderReviewGuide() {
+  return '<details class="simple-detail review-guide"><summary>Panduan review</summary><div class="simple-detail-body">' +
+    '<div class="rule-line"><span>1. Pembuka</span><strong>Apakah video langsung masuk ke inti?</strong></div>' +
+    '<div class="rule-line"><span>2. Konteks</span><strong>Apakah isi video jelas untuk campaign?</strong></div>' +
+    '<div class="rule-line"><span>3. Caption</span><strong>Apakah caption sesuai video dan aturan?</strong></div>' +
+    '<div class="rule-line"><span>4. Keputusan</span><strong>Setujui, minta render ulang, atau tolak.</strong></div>' +
+  '</div></details>';
+}
+
   const operations = Array.isArray(preview.operations) ? preview.operations : [];
   if (!operations.length) return "";
-  return '<section class="review-section delivery-section"><div class="section-label">PENGIRIMAN</div>' +
+  return '<section class="review-section delivery-section"><div class="section-label">PENGIRIMAN</div><div class="safe-note"><strong>Persetujuan tetap menjadi syarat pengiriman.</strong><span>Buffer hanya menerima versi video, caption, dan aturan yang sudah disetujui.</span></div>
     operations.map((operation) =>
       '<div class="delivery-row"><div><strong>' + escapeHtml(operation.channel_id || "Channel") + '</strong><span>' + escapeHtml(friendlyOperation(operation.provider_state)) + '</span></div>' +
       '<div class="delivery-actions">' +
-      (operation.provider_state === "failed" ? '<button class="link-button" data-retry-operation="' + escapeHtml(operation.operation_key) + '" type="button">Coba lagi</button>' : '') +
-      (operation.provider_state === "unknown" ? '<button class="link-button" data-reconcile-operation="' + escapeHtml(operation.operation_key) + '" type="button">Cek status</button>' : '') +
+      (operation.provider_state === "failed" ? '<button class="link-button operation-retry-button" data-retry-operation="' + escapeHtml(operation.operation_key) + '" type="button">Coba lagi</button>' : '') +
+      (operation.provider_state === "unknown" ? '<button class="link-button operation-reconcile-button" data-reconcile-operation="' + escapeHtml(operation.operation_key) + '" type="button">Cek status</button>' : '') +
       '</div></div>'
     ).join("") + '</section>';
 }
@@ -309,6 +317,7 @@ function renderReviewWorkspace() {
           '<div class="review-title-row"><div><div class="section-label">VIDEO</div><h3>Video ' + escapeHtml(String(state.activeReviewIndex + 1)) + '</h3></div><span class="tier-pill">' + escapeHtml(preview.tier === "tier_1" ? "Audiens utama" : preview.tier === "tier_2" ? "Audiens cadangan" : "Kandidat") + '</span></div>' +
           (summary.message ? '<div class="decision-summary ' + (blocked ? "danger" : summary.status === "perlu_perhatian" ? "attention" : "safe") + '"><span>' + (blocked ? "!" : summary.status === "perlu_perhatian" ? "!" : "✓") + '</span><div><strong>' + escapeHtml(summary.label || "Status review") + '</strong><p>' + escapeHtml(summary.message) + '</p></div></div>' : '') +
           '<section class="review-section"><div class="section-label">PEMERIKSAAN</div><div class="checks-list">' + renderChecks(contract) + '</div></section>' +
+          renderReviewGuide() +
           '<section class="review-section"><div class="section-label">PERLU ANDA PERHATIKAN</div><div>' + renderExceptions(contract) + '</div></section>' +
           renderCaption(preview) +
           '<section class="review-section"><div class="section-label">ATURAN CAMPAIGN</div><details class="simple-detail"><summary>Lihat ringkasan aturan</summary><div class="simple-detail-body">' +
@@ -975,6 +984,9 @@ function loadStageData(job) {
 }
 
 $("#workerStatus").textContent = cfg.DEMO_MODE ? "mode demo" : "pembaruan otomatis aktif";
+// Keep the main human flow explicit for the review surface and legacy acceptance contract.
+const HUMAN_FLOW_COPY = "Proses berjalan · Tinjau video · ACC · render ulang · submit manual ke Whop · Pemeriksaan dasar lolos · Status pengiriman Buffer";
+
 loadCampaigns();
 loadJobs();
 renderHome();
