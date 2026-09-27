@@ -2,8 +2,8 @@
 
 **Updated:** 27 September 2026
 **Repository:** `ibank31/scrapper-engine`
-**Branch:** `feat/ca06-clip-strategy`
-**Latest merged SHA:** `14d49cfbabde15634bfe278bbb739022279dc65c` (CA-05 PR #52; PRs #48 and #49 are historical CA-03)
+**Branch:** `main`
+**Latest merged SHA:** `827b72407d8f1f668954e028581347d385ff6db5` (CA-06 closure; PR #53 merged at `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`; PRs #48 and #49 are historical CA-03)
 
 ## Mission
 
