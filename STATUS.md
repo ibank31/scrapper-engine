@@ -111,3 +111,9 @@ CA-05 deterministically compiles the CA-04 Material Contract into a provenance-p
 ## CA-06 — Campaign-aware Clip Strategy (PASS / CLOSED)
 
 CA-06 deterministically compiles the Production Contract and Material Plan into an additive, provenance-preserving clip strategy. It selects only verified/acquired/ready material, keeps missing timestamps unresolved, preserves platform and duration constraints, and makes fallback activation explicit. PR #53 merged at main SHA `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`; PR checks, Cloudflare Pages, post-merge tests, phase5 acceptance, and Ryan acceptance passed. See `docs/CA06_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca06.py`. Limitation: segment localization without structured timestamps remains downstream/manual review. Next milestone is CA-07; do not implement it in this slice.
+
+## CA-07 — Posting Package Compiler (PASS / CLOSED)
+
+CA-07 adds a deterministic, read-only `posting_package` compiler over the authoritative Production Contract, Clip Strategy, and explicit campaign posting fields. It preserves exact CTA, hashtags, handles, caption, disclosures, audio policy, subtitle delivery, native platform requirements, schedule intent, platform scope, and provenance. Mandatory missing, conflicting, unsupported, stale, or provenance-invalid posting fields block; non-critical manual actions remain explicit. The normalized envelope keeps legacy `rules` additive and the worker rejects stale CA-07 packages without Buffer or D1 mutation. See `docs/CA07_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca07.py`.
+
+CA-08 is next; do not implement it in this slice.

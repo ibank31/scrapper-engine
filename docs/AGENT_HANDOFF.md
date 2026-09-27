@@ -99,3 +99,9 @@ CA-05 is PASS / CLOSED in merged PR #52 at main SHA `14d49cfbabde15634bfe278bbb7
 ## CA-06 — Campaign-aware Clip Strategy (PASS / CLOSED)
 
 CA-06 consumed the Production Contract and Material Plan and emitted additive `clip_strategy` persistence. PR #53 merged at main SHA `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`. The compiler is deterministic and read-only: it preserves platform/duration constraints and evidence lineage, selects only usable material, keeps timestamp uncertainty explicit, and never silently activates fallbacks. PR checks, Cloudflare Pages, post-merge tests, phase5 acceptance, and Ryan acceptance passed. Limitation: segment localization without structured timestamps remains downstream/manual review. No renderer, publisher, Buffer mutation, D1 migration, or CA-07 work was included. Stop at CA-06; the next agent receives a CA-07 handoff.
+
+## CA-07 — Posting Package Compiler (PASS / CLOSED)
+
+CA-07 adds `core/posting_package.py`, normalized-envelope persistence, cache validation, focused tests, and bounded acceptance. The compiler is deterministic and read-only, consumes the Production Contract and Clip Strategy, preserves exact platform-scoped posting values and evidence lineage, and makes manual/native actions explicit. Missing mandatory values or incomplete provenance block; no values are invented. Legacy `ai_rules.rules` remains available. See `docs/CA07_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca07.py`. No Buffer publishing or manual D1 mutation occurred.
+
+CA-08 is next. Do not implement it in this slice.
