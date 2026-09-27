@@ -19,7 +19,7 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-Current merged `main`: `827b72407d8f1f668954e028581347d385ff6db5` (CA-06 closure commit; CA-06 merged via PR #53 at `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`). CA-00 → CA-06 acceptance remains recorded in the milestone sections below. CA-07 is the next implementation slice.
+CA-06 closure baseline: `827b72407d8f1f668954e028581347d385ff6db5` (CA-06 merged via PR #53 at `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`). Subsequent commits are documentation-only synchronization; CA-00 → CA-06 acceptance remains recorded below. CA-07 is the next implementation slice. CA-00 → CA-06 acceptance remains recorded in the milestone sections below. CA-07 is the next implementation slice.
 
 **Foundation chain verified:** CA-00 → CA-01 → CA-02 is executable, integrated, and has controlled production acceptance evidence. This proves the intelligence foundation, not the complete downstream Campaign Agent.
 

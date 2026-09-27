@@ -3,7 +3,7 @@
 **Updated:** 27 September 2026
 **Repository:** `ibank31/scrapper-engine`
 **Branch:** `main`
-**Latest merged SHA:** `827b72407d8f1f668954e028581347d385ff6db5` (CA-06 closure; PR #53 merged at `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`; PRs #48 and #49 are historical CA-03)
+**CA-06 closure baseline:** `827b72407d8f1f668954e028581347d385ff6db5` (PR #53 merged at `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`). Current `main` may contain documentation-only synchronization commits after this baseline; no CA-06 code changes are implied.
 
 ## Mission
 
