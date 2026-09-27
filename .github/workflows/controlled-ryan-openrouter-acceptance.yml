@@ -1,4 +1,4 @@
-# CA-01 bounded production acceptance: validate canonical Campaign Brain and clipping compatibility
+# Bounded production acceptance for the campaign-intelligence chain.
 name: ca01-controlled-ryan-acceptance
 
 on:
@@ -9,8 +9,10 @@ on:
       - "core/campaign_ai.py"
       - "core/campaign_brain.py"
       - "core/campaign_critic.py"
+      - "core/campaign_reconciliation.py"
       - "core/campaign_evidence.py"
       - "worker/sync_campaigns.py"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -101,11 +103,27 @@ jobs:
           assert critic["source_hash"] == ai["source_hash"]
           assert critic["status"] in {"pass", "review", "blocked"}
           assert critic["summary"]["by_severity"]["CRITICAL"] == 0, critic
+          reconciliation = ai["campaign_reconciliation"]
+          assert reconciliation["schema_version"] == 1
+          assert reconciliation["reconciliation_id"].startswith("reconciliation-v1:")
+          assert reconciliation["campaign_id"] == campaign_id
+          assert reconciliation["source_hash"] == ai["source_hash"] == brain["source_hash"] == critic["source_hash"]
+          assert reconciliation["brain_id"] == brain["brain_id"] == critic["brain_id"]
+          assert reconciliation["critic_id"] == critic["critic_id"]
+          assert reconciliation["status"] in {"resolved", "review", "blocked"}
+          assert all(rule["evidence_ids"] and rule["source_references"] for rule in reconciliation["rules"]), reconciliation["rules"]
+          critic_finding_ids = {item["finding_id"] for item in critic["findings"]}
+          reconciled_finding_ids = {item["finding_id"] for item in reconciliation["findings"]}
+          assert critic_finding_ids == reconciled_finding_ids, (critic_finding_ids, reconciled_finding_ids)
+          unresolved_ids = {item["finding_id"] for item in reconciliation["findings"] if item["status"] == "unresolved"}
+          represented_unresolved_ids = {item.get("critic_finding_id") for item in reconciliation["conflicts"] if item.get("critic_finding_id")}
+          assert unresolved_ids.issubset(represented_unresolved_ids), (unresolved_ids, represented_unresolved_ids)
           contract = ai["evidence_contract"]
           assert contract["schema_version"] == 1
           assert contract["coverage"] == 1.0, contract
           assert contract["unverified"] == [], contract["unverified"]
           rules = ai["rules"]
+          assert isinstance(rules, dict)  # legacy ai_rules.rules projection stays available
           assert rules["cta_required"] is True
           assert rules["cta_text"] == "Follow and meet Ryan for more @....."
           assert "@ryan.zofay" in rules["handles"]
@@ -113,8 +131,15 @@ jobs:
           assert "@thezofayexperiencepodcast" in rules["handles"]
           assert "#RyanZofay" in rules["hashtags"]
           assert "#ryanzofayexperiencepodcast" in rules["hashtags"]
+          # The bounded sync is intentionally not a publishing/Buffer workflow.
+          assert os.getenv("CLIPPER_AUTO_QUEUE", "0") in {"0", "false", "no", ""}
 
           print("PRODUCTION_ACCEPTANCE=PASS")
+          print("RECONCILIATION_STATUS="+str(reconciliation["status"]))
+          print("RECONCILED_RULES="+str(len(reconciliation["rules"])))
+          print("RECONCILED_FINDINGS="+str(len(reconciliation["findings"])))
+          print("UNRESOLVED_FINDINGS="+str(len(unresolved_ids)))
+          print("BUFFER_PUBLISHING_MUTATION=NONE")
           print("SCHEMA_VERSION="+str(ai["schema_version"]))
           print("EVIDENCE_COVERAGE="+str(contract["coverage"]))
           print("VERIFIED_EVIDENCE="+str(len(contract["verified"])))

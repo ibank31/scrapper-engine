@@ -284,6 +284,7 @@ class CampaignAITests(unittest.TestCase):
                 "source_hash": "source-hash",
                 "source_ledger": {"schema_version": 1},
                 "campaign_brain": {"schema_version": 1, "brain_id": "brain-v1:test", "source_hash": "source-hash", "rules": [], "evidence": {"schema_version": 1}},
+                "campaign_reconciliation": {"schema_version": 1, "campaign_id": None, "brain_id": "brain-v1:test", "source_hash": "source-hash", "reconciliation_id": "reconciliation-v1:test"},
                 "evidence_contract": {"schema_version": 1, "verified": [], "unverified": []},
                 "rules": {"material_policy": {}},
             }),
