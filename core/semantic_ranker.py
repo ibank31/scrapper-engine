@@ -121,8 +121,10 @@ def _normalize_model_results(parsed: dict[str, Any] | None, candidates: list[dic
     results = parsed.get("results")
     if results is None and len(candidates) == 1 and "decision" in parsed:
         results = [parsed]
-    if not isinstance(results, list) or len(results) != len(candidates):
-        return None, "model_invalid_results_count"
+    if not isinstance(results, list):
+        return None, f"model_invalid_results_shape:{type(results).__name__}"
+    if len(results) != len(candidates):
+        return None, f"model_invalid_results_count:expected={len(candidates)}:actual={len(results)}"
     indexed = {int(item.get("rank")): item for item in results if isinstance(item, dict) and str(item.get("rank", "")).isdigit()}
     normalized: list[dict[str, Any]] = []
     for index, candidate in enumerate(candidates):
