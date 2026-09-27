@@ -1087,7 +1087,7 @@ IMPLEMENTATION ORDER
  +-- CA-14 Economic Learning
 ~~~
 
-**Current priority: CA-01 — Canonical Campaign Brain. CA-00 acceptance sudah PASS dan ditutup.**
+**Current priority: CA-07 — Posting Package Compiler. CA-00 → CA-06 acceptance sudah PASS dan ditutup.**
 
 # 17. CA-01 implementation contract
 
