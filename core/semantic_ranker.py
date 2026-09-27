@@ -124,6 +124,12 @@ def _normalize_model_results(parsed: dict[str, Any] | None, candidates: list[dic
     results = parsed.get("results")
     if results is None and len(candidates) == 1 and "decision" in parsed:
         results = [parsed]
+    if len(candidates) == 1 and isinstance(results, list) and len(results) == 1 and isinstance(results[0], dict):
+        # A single-object model call has no meaningful global rank context.
+        # Treat the sole result as belonging to the sole candidate regardless
+        # of the rank token the small model emits, then normalize rank locally.
+        results[0] = dict(results[0])
+        results[0]["rank"] = int(candidates[0].get("rank") or 0)
     if not isinstance(results, list):
         return None, f"model_invalid_results_shape:{type(results).__name__}"
     if len(results) != len(candidates):
