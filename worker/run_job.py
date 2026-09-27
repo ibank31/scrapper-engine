@@ -43,6 +43,8 @@ def api_call(base: str, path: str, token: str, method: str = "GET", payload: dic
     headers = {"content-type": "application/json", "x-worker-token": token}
     dispatch_token = os.environ.get("CLIPPER_DISPATCH_TOKEN")
     if dispatch_token: headers["x-dispatch-token"] = dispatch_token
+    github_token = os.environ.get("GITHUB_ACTIONS_TOKEN")
+    if github_token: headers["x-github-token"] = github_token
     claim_token = os.environ.get("CLIPPER_CLAIM_TOKEN")
     if claim_token: headers["x-claim-token"] = claim_token
 
