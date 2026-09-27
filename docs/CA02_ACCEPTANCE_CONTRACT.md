@@ -68,3 +68,9 @@ After merge, the bounded Ryan workflow must prove:
 - the critic result is observable and has zero critical findings;
 - existing legacy rules remain compatible;
 - Buffer and publishing are not mutated.
+
+## Verified production evidence
+
+The merged main SHA `47ab5d11935fe74406ed210a2db122a3d02e5f2d` passed controlled acceptance run `36284355791`.
+
+The persisted result was observable with `CRITIC_STATUS=review`, `CRITIC_FINDINGS=7`, and zero critical findings. This is an accepted CA-02 outcome: warnings remain available for later reconciliation/review, while no critical issue blocks the bounded pipeline proof. The ordinary `tests` run `36284355788` and `phase5-acceptance` run `36284355798` also passed on the same SHA.
