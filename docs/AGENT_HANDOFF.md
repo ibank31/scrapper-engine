@@ -1,77 +1,75 @@
 # Scrapper Engine — Active Agent Handoff
 
-**Updated:** 26 September 2026  
-**Repository:** `ibank31/scrapper-engine`  
-**Branch:** `main`  
-**Last verified functional baseline:** `465b2b6cf1d955e2c193aedba82a35937fa5a389`
-
-Repository scope cleanup follows this baseline; documentation/deletion commits after it are non-functional.
+**Updated:** 27 September 2026
+**Repository:** `ibank31/scrapper-engine`
+**Branch:** `main`
+**Latest main SHA:** `b0180f1d96644f3d114c4860be4ba744b76e70b0`
 
 ## Mission
 
 Build a **campaign-agnostic Campaign Agent**. Clipping is the first execution vertical. Campaign discovery, evidence, material acquisition, strategy, execution, compliance, review, publishing, and outcome learning are reusable layers.
 
-Ryan Zofay is a regression fixture, never a special production case. Campaign differences belong in source evidence and normalized rules.
+Ryan Zofay is a regression fixture, never a special production case.
 
-Human review is basic QC. The machine is responsible for understanding campaign rules, material requirements, platform requirements, compliance, and posting-package details.
+## Closed milestones
 
-## Current milestone
+### CA-00 — Evidence Contract
 
-**CA-01 — Canonical Campaign Brain**
+**PASS / CLOSED.**
 
-### Completed and merged
+Evidence ledger, source fingerprinting, provenance, cache invalidation, targeted migration, and controlled production acceptance are complete.
 
-- source document extraction;
-- deterministic source fingerprint;
-- evidence ledger;
-- stable evidence IDs;
-- AI quote verification;
-- evidence-aware AI normalization;
-- legacy AI-cache invalidation;
-- Bearer campaign-sync authentication;
-- targeted migration support;
-- generic CA-00 acceptance fixtures and cache/migration regression tests;
-- six-shape campaign diversity corpus;
-- evidence provenance metadata: declared URLs, timestamps when supplied, extraction method, source priority, and character spans;
-- bounded `campaign_ids` input exposed in `campaign-sync-ai`.
+### CA-01 — Canonical Campaign Brain
 
-PR #28 is merged as `c1ef801367cba42fe12178088dec099c055afae9`.
+**PASS / CLOSED.**
 
-This handoff snapshot is carried by documentation commit `3a65b1a8d05902c72a56852d59ca7124d26de6c8`.
+Merged implementation covers:
 
-## CA-00 production acceptance
+- canonical `campaign_brain`;
+- deterministic `brain_id`;
+- source hash;
+- structured rule records;
+- mandatory / optional / unknown requirements;
+- evidence IDs and source references;
+- platform/language/audience scope;
+- variants and unresolved conflicts;
+- legacy `ai_rules.rules` compatibility projection;
+- six-shape deterministic corpus acceptance;
+- bounded Ryan production persistence.
 
-**PASS.** Controlled production acceptance proved the generic AI router fallback path with evidence contract preservation.
+CA-01 production acceptance: GitHub Actions run `36279279316`.
 
-Production D1 was checked directly for Ryan Zofay after the merge. The stored intelligence remains legacy `schema_version=1`.
+Successful job:
+`targeted-acceptance`
 
-Do not manually rewrite the row.
+Successful steps:
+- Targeted Ryan production re-analysis
+- Verify persisted acceptance contract
 
-The remaining production proof is a bounded re-analysis that stores CA-01 brain data. Corpus-wide migration remains forbidden while one targeted campaign is sufficient.
+## Important audit note
 
-## Exact next action
+Do not cite **219 tests passed** as independently verified from this agent session. The available GitHub connector does not expose the complete CI test artifact/count. The repository's CA-01 test definitions and bounded production acceptance are verified, but the exact aggregate test count remains unverified.
 
-Implement CA-01A/B/C as one bounded milestone: canonical brain, deterministic preservation gate, persistence/compatibility. Do not reopen CA-00 except for a regression proven by a failing fixture or production acceptance test.
+Also note that the current preservation gate maps `critical_rule_preservation` to mandatory preservation and has targeted platform-scope checks. That is an acceptable CA-01 baseline, but not proof that the two metrics are conceptually independent. Future hardening should make that distinction explicit.
 
-CA-00 acceptance evidence:
+## Exact next slice
 
-- `schema_version=2`;
-- `source_hash`;
-- `source_ledger`;
-- verified evidence;
-- `evidence_contract`;
-- CTA retained;
-- platform handles retained;
-- hashtags retained;
-- controlled production acceptance `PASS`.
+**CA-02 — Campaign Critic**
 
-## Verification baseline
+Before implementation:
 
-Latest merged CI is represented by the post-merge Actions runs for `3a65b1a8d05902c72a56852d59ca7124d26de6c8`.
+1. define critic hypothesis;
+2. define seeded findings from the existing golden corpus;
+3. define severity contract: CRITICAL / WARNING / AMBIGUITY / INFO;
+4. define acceptance metrics;
+5. add regression fixtures/tests;
+6. implement the smallest critic slice;
+7. run deterministic tests;
+8. run controlled E2E only where required;
+9. document evidence;
+10. stop at the CA-02 gate.
 
-Current production deployment is tied to the same `main` commit through Cloudflare Pages.
-
-A previous controlled E2E reached two rendered/validated review previews without Buffer mutation. Its intelligence failure remains the canonical rule-loss regression.
+Do not reopen CA-00 or CA-01 unless a regression is proven.
 
 ## Operating protocol
 
@@ -101,4 +99,4 @@ repeat E2E
 - spend premium AI calls on deterministic work;
 - treat green CI as production proof;
 - add unrelated product/affiliate automation to this repository;
-- revive obsolete Termux/product-image workflows; the repository scope is clipping only.
+- revive obsolete Termux/product-image workflows; repository scope is clipping only.
