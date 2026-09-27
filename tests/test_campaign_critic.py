@@ -176,6 +176,13 @@ class CampaignCriticTests(unittest.TestCase):
         normalized = normalize_ai_result(fixture_ai_item(campaign), campaign["id"], campaign)
         self.assertIn("campaign_critic", normalized)
         self.assertEqual(normalized["campaign_critic"]["status"], "pass")
+        self.assertIn("campaign_reconciliation", normalized)
+        reconciliation = normalized["campaign_reconciliation"]
+        self.assertEqual(reconciliation["campaign_id"], campaign["id"])
+        self.assertEqual(reconciliation["source_hash"], normalized["source_hash"])
+        self.assertEqual(reconciliation["brain_id"], normalized["campaign_brain"]["brain_id"])
+        self.assertEqual(reconciliation["critic_id"], normalized["campaign_critic"]["critic_id"])
+        self.assertTrue(reconciliation["reconciliation_id"].startswith("reconciliation-v1:"))
         self.assertIn("rules", normalized)
         self.assertEqual(normalized["schema_version"], 2)
 

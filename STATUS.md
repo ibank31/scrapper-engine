@@ -1,7 +1,7 @@
 # Scrapper Engine — Current Status
 
 **Updated:** 27 September 2026
-**Branch:** `main`
+**Branch:** `feat/ca03-rule-reconciliation` (CA-03 pull request #48)
 **Current direction:** Campaign Agent; clipping adalah vertical pertama
 **Production:** Cloudflare Pages `clipper-engine`
 
@@ -10,7 +10,7 @@
 Build a **campaign-agnostic Campaign Agent**. Clipping adalah vertical pertama yang sedang dibuktikan production-grade; campaign intelligence, evidence, material intelligence, execution, compliance, review, publishing, outcome, dan learning adalah lapisan reusable.
 
 ```
-campaign source → evidence → campaign brain → critic
+campaign source → evidence → campaign brain → critic → reconciliation
 → production contract → material plan → clip strategy
 → render → compliance → simple human review → Buffer
 ```
@@ -19,7 +19,7 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-CA-00, CA-01, and CA-02 implementation are merged on `main` at `47ab5d11935fe74406ed210a2db122a3d02e5f2d`.
+Freshly verified `main` baseline at task start: `38a7850087a010ca9e5040e815edac2e80d6cde7`. Recorded CA-00 → CA-02 production acceptance evidence remains on earlier SHA `47ab5d11935fe74406ed210a2db122a3d02e5f2d`; the later main commit updated documentation only. No CA-00/CA-01/CA-02 implementation regression was found during this slice.
 
 **Foundation chain verified:** CA-00 → CA-01 → CA-02 is executable, integrated, and has controlled production acceptance evidence. This proves the intelligence foundation, not the complete downstream Campaign Agent.
 
@@ -76,9 +76,13 @@ These counts are accepted only where recorded by the CA-02 verification evidence
 
 ## Next exact slice
 
-**CA-03 — Rule Reconciliation.**
+**CA-03 — Rule Reconciliation: PASS (bounded production acceptance complete; PR #48 awaits merge).**
 
-CA-03 owns resolution of conflicts and actionable critic findings. It must consume evidence + Brain + critic findings and produce an explicit reconciled rule set or explicit unresolved state. CA-02 remains detection-only.
+Implemented on `feat/ca03-rule-reconciliation`, PR #48; final implementation/workflow SHA `383e8fc77a7c18cc7e9194024d0cbee53ccc3c64`. `normalize_ai_result()` persists `campaign_reconciliation` beside Brain and Critic; stale/mismatched cache identities are rejected. Final local verification: **245 tests passed**, and Python compile, dependency, and diff checks passed. PR CI and phase-5 acceptance passed.
+
+Bounded production run `36286329412` on the final branch SHA passed: persisted reconciliation status `review`, 17 rules, one Critic finding retained as one unresolved finding, 14 verified evidence items, zero unverified evidence, and 100% evidence coverage. Legacy compatibility passed; `CLIPPER_AUTO_QUEUE=0`, with no Buffer publishing mutation. Two earlier fresh AI reruns failed the unchanged, strict pre-existing Brain evidence-coverage gate; the final bounded rerun passed without weakening the gate or manually editing production data.
+
+CA-03 preserves evidence IDs/source references, stable rule/conflict links, requirement semantics, and scoped variants. No-precedence ambiguity remains explicit, evidence-only missing rules are reconstructed as quoted source text, and unsupported inference is not promoted. CA-02 remains detection-only. See `docs/CA03_ACCEPTANCE_CONTRACT.md`. Do not start CA-04 in this task; merge PR #48, then stop.
 
 ## Permanent rules
 

@@ -143,6 +143,20 @@ def _cache_is_current(previous: dict[str, Any] | None, rules_hash: str) -> bool:
     brain = cached.get("campaign_brain")
     if not isinstance(brain, dict) or brain.get("schema_version") != 1 or not brain.get("brain_id"):
         return False
+    reconciliation = cached.get("campaign_reconciliation")
+    if not isinstance(reconciliation, dict) or reconciliation.get("schema_version") != 1 or not reconciliation.get("reconciliation_id"):
+        return False
+    critic = cached.get("campaign_critic")
+    if not isinstance(critic, dict) or not critic.get("critic_id"):
+        return False
+    if reconciliation.get("campaign_id") != brain.get("campaign_id"):
+        return False
+    if reconciliation.get("source_hash") != brain.get("source_hash") or reconciliation.get("brain_id") != brain.get("brain_id"):
+        return False
+    if reconciliation.get("critic_id") != critic.get("critic_id"):
+        return False
+    if critic.get("brain_id") != brain.get("brain_id") or critic.get("source_hash") != brain.get("source_hash"):
+        return False
     if brain.get("source_hash") != cached.get("source_hash"):
         return False
     if not isinstance(brain.get("rules"), list) or not isinstance(brain.get("evidence"), dict):
