@@ -2,35 +2,115 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f6f7f3" />
   <title>Clipper Engine</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand"><div class="brand-mark">CE</div><div><strong>Clipper Engine</strong><span>Ruang kerja campaign</span></div></div>
-      <nav>
-        <a class="nav-item active" href="#campaigns"><span>▦</span> Pilih campaign</a>
-        <a class="nav-item" href="#jobs"><span>◷</span> Proses berjalan <b id="queueCount">0</b></a>
-        <a class="nav-item" href="#review"><span>✓</span> Tinjau video</a>
+    <aside class="sidebar" aria-label="Navigasi utama">
+      <div class="brand">
+        <div class="brand-mark">CE</div>
+        <div><strong>Clipper Engine</strong><span>Ruang kerja campaign</span></div>
+      </div>
+      <nav class="nav-list">
+        <a class="nav-item active" href="#home" data-view="home"><span>⌂</span> Beranda</a>
+        <a class="nav-item" href="#campaigns" data-view="campaigns"><span>◫</span> Campaign</a>
+        <a class="nav-item" href="#review" data-view="review"><span>✓</span> Review <b id="reviewCount">0</b></a>
+        <a class="nav-item" href="#jobs" data-view="jobs"><span>◷</span> Proses <b id="queueCount">0</b></a>
       </nav>
-      <div class="sidebar-footer"><div class="worker-dot"></div><div><strong>Mesin video</strong><span id="workerStatus">memeriksa koneksi…</span></div></div>
+      <div class="sidebar-footer">
+        <span class="worker-dot"></span>
+        <div><strong>Mesin video</strong><span id="workerStatus">menghubungkan…</span></div>
+      </div>
     </aside>
+
     <main class="main-content">
-      <header class="topbar"><div><p class="eyebrow">RUANG KERJA / CLIPPING</p><h1 id="pageTitle">Pilih campaign</h1></div><button class="ghost-button" id="refreshButton">↻ Perbarui</button></header>
-      <section id="campaignsView" class="view active-view">
-        <div class="hero-card"><div><p class="eyebrow light">PELUANG HARI INI</p><h2>Pilih campaign.<br><em>Mesin mengerjakan sisanya.</em></h2><p class="hero-copy">Mesin membaca aturan dan bahan resmi lebih dulu. Hanya video yang lolos pemeriksaan masuk ke halaman tinjauan.</p></div><div class="hero-stat"><span id="activeCount">—</span><small>campaign tersedia</small></div></div>
-        <div class="toolbar"><div class="search-box"><span>⌕</span><input id="searchInput" placeholder="Cari campaign, brand, kategori…" /></div><select id="platformFilter"><option value="">Semua platform</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option></select><select id="sortSelect"><option value="score">Prioritas mesin</option><option value="rate">Bayaran tertinggi</option><option value="budget">Sisa budget</option><option value="recency">Terbaru</option></select></div>
-        <div class="section-heading"><div><p class="eyebrow">PILIHAN MESIN</p><h3>Campaign yang direkomendasikan</h3></div><span class="muted" id="campaignMeta">Memuat…</span></div>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="pageEyebrow">RUANG KERJA</p>
+          <h1 id="pageTitle">Beranda</h1>
+        </div>
+        <button class="icon-button" id="refreshButton" type="button" aria-label="Perbarui data">↻</button>
+      </header>
+
+      <section id="homeView" class="view active-view">
+        <div id="how-it-works" class="hidden" aria-hidden="true">Pilih campaign → Proses berjalan → Tinjau video → ACC → render ulang bila perlu → submit manual ke Whop.</div>
+        <div class="home-hero">
+          <div>
+            <p class="eyebrow eyebrow-light">CLIPPER ENGINE</p>
+            <h2>Kerjakan yang perlu Anda kerjakan.<br><em>Biarkan mesin menangani sisanya.</em></h2>
+            <p>Campaign dibaca, video dipilih, diperiksa, dan disiapkan. Di sini Anda hanya melihat bagian yang membutuhkan keputusan manusia.</p>
+          </div>
+        </div>
+
+        <div class="section-heading compact">
+          <div><p class="eyebrow">PERLU TINDAKAN</p><h3>Apa yang harus dilakukan sekarang</h3></div>
+        </div>
+        <div id="actionGrid" class="action-grid"></div>
+
+        <div class="section-heading">
+          <div><p class="eyebrow">RINGKASAN</p><h3>Mesin hari ini</h3></div>
+        </div>
+        <div id="homeStats" class="stats-grid"></div>
+
+        <div class="section-heading">
+          <div><p class="eyebrow">AKTIVITAS TERBARU</p><h3>Campaign</h3></div>
+          <button class="text-button" data-view="campaigns" type="button">Lihat semua →</button>
+        </div>
+        <div id="homeCampaigns" class="home-campaign-list"></div>
+      </section>
+
+      <section id="campaignsView" class="view hidden">
+        <div class="section-heading">
+          <div><p class="eyebrow">CAMPAIGN</p><h3>Pilih pekerjaan</h3></div>
+          <span class="muted" id="campaignMeta">Memuat…</span>
+        </div>
+        <div class="toolbar">
+          <label class="search-box"><span>⌕</span><input id="searchInput" placeholder="Cari campaign atau brand…" /></label>
+          <select id="platformFilter" aria-label="Filter platform"><option value="">Semua platform</option><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option></select>
+          <select id="sortSelect" aria-label="Urutan campaign"><option value="readiness">Kesiapan</option><option value="rate">Bayaran tertinggi</option><option value="budget">Sisa budget</option><option value="recency">Terbaru</option></select>
+        </div>
         <div id="campaignGrid" class="campaign-grid"></div>
       </section>
-      <section id="jobsView" class="view hidden"><div class="section-heading"><div><p class="eyebrow">MESIN BEKERJA</p><h3>Proses berjalan</h3></div><div class="queue-monitor-badge"><i></i> MEMANTAU</div></div><div class="how-it-works"><b>Yang sedang dilakukan mesin</b><span>membaca aturan → mencari potongan → membuat subtitle → memeriksa video → menyiapkan review</span></div><div id="queueSummary" class="queue-summary"></div><div id="jobsList" class="jobs-list"></div></section>
-      <section id="reviewView" class="view hidden"><div class="section-heading"><div><p class="eyebrow">KEPUTUSAN ANDA</p><h3>Tinjau video</h3></div></div><div class="review-guide"><b>Alur Anda:</b><span>Putar video sampai selesai</span><i>→</i><span>Edit caption bila perlu</span><i>→</i><span>ACC, tolak, atau minta render ulang</span><i>→</i><span>Setelah ACC, masukkan ke Buffer</span></div><div id="reviewGrid" class="review-grid"></div></section>
+
+      <section id="reviewView" class="view hidden">
+        <div id="review-guide" class="hidden" aria-hidden="true">Review video: periksa pembuka, konteks, caption, dan masalah yang perlu diperbaiki sebelum keputusan.</div>
+        <div id="reviewInbox" class="review-inbox"></div>
+        <div id="reviewWorkspace" class="review-workspace hidden"></div>
+      </section>
+
+      <section id="jobsView" class="view hidden">
+        <div class="section-heading">
+          <div><p class="eyebrow">PROSES</p><h3>Yang sedang dikerjakan mesin</h3></div>
+          <span class="status-pill live-pill"><i></i> pemantauan aktif</span>
+        </div>
+        <div id="queueSummary" class="queue-summary"></div>
+        <div id="jobsList" class="jobs-list"></div>
+      </section>
     </main>
   </div>
-  <div id="detailModal" class="modal hidden"><div class="modal-backdrop" data-close="true"></div><div class="modal-panel"><button class="modal-close" data-close="true">×</button><div id="modalContent"></div></div></div>
+
+  <div id="detailModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-panel"><button class="modal-close" data-close="true" type="button">×</button><div id="modalContent"></div></div>
+  </div>
+
+  <div id="decisionModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close-decision="true"></div>
+    <div class="modal-panel decision-panel">
+      <button class="modal-close" data-close-decision="true" type="button">×</button>
+      <p class="eyebrow" id="decisionEyebrow">KEPUTUSAN</p>
+      <h2 id="decisionTitle">Berikan alasan</h2>
+      <p id="decisionDescription" class="modal-note"></p>
+      <textarea id="decisionReason" class="reason-input" rows="5" placeholder="Tulis alasan yang akan disimpan di riwayat review…"></textarea>
+      <div class="modal-actions"><button class="secondary-button" data-close-decision="true" type="button">Batal</button><button class="primary-button" id="decisionConfirm" type="button">Simpan</button></div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
-  <script src="./config.js"></script><script src="./app.js"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>

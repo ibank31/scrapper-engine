@@ -28,6 +28,7 @@ from core.relevance import check_candidate
 from core.candidate_identity import deduplicate_source_records
 from core.output_selection import select_required_output_pair
 from core.output_gate import evaluate_output_pair, evaluate_render_pair
+from core.review_contract import compile_review_contract
 from core.asset_gate import manifest_has_invalid_media, manifest_video_paths
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
@@ -271,6 +272,35 @@ def main() -> None:
         plan_path = os.path.join(root, "plan.json")
         with open(plan_path, "w", encoding="utf-8") as fh: json.dump(plan, fh, ensure_ascii=False, indent=2)
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "campaign_rules", "completed", {"has_plan": bool(plan), "ai_rules_status": plan.get("ai_rules_status", "unavailable")})
+
+        # CA-09: a rendered preview may only enter human review when the
+        # persisted CA-08 gate exists and is not blocked. This is checked
+        # before expensive asset work so a missing/stale safety contract does
+        # not waste runner time or produce an unreviewable preview.
+        campaign_ai = plan.get("ai_rules") if isinstance(plan.get("ai_rules"), dict) else {}
+        compliance_gate = campaign_ai.get("compliance_gate") if isinstance(campaign_ai.get("compliance_gate"), dict) else None
+        compliance_gate_status = str((compliance_gate or {}).get("status") or "").lower()
+        if not compliance_gate or compliance_gate.get("schema_version") != 1 or not compliance_gate.get("compliance_gate_id"):
+            update(
+                args.api_base, args.job_id, args.worker_token, "blocked", 100,
+                "Campaign belum memiliki pemeriksaan compliance final yang dapat dipakai untuk review",
+                "ca09_review_contract_missing",
+            )
+            return
+        if compliance_gate_status == "blocked":
+            update(
+                args.api_base, args.job_id, args.worker_token, "blocked", 100,
+                "Campaign memiliki masalah compliance yang menghentikan review",
+                "ca09_review_blocked_by_compliance_gate",
+            )
+            return
+        if compliance_gate_status not in {"ready", "review"}:
+            update(
+                args.api_base, args.job_id, args.worker_token, "blocked", 100,
+                "Status compliance campaign tidak dapat dipakai untuk review",
+                f"ca09_invalid_compliance_status={compliance_gate_status}",
+            )
+            return
 
         # Hard-block only when AI has analyzed and rejected the rules.
         # "unavailable" / missing means campaign-sync-ai has not run yet —
@@ -774,7 +804,22 @@ def main() -> None:
             artifact_hash = _sha256_file(video_path)
             distinctness = selection_diagnostics.get("pairwise_distinctness") or {}
             revision = item.get("caption_revision") or {}
-            previews.append({"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "caption_revision_id": revision.get("revision_id") or f"{args.job_id}-{item['rank']}-caption-v1", "caption_hash": revision.get("caption_hash"), "caption_revision": revision, "platform": item.get("platform"), "platform_profile": item.get("platform_profile"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_hash": artifact_hash, "distinctness": distinctness, "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])})
+            preview_payload = {"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "caption_revision_id": revision.get("revision_id") or f"{args.job_id}-{item['rank']}-caption-v1", "caption_hash": revision.get("caption_hash"), "caption_revision": revision, "platform": item.get("platform"), "platform_profile": item.get("platform_profile"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_hash": artifact_hash, "distinctness": distinctness, "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])}
+            review_contract = compile_review_contract(compliance_gate, preview_payload, campaign_id=str(job["campaign_id"]))
+            if review_contract.get("decision_state") != "ready_for_review":
+                stage_event(args.api_base, args.job_id, args.worker_token, run_id, "manual_review", "blocked", {
+                    "rank": item["rank"],
+                    "review_contract_id": review_contract.get("review_contract_id"),
+                    "summary": review_contract.get("summary") or {},
+                }, "review_contract_blocked", "CA-09 review contract is not ready")
+                update(
+                    args.api_base, args.job_id, args.worker_token, "blocked", 100,
+                    "Preview dibuat tetapi belum memenuhi kontrak review manusia",
+                    "ca09_review_contract_blocked",
+                )
+                return
+            preview_payload["review_contract"] = review_contract
+            previews.append(preview_payload)
             manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "platform": item.get("platform"), "caption_revision_id": revision.get("revision_id"), "caption_hash": revision.get("caption_hash"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_key": prefix + ".mp4", "artifact_hash": artifact_hash, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
         manifest = {"schema_version": 2, "job_id": args.job_id, "run_id": run_id, "output_contract": plan.get("output_contract") or {}, "output_selection": selection_diagnostics, "provenance": {"rules_hash": job.get("rules_hash"), "plan_schema_version": job.get("plan_schema_version"), "source_fingerprint": json.loads(job.get("source_fingerprint_json") or "{}") if isinstance(job.get("source_fingerprint_json"), str) else job.get("source_fingerprint_json") or {}, "execution_generation": int(os.environ.get("CLIPPER_EXECUTION_GENERATION", "1"))}, "intake": {"reference_count": (intake_manifest.get("discovery") or {}).get("reference_count", 0), "discovered_media_sources": (intake_manifest.get("discovery") or {}).get("discovered_media_sources", 0), "selected_media_sources": (intake_manifest.get("discovery") or {}).get("selected_media_sources", 0), "discovered_asset_count": (intake_manifest.get("discovery") or {}).get("discovered_asset_count", 0), "source_manifest": intake_manifest.get("source_manifest", []), "asset_manifest": intake_manifest.get("asset_manifest", [])}, "source_preflight": {"source_count": len(preflight_records), "usable_sources": len(sources), "records": [{"source_asset_id": Path(item.get("source", "")).name, "quality": item.get("quality", {}), "duplicate_of": Path(item["duplicate_of"]).name if item.get("duplicate_of") else None, "excluded_before_transcription": item.get("excluded_before_transcription", False)} for item in preflight_records]}, "transcript_summary": {"source_count": candidate_stats["transcribed"]}, "selector": candidate_stats, "validation": {"result_count": len(results), "statuses": [item.get("status") for item in results]}, "review": {"item_count": len(manifest_previews), "items": manifest_previews}}
         manifest_path = workspace / "manifest.json"

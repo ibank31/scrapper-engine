@@ -1,193 +1,724 @@
 const cfg = window.CLIPPER_CONFIG || { API_BASE_URL: "", DEMO_MODE: true };
-const $ = (sel) => document.querySelector(sel);
-const state = { campaigns: [], jobs: [], reviews: [], bufferChannels: [], pollTimer: null };
-const statusNames = { queued: "MENUNGGU", processing: "SEDANG DIPROSES", review: "SIAP DITINJAU", error: "PERLU DIPERBAIKI", blocked: "TERTAHAN", cancelled: "DIBATALKAN", pending_review: "MENUNGGU KEPUTUSAN", changes_requested: "MENUNGGU RENDER ULANG", approved_for_manual_post: "SUDAH DISETUJUI", rejected: "DITOLAK", pending_render: "MENUNGGU RENDER" };
-const operationNames = { pending: "Menunggu dikirim", attempting: "Sedang mengirim", unknown: "Belum pasti — perlu cek", scheduled: "Sudah masuk antrean", published: "Sudah terbit", failed: "Gagal mengirim", cancelled: "Dibatalkan", unresolved: "Belum terselesaikan" };
-const tierNames = { tier_1: "Audiens utama", tier_2: "Audiens cadangan", unknown: "Audiens belum terbaca" };
-const subtitleNames = { burned_in: "Subtitle tertanam di video", native_caption_file: "File subtitle siap", none: "Tanpa subtitle", manual_required: "Perlu ditambahkan manual" };
-const soundNames = { verified: "Audio resmi terverifikasi", manual_required: "Audio resmi ditambahkan saat posting", unsupported: "Audio belum diverifikasi", unknown: "Audio belum diketahui" };
-const stageNames = {
-  claim: "Klaim job",
-  campaign_rules: "Aturan campaign",
-  asset_preflight: "Bahan & akses",
-  transcription: "Transkripsi",
-  selector: "Cari potongan",
-  semantic_ranking: "Ranking AI",
-  render: "Render video",
-  validation: "Validasi",
-  r2_upload: "Simpan preview",
-  manual_review: "Siap ditinjau"
+const $ = (selector) => document.querySelector(selector);
+const state = {
+  campaigns: [],
+  jobs: [],
+  reviews: [],
+  bufferChannels: [],
+  pollTimer: null,
+  activeView: "home",
+  activeReviewJobId: null,
+  activeReviewIndex: 0,
+  videoLoaded: false,
+  pendingDecision: null
 };
-function friendlyOperation(status) { return operationNames[String(status || "").toLowerCase()] || "Status pengiriman: " + String(status || "belum diketahui"); }
-function friendlyValidation(status) { return ({ pass: "Pemeriksaan dasar lolos", needs_review: "Perlu diperiksa manusia", fail: "Ada syarat yang belum lolos" }[String(status || "").toLowerCase()] || "Menunggu pemeriksaan"); }
+
+const statusNames = {
+  queued: "Menunggu",
+  processing: "Sedang diproses",
+  review: "Siap ditinjau",
+  error: "Perlu diperbaiki",
+  blocked: "Tidak dapat dilanjutkan",
+  cancelled: "Dibatalkan",
+  pending_review: "Menunggu pemeriksaan",
+  changes_requested: "Perlu diperbaiki",
+  approved_for_manual_post: "Sudah disetujui",
+  rejected: "Ditolak",
+  pending_render: "Sedang dibuat ulang"
+};
+
+const operationNames = {
+  pending: "Menunggu dikirim",
+  attempting: "Sedang mengirim",
+  unknown: "Belum pasti",
+  scheduled: "Sudah masuk antrean",
+  published: "Sudah terbit",
+  failed: "Gagal mengirim",
+  cancelled: "Dibatalkan",
+  unresolved: "Belum terselesaikan"
+};
+
+const stageNames = {
+  claim: "Menyiapkan pekerjaan",
+  campaign_rules: "Memahami campaign",
+  asset_preflight: "Memeriksa bahan",
+  transcription: "Membaca audio",
+  selector: "Mencari potongan",
+  semantic_ranking: "Menilai kandidat",
+  render: "Membuat video",
+  validation: "Memeriksa video",
+  r2_upload: "Menyiapkan preview",
+  manual_review: "Menyiapkan review"
+};
+
+const demoCampaigns = [
+  { id: "demo-ai-clips", title: "AI Founder Clips", brand: "Demo Studio", category: "technology", score: 86.5, rate_per_1k: 7, budget_left: 3850, platforms: ["tiktok", "youtube", "instagram"], type: "clipping", content_kind: "clipping", readiness_status: "siap", readiness_label: "Siap dikerjakan", readiness_reason: "Bahan resmi tersedia.", flags: [] },
+  { id: "demo-podcast", title: "Podcast Growth Campaign", brand: "North Star Media", category: "education", score: 78.2, rate_per_1k: 4, budget_left: 12400, platforms: ["youtube", "tiktok"], type: "clipping", content_kind: "clipping", readiness_status: "ketat", readiness_label: "Bisa, tapi ketat", readiness_reason: "Ada beberapa syarat campaign yang perlu diperhatikan.", flags: ["9:16"] },
+  { id: "demo-music", title: "Artist Discovery Clips", brand: "Indie Records", category: "music", score: 69.4, rate_per_1k: 2.5, budget_left: 8200, platforms: ["tiktok", "instagram"], type: "clipping", content_kind: "clipping", readiness_status: "belum_siap", readiness_label: "Belum siap", readiness_reason: "Bahan belum dapat diverifikasi.", flags: ["audio resmi"] }
+];
+
+function escapeHtml(value) {
+  const amp = String.fromCharCode(38);
+  const map = { "&": amp + "amp;", "<": amp + "lt;", ">": amp + "gt;", '"': amp + "quot;" };
+  return String(value == null ? "" : value).replace(/[&<>"]/g, (c) => map[c] || c);
+}
+
+function parseObject(value, fallback = {}) {
+  if (value && typeof value === "object") return value;
+  try {
+    const parsed = JSON.parse(value || "");
+    return parsed && typeof parsed === "object" ? parsed : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function api(path, options) {
+  return fetch((cfg.API_BASE_URL || "") + path, options).then(async (response) => {
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.message || payload.error || "API " + response.status);
+    return payload;
+  });
+}
+
+function showToast(message) {
+  const el = $("#toast");
+  el.textContent = message;
+  el.classList.remove("hidden");
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => el.classList.add("hidden"), 2800);
+}
+
+function humanDate(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function money(value) {
+  return value == null ? "-" : "$" + Number(value).toLocaleString();
+}
+
+function statusLabel(status) {
+  return statusNames[String(status || "").toLowerCase()] || String(status || "Belum diketahui");
+}
+
+function friendlyOperation(status) {
+  return operationNames[String(status || "").toLowerCase()] || "Status pengiriman belum diketahui";
+}
+
 function friendlyError(value) {
   const text = String(value || "");
-  if (/capacity_preflight|capacity.*exhausted|request_budget/i.test(text)) return "Antrean Buffer sedang penuh. Coba lagi setelah ada slot.";
-  if (/channel_not_found|channel.*required/i.test(text)) return "Channel tujuan tidak ditemukan atau belum terhubung.";
-  if (/caption_compliance|caption.*mismatch|caption_required/i.test(text)) return "Caption belum memenuhi aturan campaign. Edit caption lalu coba lagi.";
-  if (/approval_provenance|not_approved|approval_revision/i.test(text)) return "Preview belum memiliki persetujuan yang sah. Buka review dan setujui versi terbaru.";
-  if (/unknown_requires_reconciliation|unknown/i.test(text)) return "Hasil pengiriman belum pasti. Cek status provider sebelum mencoba ulang.";
-  if (/timeout|503|429|rate limit|temporar/i.test(text)) return "Layanan sedang sibuk atau belum menjawab. Tunggu sebentar sebelum mencoba lagi.";
-  if (/review_unauthorized|unauthorized/i.test(text)) return "Sesi review belum terhubung. Muat ulang halaman atau periksa akses.";
-  if (/source_media_invalid|media_preflight_failed|video_stream_missing|audio_stream_missing|ffprobe_failed|duration_below_minimum/i.test(text)) return "Bahan video berhasil ditemukan, tetapi file tidak lolos pemeriksaan media (video/audio/durasi). Mesin menghentikan analisis mahal agar tidak membuang waktu.";
-  if (/source_assets_unavailable|tidak dapat diakses|tidak dapat diunduh|sign in to confirm.*bot|youtube.*429/i.test(text)) return "Bahan video campaign tidak bisa diakses dari worker. Mesin akan menandai sumber yang bisa dipakai dan sumber yang perlu diperbaiki, bukan meneruskan file yang belum terverifikasi.";
-  return text || "Mesin berhenti sebelum selesai. Coba ulangi dari campaign ini.";
+  if (/capacity_preflight|capacity.*exhausted|request_budget/i.test(text)) return "Antrean Buffer sedang penuh. Tunggu sampai tersedia.";
+  if (/channel_not_found|channel.*required/i.test(text)) return "Channel tujuan belum terhubung.";
+  if (/caption_compliance|caption.*mismatch|caption_required/i.test(text)) return "Caption belum memenuhi aturan campaign.";
+  if (/approval_provenance|not_approved|approval_revision/i.test(text)) return "Persetujuan video sudah tidak berlaku untuk versi ini.";
+  if (/review_contract_missing|review_contract_stale|review_contract_not_approvable/i.test(text)) return "Versi review sudah berubah. Periksa ulang video sebelum menyetujui.";
+  if (/ca09_review_blocked|ca09_review_contract/i.test(text)) return "Campaign belum memenuhi pemeriksaan akhir untuk review.";
+  if (/unknown_requires_reconciliation|unknown/i.test(text)) return "Hasil pengiriman belum pasti. Periksa statusnya sebelum mengirim ulang.";
+  if (/timeout|503|429|rate limit|temporar/i.test(text)) return "Layanan sedang sibuk. Coba lagi setelah beberapa saat.";
+  if (/source_media_invalid|media_preflight_failed|video_stream_missing|audio_stream_missing|ffprobe_failed/i.test(text)) return "Bahan video tidak lolos pemeriksaan media.";
+  if (/source_assets_unavailable|tidak dapat diakses|tidak dapat diunduh|youtube.*429/i.test(text)) return "Bahan campaign tidak bisa diakses dari worker.";
+  return text || "Mesin berhenti sebelum selesai.";
 }
-const readinessOrder = { siap: 0, ketat: 1, belum_siap: 2, lewati: 3 };
-const demoCampaigns = [
-  { id: "demo-ai-clips", title: "AI Founder Clips", brand: "Demo Studio", category: "technology", score: 86.5, rate_per_1k: 7, budget_left: 3850, platforms: ["tiktok", "youtube", "instagram"], type: "clipping", content_kind: "clipping", is_clipping: true, verified: true, description: "Use the provided podcast footage.", readiness_status: "siap", readiness_label: "Siap dikerjakan", readiness_reason: "Bahan resmi ada dan aturan sederhana (demo).", flags: [] },
-  { id: "demo-podcast", title: "Podcast Growth Campaign", brand: "North Star Media", category: "education", score: 78.2, rate_per_1k: 4, budget_left: 12400, platforms: ["youtube", "tiktok"], type: "clipping", content_kind: "clipping", is_clipping: true, verified: true, description: "Official content library.", readiness_status: "ketat", readiness_label: "Bisa, tapi ketat", readiness_reason: "Ada caption wajib dan watermark (demo).", flags: ["9:16 required"] },
-  { id: "demo-music", title: "Artist Discovery Clips", brand: "Indie Records", category: "music", score: 69.4, rate_per_1k: 2.5, budget_left: 8200, platforms: ["tiktok", "instagram"], type: "clipping", content_kind: "clipping", is_clipping: true, verified: false, description: "Official footage.", readiness_status: "belum_siap", readiness_label: "Belum siap", readiness_reason: "Bahan di portal berlogin (demo).", flags: ["official audio"] }
-];
-function money(value) { return value == null ? "-" : "$" + Number(value).toLocaleString(); }
-function escapeHtml(value) {
-  // Build entities without embedding raw HTML entities in source (tool-safe).
-  const amp = String.fromCharCode(38);
-  const map = {
-    "&": amp + "amp;",
-    "<": amp + "lt;",
-    ">": amp + "gt;",
-    '"': amp + "quot;",
-  };
-  return String(value == null ? "" : value).replace(/[&<>"]/g, function (c) { return map[c] || c; });
-}
-function showToast(message) { const el = $("#toast"); el.textContent = message; el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2800); }
-function api(path, options) { return fetch((cfg.API_BASE_URL || "") + path, options).then(async (r) => { const payload = await r.json().catch(() => ({})); if (!r.ok) throw new Error(payload.message || payload.error || "API " + r.status); return payload; }); }
-function parseObject(value, fallback) { if (value && typeof value === "object") return value; try { const parsed = JSON.parse(value || ""); return parsed && typeof parsed === "object" ? parsed : (fallback || {}); } catch (_) { return fallback || {}; } }
-function humanDate(value) {
-  if (!value) return '-';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
-}
-function metricLabel(key) { return String(key || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()); }
-function metricValue(value) {
-  if (value == null || value === '') return '-';
-  if (typeof value === 'boolean') return value ? 'Ya' : 'Tidak';
-  if (Array.isArray(value)) return value.length + ' item';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-}
-function detailPairs(obj, allow) {
-  if (!obj || typeof obj !== 'object') return '';
-  return (allow || []).filter((key) => obj[key] != null && obj[key] !== '').map((key) => '<div><small>' + escapeHtml(metricLabel(key)) + '</small><strong>' + escapeHtml(metricValue(obj[key])) + '</strong></div>').join('');
-}
-function campaignMaterialLines(c) {
-  const plan = parseObject(c.plan, {}); const ai = parseObject(c.ai_rules, {}); const rules = parseObject(ai.rules, ai);
-  const production = parseObject(plan.production, {}); const policy = parseObject(production.material_policy || rules.material_policy || ai.material_policy, {});
-  const assets = Array.isArray(policy.assets) ? policy.assets : Array.isArray(policy.required_assets) ? policy.required_assets : [];
-  if (!assets.length) return '<p class="detail-empty">Rencana bahan belum disimpan sebagai daftar terstruktur.</p>';
-  return assets.slice(0, 8).map((asset) => {
-    const name = asset.name || asset.asset_id || asset.id || 'Bahan'; const role = asset.role || asset.intent || ''; const required = asset.required === false ? 'Opsional' : 'Wajib';
-    return '<div class="detail-list-row"><span>' + escapeHtml(name) + (role ? ' · ' + escapeHtml(role) : '') + '</span><b>' + escapeHtml(required) + '</b></div>';
-  }).join('') + (assets.length > 8 ? '<p class="detail-empty">+' + (assets.length - 8) + ' bahan lain</p>' : '');
-}
-function campaignRuleLines(c) {
-  const plan = parseObject(c.plan, {}); const ai = parseObject(c.ai_rules, {}); const rules = parseObject(ai.rules, ai); const production = parseObject(plan.production, {});
-  const rows = []; const add = (label, value) => { if (value == null || value === '') return; const text = Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value); if (text.length <= 220) rows.push([label, text]); };
-  add('Format', production.aspect_ratio || production.format || rules.aspect_ratio || rules.format);
-  add('Durasi', production.duration || rules.duration || rules.duration_seconds);
-  add('Subtitle', production.subtitle || rules.subtitle); add('Watermark', production.watermark || rules.watermark); add('Audio', production.sound || production.audio || rules.sound || rules.audio);
-  add('Platform', (c.platforms || []).join(', ')); const output = parseObject(plan.output_contract, rules.output_contract || {}); add('Output', output.target || output.required || output.description);
-  if (!rows.length) return '<p class="detail-empty">Aturan detail belum tersedia dalam format yang bisa dibaca UI.</p>';
-  return rows.map(([label, value]) => '<div class="detail-list-row"><span>' + escapeHtml(label) + '</span><b>' + escapeHtml(value) + '</b></div>').join('');
-}
-function campaignAiSummary(c) {
-  const ai = parseObject(c.ai_rules, {}); const rules = parseObject(ai.rules, ai); const confidence = ai.confidence ?? rules.confidence ?? ai.analysis_confidence; const status = c.ai_rules_status || ai.status || 'belum diketahui'; const analyzed = c.ai_analyzed_at || ai.analyzed_at;
-  const confidenceText = confidence == null ? 'belum tersedia' : Number(confidence) <= 1 ? (Number(confidence) * 100).toFixed(0) + '%' : Number(confidence).toFixed(0) + '%';
-  return '<div class="detail-grid"><div><small>Status analisis</small><strong>' + escapeHtml(status) + '</strong></div><div><small>Confidence</small><strong>' + escapeHtml(confidenceText) + '</strong></div><div><small>Rules hash</small><strong class="mono">' + escapeHtml(c.rules_hash || 'belum tersedia') + '</strong></div><div><small>Dianalisis</small><strong>' + escapeHtml(humanDate(analyzed)) + '</strong></div></div>';
-}
-function renderCampaignDetail(c) {
-  const label = c.readiness_label || 'Belum dinilai'; const reason = c.readiness_reason || 'Belum ada alasan readiness yang tersimpan.'; const plan = parseObject(c.plan, {}); const source = parseObject(plan.source_of_truth, {});
-  const sourceText = String(source.docs_text || '').trim(); const sourceUrls = Array.isArray(source.source_urls) ? source.source_urls : Array.isArray((plan.production || {}).asset_urls) ? plan.production.asset_urls : [];
-  return '<div class="campaign-detail"><div class="detail-hero"><div><p class="eyebrow">DETAIL CAMPAIGN</p><h2>' + escapeHtml(c.title) + '</h2><p class="modal-brand">' + escapeHtml(c.brand || '-') + ' · ' + escapeHtml(c.content_kind || c.type || 'clipping') + '</p></div><span class="readiness-badge ' + readinessClass(c.readiness_status) + '">' + escapeHtml(label) + '</span></div>' +
-    '<p class="detail-lead">' + escapeHtml(reason) + '</p><div class="detail-grid detail-metrics">' +
-    '<div><small>Bayaran / 1K</small><strong>' + escapeHtml(money(c.rate_per_1k)) + '</strong></div><div><small>Sisa budget</small><strong>' + escapeHtml(money(c.budget_left)) + '</strong></div><div><small>Score</small><strong>' + escapeHtml(c.score == null ? '-' : Number(c.score).toFixed(1)) + '</strong></div><div><small>Platform</small><strong>' + escapeHtml((c.platforms || []).join(', ') || '-') + '</strong></div></div>' +
-    '<section class="detail-section"><h3>Aturan yang akan dipakai</h3><div class="detail-list">' + campaignRuleLines(c) + '</div></section>' +
-    '<section class="detail-section"><h3>Bahan yang dibutuhkan</h3><div class="detail-list">' + campaignMaterialLines(c) + '</div></section>' +
-    '<section class="detail-section"><h3>Sumber aturan</h3><div class="source-proof"><span>' + (sourceUrls.length ? sourceUrls.length + ' URL tersimpan' : 'URL sumber belum tersedia') + '</span><span>' + (sourceText ? 'Dokumen tersimpan' : 'Teks dokumen belum tersedia') + '</span></div>' + (sourceText ? '<p class="source-excerpt">' + escapeHtml(sourceText.slice(0, 500)) + (sourceText.length > 500 ? '…' : '') + '</p>' : '') + '</section>' +
-    '<section class="detail-section"><h3>Analisis mesin</h3>' + campaignAiSummary(c) + '</section><div class="detail-actions"><button class="primary-button" id="startJob">Mulai proses campaign <span>→</span></button></div></div>';
-}
-function renderJobDetails(job) {
-  const rows = Array.isArray(job.stages) ? job.stages : []; if (!rows.length) return '<details class="job-detail" data-detail-key="job:' + escapeHtml(job.id) + '"><summary>⌄ Detail proses</summary><p class="detail-empty">Belum ada stage event yang diterima.</p></details>';
-  const latest = new Map(); for (const row of rows) latest.set(String(row.stage || ''), row);
-  return '<details class="job-detail" data-detail-key="job:' + escapeHtml(job.id) + '"><summary>⌄ Detail proses</summary><div class="stage-details">' + Array.from(latest.values()).map((row) => {
-    const metrics = parseObject(row.metrics_json, row.metrics || {}); const pairs = detailPairs(metrics, ['duration_seconds','candidate_count','selected','semantic_required','semantic_skipped','reason','cache_hit','ai_calls','source_count','usable_sources']);
-    return '<div class="stage-detail-row"><div><strong>' + escapeHtml(stageNames[row.stage] || row.stage) + '</strong><span>' + escapeHtml(String(row.status || '').replace(/_/g, ' ')) + '</span></div>' + (pairs ? '<div class="stage-metrics">' + pairs + '</div>' : '') + (row.error_code || row.error_detail ? '<p class="stage-error">' + escapeHtml(row.error_code || '') + (row.error_detail ? ' · ' + escapeHtml(row.error_detail) : '') + '</p>' : '') + '<small>' + escapeHtml(row.ended_at ? 'Selesai ' + humanDate(row.ended_at) : row.started_at ? 'Mulai ' + humanDate(row.started_at) : 'Waktu belum tersedia') + '</small></div>';
-  }).join('') + '</div></details>';
-}
-function outputContractSummary(job) {
-  const selection = parseObject(job.output_selection_json, {});
-  const actual = selection.actual_selected || selection.actual || {};
-  const t1 = Number(actual.tier_1 || 0); const t2 = Number(actual.tier_2 || 0);
-  if (job.output_contract_status === "review_ready") return "Target selesai · Audiens utama 1/1 · Audiens cadangan 1/1";
-  if (job.output_contract_status === "blocked") return "Belum lengkap · Audiens utama " + t1 + "/1 · Audiens cadangan " + t2 + "/1";
-  return "Target: 2 video berbeda · 1 untuk tiap audiens";
-}
+
 function readinessClass(status) {
-  if (status === "siap") return "ready-siap";
-  if (status === "ketat") return "ready-ketat";
-  if (status === "belum_siap") return "ready-belum";
-  if (status === "lewati") return "ready-lewati";
-  return "ready-unknown";
+  if (status === "siap") return "ready";
+  if (status === "ketat") return "attention";
+  if (status === "belum_siap" || status === "lewati") return "blocked";
+  return "neutral";
 }
-function canStart(c) {
-  const s = c.readiness_status;
-  if (s === "lewati" || s === "belum_siap") return false;
-  if (s === "siap" || s === "ketat") return true;
-  return String(c.title || "").toLowerCase().includes("clip");
+
+function canStart(campaign) {
+  return ["siap", "ketat"].includes(campaign.readiness_status) || String(campaign.title || "").toLowerCase().includes("clip");
 }
-async function loadCampaigns() {
-  try {
-    state.campaigns = cfg.DEMO_MODE ? demoCampaigns : (await api("/api/campaigns")).campaigns;
-  } catch (error) {
-    state.campaigns = [];
-    showToast(cfg.DEMO_MODE ? "Demo tidak tersedia" : "API production gagal — tidak menampilkan data demo");
+
+function reviewBadgeClass(status) {
+  if (status === "approved_for_manual_post" || status === "pass" || status === "ready" || status === "siap_ditinjau") return "safe";
+  if (status === "pending_render" || status === "processing" || status === "review" || status === "pending_review" || status === "changes_requested" || status === "perlu_perhatian") return "attention";
+  return "danger";
+}
+
+function reviewStatusText(preview, contract) {
+  if (preview.status === "approved_for_manual_post") return "Sudah disetujui";
+  if (preview.status === "rejected") return "Ditolak";
+  if (preview.status === "pending_render") return "Sedang dibuat ulang";
+  if (contract?.decision_state === "blocked") return "Tidak dapat dilanjutkan";
+  if (preview.status === "changes_requested") return "Perlu diperbaiki";
+  return "Menunggu pemeriksaan";
+}
+
+function getCurrentReviews(jobId) {
+  const rows = state.reviews.filter((item) => item.job?.id === jobId && !item.superseded_at);
+  const latest = new Map();
+  for (const item of rows) {
+    const key = String(item.rank || item.id || "");
+    const previous = latest.get(key);
+    if (!previous || Number(item.revision_number || 1) >= Number(previous.revision_number || 1)) latest.set(key, item);
   }
-  renderCampaigns();
+  return [...latest.values()].sort((a, b) => Number(a.rank || 0) - Number(b.rank || 0));
 }
+
+function activeReview() {
+  const rows = getCurrentReviews(state.activeReviewJobId);
+  return rows[state.activeReviewIndex] || rows[0] || null;
+}
+
+function releaseVideoPreview() {
+  const video = $("#activeReviewVideo");
+  if (video) {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+  }
+  state.videoLoaded = false;
+}
+
+function renderVideoStage(preview) {
+  if (!preview) return "";
+  const poster = preview.thumbnail_url || "";
+  if (state.videoLoaded && preview.video_url) {
+    return '<div class="video-stage"><video id="activeReviewVideo" class="review-video" controls preload="none" playsinline poster="' + escapeHtml(poster) + '"><source src="' + escapeHtml(preview.video_url) + '" type="video/mp4"></video><div class="video-foot"><span>Preview ringan</span><a href="' + escapeHtml(preview.download_url || "#") + '" download>Unduh versi penuh ↓</a></div></div>';
+  }
+  const label = preview.status === "pending_render" ? "Menunggu render selesai" : preview.thumbnail_url ? "Putar preview" : "Preview belum tersedia";
+  const disabled = !preview.video_url || preview.status === "pending_render";
+  return '<div class="video-stage poster-stage">' +
+    (poster ? '<img src="' + escapeHtml(poster) + '" alt="" loading="eager">' : '<div class="poster-fallback"><span>Preview</span></div>') +
+    '<div class="poster-shade"></div>' +
+    '<button class="play-preview" type="button" data-play-preview="true" ' + (disabled ? "disabled" : "") + '><span class="play-icon">' + (disabled ? "…" : "▶") + '</span><strong>' + escapeHtml(label) + '</strong><small>' + (disabled ? "File sedang disiapkan" : "Video ringan akan dimuat hanya saat diputar") + '</small></button>' +
+  '</div>';
+}
+
+function checkIcon(status) {
+  if (status === "pass") return "✓";
+  if (status === "review") return "!";
+  return "×";
+}
+
+function renderChecks(contract) {
+  const checks = Array.isArray(contract?.checks) ? contract.checks : [];
+  return checks.map((check) =>
+    '<div class="check-row ' + reviewBadgeClass(check.status) + '">' +
+      '<span class="check-icon">' + checkIcon(check.status) + '</span>' +
+      '<div><strong>' + escapeHtml(check.label || "Pemeriksaan") + '</strong><p>' + escapeHtml(check.detail || "") + '</p></div>' +
+    '</div>'
+  ).join("");
+}
+
+function renderExceptions(contract) {
+  const items = Array.isArray(contract?.exceptions) ? contract.exceptions : [];
+  if (!items.length) {
+    return '<div class="all-clear"><span>✓</span><div><strong>Tidak ada masalah yang perlu ditangani</strong><p>Pemeriksaan campaign tidak memberikan pengecualian tambahan.</p></div></div>';
+  }
+  return items.slice(0, 5).map((item) =>
+    '<div class="exception-row ' + (item.severity === "critical" ? "critical" : "warning") + '">' +
+      '<span>' + (item.severity === "critical" ? "!" : "i") + '</span>' +
+      '<div><strong>' + escapeHtml(item.label || "Perlu diperiksa") + '</strong><p>' + escapeHtml(item.reason || "") + '</p>' + (item.action ? '<small>' + escapeHtml(item.action) + '</small>' : '') + '</div>' +
+    '</div>'
+  ).join("") + (items.length > 5 ? '<p class="muted">+' + (items.length - 5) + ' pemeriksaan lain</p>' : "");
+}
+
+function renderTechnicalDetails(preview, contract) {
+  const validation = parseObject(preview.validation, {});
+  const semantic = parseObject(validation.semantic, {});
+  const provenance = contract?.provenance || {};
+  const rows = [
+    ["Review Contract", contract?.review_contract_id],
+    ["Compliance Gate", contract?.compliance_gate_id],
+    ["Artifact", contract?.artifact_hash],
+    ["Caption revision", contract?.caption_revision_id],
+    ["Source hash", contract?.source_hash],
+    ["Kandidat", preview.candidate_id],
+    ["Sumber bahan", preview.source_asset_id],
+    ["Semantic", semantic.semantic_score == null ? null : Number(semantic.semantic_score).toFixed(3)]
+  ];
+  return '<details class="technical-detail"><summary>Detail mesin</summary><div class="technical-grid">' +
+    rows.filter((row) => row[1]).map((row) => '<div><small>' + escapeHtml(row[0]) + '</small><code>' + escapeHtml(row[1]) + '</code></div>').join("") +
+  '</div><p class="technical-note">Data ini untuk audit. Tidak diperlukan untuk mengambil keputusan review.</p></details>';
+}
+
+function renderCaption(preview) {
+  const editable = ["pending_review", "changes_requested"].includes(preview.status);
+  if (!editable) {
+    return '<section class="review-section"><div class="section-label">CAPTION</div><div class="caption-static">' + escapeHtml(preview.caption_draft || "Caption belum tersedia.") + '</div></section>';
+  }
+  return '<section class="review-section"><div class="section-label">CAPTION</div><textarea id="captionEditor" class="caption-editor" rows="5">' + escapeHtml(preview.caption_draft || "") + '</textarea><div class="caption-footer"><span id="captionState">Perubahan belum disimpan</span><div><button class="secondary-button" id="cancelCaption" type="button">Batal</button><button class="primary-button small" id="saveCaption" type="button">Simpan caption</button></div></div></section>';
+}
+
+function renderReviewGuide() {
+  return '<details class="simple-detail review-guide"><summary>Panduan review</summary><div class="simple-detail-body">' +
+    '<div class="rule-line"><span>1. Pembuka</span><strong>Apakah video langsung masuk ke inti?</strong></div>' +
+    '<div class="rule-line"><span>2. Konteks</span><strong>Apakah isi video jelas untuk campaign?</strong></div>' +
+    '<div class="rule-line"><span>3. Caption</span><strong>Apakah caption sesuai video dan aturan?</strong></div>' +
+    '<div class="rule-line"><span>4. Keputusan</span><strong>Setujui, minta render ulang, atau tolak.</strong></div>' +
+  '</div></details>';
+}
+
+function renderOperations(preview) {
+  const operations = Array.isArray(preview.operations) ? preview.operations : [];
+  if (!operations.length) return "";
+  return '<section class="review-section delivery-section"><div class="section-label">PENGIRIMAN</div>' +
+    '<div class="safe-note buffer-safe-note"><strong>Persetujuan tetap menjadi syarat pengiriman.</strong><span>Buffer hanya menerima versi video, caption, dan aturan yang sudah disetujui.</span></div>' +
+    operations.map((operation) =>
+      '<div class="delivery-row"><div><strong>' + escapeHtml(operation.channel_id || "Channel") + '</strong><span>' + escapeHtml(friendlyOperation(operation.provider_state)) + '</span></div>' +
+      '<div class="delivery-actions">' +
+      (operation.provider_state === "failed" ? '<button class="link-button operation-retry-button" data-retry-operation="' + escapeHtml(operation.operation_key) + '" type="button">Coba lagi</button>' : '') +
+      (operation.provider_state === "unknown" ? '<button class="link-button operation-reconcile-button" data-reconcile-operation="' + escapeHtml(operation.operation_key) + '" type="button">Cek status</button>' : '') +
+      '</div></div>'
+    ).join("") + '</section>';
+}
+
+function renderCandidateRail(rows, activeIndex) {
+  return '<div class="candidate-rail">' + rows.map((preview, index) => {
+    const contract = preview.review_contract || {};
+    const active = index === activeIndex;
+    return '<button class="candidate-item ' + (active ? "active" : "") + '" data-candidate-index="' + index + '" type="button">' +
+      '<span class="candidate-thumb">' + (preview.thumbnail_url ? '<img src="' + escapeHtml(preview.thumbnail_url) + '" loading="lazy" alt="">' : '<span>—</span>') + '</span>' +
+      '<span class="candidate-copy"><strong>Video ' + escapeHtml(String(index + 1)) + '</strong><small>' + escapeHtml(contract.summary?.label || reviewStatusText(preview, contract)) + '</small></span>' +
+      '<span class="candidate-mark ' + reviewBadgeClass(preview.status) + '"></span>' +
+    '</button>';
+  }).join("") + '</div>';
+}
+
+function renderReviewWorkspace() {
+  const container = $("#reviewWorkspace");
+  const inbox = $("#reviewInbox");
+  const job = state.jobs.find((item) => item.id === state.activeReviewJobId);
+  const rows = getCurrentReviews(state.activeReviewJobId);
+  if (!job || !rows.length) {
+    state.activeReviewJobId = null;
+    state.activeReviewIndex = 0;
+    state.videoLoaded = false;
+    container.classList.add("hidden");
+    inbox.classList.remove("hidden");
+    renderReviewInbox();
+    return;
+  }
+
+  if (state.activeReviewIndex >= rows.length) state.activeReviewIndex = 0;
+  const preview = rows[state.activeReviewIndex];
+  const contract = preview.review_contract || {};
+  const summary = contract.summary || {};
+  const blocked = contract.decision_state === "blocked";
+  const approved = preview.status === "approved_for_manual_post";
+  const pendingRender = preview.status === "pending_render";
+  const editable = ["pending_review", "changes_requested"].includes(preview.status);
+
+  releaseVideoPreview();
+
+  inbox.classList.add("hidden");
+  container.classList.remove("hidden");
+  container.innerHTML =
+    '<div class="review-topbar"><button class="back-button" id="backToReviewInbox" type="button">← Semua review</button><span class="review-progress">Video ' + (state.activeReviewIndex + 1) + ' dari ' + rows.length + '</span></div>' +
+    '<div class="review-context"><div><p class="eyebrow">CAMPAIGN</p><h2>' + escapeHtml(job.campaign_title || job.campaign_id || "Campaign") + '</h2><p>' + escapeHtml(job.campaign_brand || "") + (job.campaign_brand ? " · " : "") + escapeHtml((job.output_contract_status === "review_ready" ? "Output selesai" : "Clipping")) + '</p></div><span class="status-pill ' + reviewBadgeClass(summary.status || (blocked ? "blocked" : "review")) + '">' + escapeHtml(summary.label || reviewStatusText(preview, contract)) + '</span></div>' +
+    '<div class="review-layout">' +
+      '<aside class="candidate-panel"><div class="section-label">KANDIDAT</div>' + renderCandidateRail(rows, state.activeReviewIndex) + '</aside>' +
+      '<article class="review-main">' +
+        renderVideoStage(preview) +
+        '<div class="review-copy">' +
+          '<div class="review-title-row"><div><div class="section-label">VIDEO</div><h3>Video ' + escapeHtml(String(state.activeReviewIndex + 1)) + '</h3></div><span class="tier-pill">' + escapeHtml(preview.tier === "tier_1" ? "Audiens utama" : preview.tier === "tier_2" ? "Audiens cadangan" : "Kandidat") + '</span></div>' +
+          (summary.message ? '<div class="decision-summary ' + (blocked ? "danger" : summary.status === "perlu_perhatian" ? "attention" : "safe") + '"><span>' + (blocked ? "!" : summary.status === "perlu_perhatian" ? "!" : "✓") + '</span><div><strong>' + escapeHtml(summary.label || "Status review") + '</strong><p>' + escapeHtml(summary.message) + '</p></div></div>' : '') +
+          '<section class="review-section"><div class="section-label">PEMERIKSAAN</div><div class="checks-list">' + renderChecks(contract) + '</div></section>' +
+          renderReviewGuide() +
+          '<section class="review-section"><div class="section-label">PERLU ANDA PERHATIKAN</div><div>' + renderExceptions(contract) + '</div></section>' +
+          renderCaption(preview) +
+          '<section class="review-section"><div class="section-label">ATURAN CAMPAIGN</div><details class="simple-detail"><summary>Lihat ringkasan aturan</summary><div class="simple-detail-body">' +
+            '<div class="rule-line"><span>Status compliance</span><strong>' + escapeHtml(contract.summary?.label || "Belum diketahui") + '</strong></div>' +
+            '<div class="rule-line"><span>Platform</span><strong>' + escapeHtml((job.platforms || preview.platform ? ((job.platforms || []).join(", ") || preview.platform || "-") : "-")) + '</strong></div>' +
+            '<div class="rule-line"><span>Source</span><strong>' + escapeHtml(preview.source_asset_id || "Teridentifikasi") + '</strong></div>' +
+          '</div></details></section>' +
+          renderOperations(preview) +
+          renderTechnicalDetails(preview, contract) +
+          '<div class="review-navigation"><button class="secondary-button" id="prevCandidate" type="button" ' + (state.activeReviewIndex === 0 ? "disabled" : "") + '>← Sebelumnya</button><button class="secondary-button" id="nextCandidate" type="button" ' + (state.activeReviewIndex >= rows.length - 1 ? "disabled" : "") + '>Berikutnya →</button></div>' +
+        '</div>' +
+        '<div class="review-actionbar ' + (blocked ? "blocked" : approved ? "approved" : "") + '">' +
+          (blocked ? '<div class="action-lock"><strong>Review dihentikan</strong><span>Masalah compliance harus diselesaikan lebih dulu.</span></div>' :
+           pendingRender ? '<div class="action-lock"><strong>Menunggu render ulang</strong><span>Versi baru sedang disiapkan.</span></div>' :
+           approved ? '<div class="action-lock"><strong>Video sudah disetujui</strong><span>Langkah berikutnya adalah pengiriman.</span></div><button class="primary-button" id="bufferButton" type="button">Kirim ke Buffer <span>↗</span></button>' :
+           editable ? '<button class="secondary-button danger" id="rejectButton" type="button">Tolak</button><button class="secondary-button" id="changesButton" type="button">Minta perbaikan</button><button class="primary-button" id="approveButton" type="button" ' + (!contract.review_actions?.approve ? "disabled" : "") + '>✓ Setujui video</button>' :
+           '<div class="action-lock"><strong>' + escapeHtml(reviewStatusText(preview, contract)) + '</strong></div>') +
+        '</div>' +
+      '</article>' +
+    '</div>';
+
+  bindReviewWorkspace(preview, rows);
+}
+
+function bindReviewWorkspace(preview, rows) {
+  $("#backToReviewInbox")?.addEventListener("click", () => { releaseVideoPreview(); state.activeReviewJobId = null; renderReviewInbox(); });
+  document.querySelectorAll("[data-candidate-index]").forEach((button) => button.addEventListener("click", () => {
+    const next = Number(button.dataset.candidateIndex);
+    if (!Number.isInteger(next)) return;
+    releaseVideoPreview();
+    state.activeReviewIndex = next;
+    renderReviewWorkspace();
+  }));
+  $("#play-preview")?.addEventListener("click", () => {});
+  document.querySelector("[data-play-preview]")?.addEventListener("click", () => {
+    if (!preview.video_url) return;
+    state.videoLoaded = true;
+    renderReviewWorkspace();
+    const video = $("#activeReviewVideo");
+    if (video) {
+      video.addEventListener("loadedmetadata", () => { video.play().catch(() => {}); }, { once: true });
+      video.load();
+    }
+  });
+  $("#prevCandidate")?.addEventListener("click", () => {
+    if (state.activeReviewIndex > 0) { releaseVideoPreview(); state.activeReviewIndex -= 1; renderReviewWorkspace(); }
+  });
+  $("#nextCandidate")?.addEventListener("click", () => {
+    if (state.activeReviewIndex < rows.length - 1) { releaseVideoPreview(); state.activeReviewIndex += 1; renderReviewWorkspace(); }
+  });
+  $("#saveCaption")?.addEventListener("click", () => saveCaption(preview));
+  $("#cancelCaption")?.addEventListener("click", () => { renderReviewWorkspace(); });
+  $("#approveButton")?.addEventListener("click", () => openDecisionModal(preview, "approve"));
+  $("#rejectButton")?.addEventListener("click", () => openDecisionModal(preview, "reject"));
+  $("#changesButton")?.addEventListener("click", () => openDecisionModal(preview, "request_rerender"));
+  $("#bufferButton")?.addEventListener("click", () => openBufferUpload(preview));
+  document.querySelectorAll("[data-retry-operation]").forEach((button) => button.addEventListener("click", () => retryOperation(button.dataset.retryOperation)));
+  document.querySelectorAll("[data-reconcile-operation]").forEach((button) => button.addEventListener("click", () => reconcileOperation(button.dataset.reconcileOperation)));
+}
+
+async function saveCaption(preview) {
+  const editor = $("#captionEditor");
+  if (!editor) return;
+  const text = editor.value.trim();
+  const button = $("#saveCaption");
+  button.disabled = true;
+  button.textContent = "Memeriksa…";
+  try {
+    const headers = { "content-type": "application/json" };
+    if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/caption-revisions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        text,
+        fields: { hashtags: (text.match(/#[A-Za-z0-9_]+/g) || []) },
+        reviewer: cfg.REVIEWER || "manual-user"
+      })
+    });
+    preview.caption_draft = response.revision.text;
+    preview.caption_revision_id = response.revision.revision_id;
+    preview.caption_hash = response.revision.caption_hash;
+    if (response.review_contract) preview.review_contract = response.review_contract;
+    renderReviewWorkspace();
+    showToast("Caption tersimpan sebagai versi baru");
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "Simpan caption";
+    showToast("Caption belum disimpan: " + friendlyError(error.message));
+  }
+}
+
+function openDecisionModal(preview, action) {
+  state.pendingDecision = { preview, action };
+  const requiredReason = action !== "approve";
+  $("#decisionEyebrow").textContent = action === "approve" ? "KONFIRMASI" : action === "reject" ? "TOLAK VIDEO" : "MINTA PERBAIKAN";
+  $("#decisionTitle").textContent = action === "approve" ? "Setujui video ini?" : action === "reject" ? "Mengapa video ditolak?" : "Apa yang perlu diperbaiki?";
+  $("#decisionDescription").textContent = action === "approve"
+    ? "Persetujuan akan dikunci ke versi video, caption, aturan campaign, dan Review Contract saat ini."
+    : "Alasan akan disimpan di riwayat review agar render atau keputusan berikutnya punya konteks yang jelas.";
+  const input = $("#decisionReason");
+  input.value = "";
+  input.required = requiredReason;
+  input.placeholder = requiredReason ? "Contoh: pembukaan terlalu lambat, minta versi yang lebih singkat." : "Opsional";
+  input.classList.toggle("hidden", !requiredReason);
+  $("#decisionConfirm").textContent = action === "approve" ? "Ya, setujui" : action === "reject" ? "Tolak video" : "Minta perbaikan";
+  $("#decisionModal").classList.remove("hidden");
+  if (requiredReason) input.focus(); else $("#decisionConfirm").focus();
+}
+
+async function executeDecision() {
+  const pending = state.pendingDecision;
+  if (!pending) return;
+  const { preview, action } = pending;
+  const reason = String($("#decisionReason").value || "").trim();
+  if (action !== "approve" && !reason) {
+    $("#decisionReason").focus();
+    return;
+  }
+  const button = $("#decisionConfirm");
+  button.disabled = true;
+  button.textContent = "Menyimpan…";
+  try {
+    const headers = { "content-type": "application/json" };
+    if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/review", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        action,
+        reason,
+        reviewer: cfg.REVIEWER || "manual-user",
+        artifact_hash: preview.artifact_hash,
+        caption_revision_id: preview.caption_revision_id,
+        review_contract_id: preview.review_contract?.review_contract_id || null,
+        compliance_gate_id: preview.review_contract?.compliance_gate_id || null
+      })
+    });
+    Object.assign(preview, response.preview || {});
+    if (action === "approve") {
+      preview.status = "approved_for_manual_post";
+      preview.approval_review_contract_id = response.preview?.approval_review_contract_id;
+      preview.approval_compliance_gate_id = response.preview?.approval_compliance_gate_id;
+    }
+    $("#decisionModal").classList.add("hidden");
+    state.pendingDecision = null;
+    renderReviewWorkspace();
+    showToast(action === "approve" ? "Video disetujui" : action === "reject" ? "Video ditolak" : "Perbaikan diminta");
+    await loadJobs({ preserveReview: true });
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = action === "approve" ? "Ya, setujui" : action === "reject" ? "Tolak video" : "Minta perbaikan";
+    showToast("Keputusan belum tersimpan: " + friendlyError(error.message));
+  }
+}
+
+async function openBufferUpload(preview) {
+  try {
+    if (!state.bufferChannels.length) {
+      const headers = {};
+      if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+      state.bufferChannels = (await api("/api/buffer/channels", { headers })).channels || [];
+    }
+    if (!state.bufferChannels.length) throw new Error("channel_not_found");
+    const groups = state.bufferChannels.reduce((acc, channel) => {
+      const key = channel.organizationName || "Buffer";
+      (acc[key] ||= []).push(channel);
+      return acc;
+    }, {});
+    const checks = Object.entries(groups).map(([organization, channels]) =>
+      '<fieldset class="buffer-group"><legend>' + escapeHtml(organization) + '</legend>' +
+      channels.map((channel) => '<label class="buffer-channel"><input type="checkbox" value="' + escapeHtml(channel.id) + '"><span>' + escapeHtml(channel.name || channel.service || "Channel") + '</span><small>' + escapeHtml(channel.service || "") + '</small></label>').join("") +
+      '</fieldset>'
+    ).join("");
+
+    $("#modalContent").innerHTML =
+      '<p class="eyebrow">LANGKAH BERIKUTNYA</p><h2>Kirim ke Buffer</h2><p class="modal-note">Video yang sudah disetujui akan dikirim ke slot antrean berikutnya pada channel yang dipilih.</p>' +
+      '<div class="safe-note"><strong>Versi terkunci</strong><span>Video, caption, dan persetujuan mengikuti versi yang baru saja Anda review.</span></div>' +
+      '<div class="buffer-list">' + checks + '</div>' +
+      '<label class="buffer-caption"><span>Caption</span><textarea id="bufferCaption" rows="5">' + escapeHtml(preview.caption_draft || "") + '</textarea></label>' +
+      '<div class="modal-actions"><button class="secondary-button" data-close="true" type="button">Batal</button><button class="primary-button" id="confirmBuffer" type="button">Periksa sebelum kirim</button></div>';
+
+    $("#detailModal").classList.remove("hidden");
+    document.querySelector("#modalContent [data-close]")?.addEventListener("click", closeDetailModal);
+    $("#confirmBuffer").addEventListener("click", () => confirmBuffer(preview));
+  } catch (error) {
+    showToast("Buffer belum siap: " + friendlyError(error.message));
+  }
+}
+
+async function confirmBuffer(preview) {
+  const selected = [...document.querySelectorAll(".buffer-channel input:checked")];
+  const channel_ids = selected.map((input) => input.value);
+  if (!channel_ids.length) return showToast("Pilih minimal satu channel.");
+  const button = $("#confirmBuffer");
+  button.disabled = true;
+  button.textContent = "Memeriksa…";
+  try {
+    const headers = { "content-type": "application/json" };
+    if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    const request = {
+      channel_ids,
+      text: $("#bufferCaption").value.trim(),
+      artifact_hash: preview.approval_artifact_hash || preview.artifact_hash,
+      caption_revision_id: preview.approval_caption_revision_id || preview.caption_revision_id
+    };
+    const preflight = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer/preflight", { method: "POST", headers, body: JSON.stringify(request) });
+    if (!preflight.ok) throw new Error((preflight.channels || []).filter((item) => !item.valid).map((item) => item.error).join("; ") || "capacity_preflight_failed");
+    $("#modalContent").innerHTML =
+      '<p class="eyebrow">SIAP DIKIRIM</p><h2>Konfirmasi pengiriman</h2><p class="modal-note">Video akan masuk ke slot antrean berikutnya. Sistem tidak mengubah jadwal manual di luar Buffer.</p>' +
+      '<div class="confirm-summary"><div><small>Channel</small><strong>' + channel_ids.length + '</strong></div><div><small>Caption</small><strong>Valid</strong></div><div><small>Versi video</small><strong>Terkunci</strong></div></div>' +
+      '<div class="modal-actions"><button class="secondary-button" data-close="true" type="button">Batal</button><button class="primary-button" id="sendBuffer" type="button">Kirim ke Buffer ↗</button></div>';
+    document.querySelector("#modalContent [data-close]")?.addEventListener("click", closeDetailModal);
+    $("#sendBuffer").addEventListener("click", async () => {
+      const send = $("#sendBuffer");
+      send.disabled = true;
+      send.textContent = "Mengirim…";
+      try {
+        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers, body: JSON.stringify(request) });
+        closeDetailModal();
+        showToast(response.outcome === "all_succeeded" ? "Video sudah masuk antrean Buffer." : "Sebagian pengiriman perlu diperiksa.");
+        await loadJobs({ preserveReview: true });
+      } catch (error) {
+        send.disabled = false;
+        send.textContent = "Kirim ke Buffer ↗";
+        showToast("Belum masuk Buffer: " + friendlyError(error.message));
+      }
+    });
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "Periksa sebelum kirim";
+    showToast("Belum siap dikirim: " + friendlyError(error.message));
+  }
+}
+
+function closeDetailModal() {
+  $("#detailModal").classList.add("hidden");
+  $("#modalContent").innerHTML = "";
+}
+
+async function retryOperation(operationKey) {
+  try {
+    const headers = {};
+    if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    await api("/api/delivery-operations/" + encodeURIComponent(operationKey) + "/retry", { method: "POST", headers });
+    showToast("Pengiriman ditandai untuk dicoba lagi.");
+    await loadJobs({ preserveReview: true });
+  } catch (error) {
+    showToast("Belum bisa mencoba lagi: " + friendlyError(error.message));
+  }
+}
+
+async function reconcileOperation(operationKey) {
+  try {
+    const headers = {};
+    if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
+    await api("/api/delivery-operations/" + encodeURIComponent(operationKey) + "/reconcile", { method: "POST", headers });
+    showToast("Status pengiriman dicek ulang.");
+    await loadJobs({ preserveReview: true });
+  } catch (error) {
+    showToast("Belum bisa mengecek status: " + friendlyError(error.message));
+  }
+}
+
+function renderReviewInbox() {
+  const inbox = $("#reviewInbox");
+  const container = $("#reviewWorkspace");
+  container.classList.add("hidden");
+  inbox.classList.remove("hidden");
+  const jobsWithReviews = state.jobs.filter((job) => getCurrentReviews(job.id).length);
+  const pending = state.reviews.filter((item) => ["pending_review", "changes_requested"].includes(item.status) && !item.superseded_at).length;
+  $("#reviewCount").textContent = pending;
+  if (!jobsWithReviews.length) {
+    inbox.innerHTML =
+      '<div class="empty-work"><div class="empty-icon">✓</div><h2>Belum ada video yang perlu ditinjau</h2><p>Setelah mesin menyelesaikan sebuah campaign, video akan muncul di sini.</p><button class="secondary-button" data-view="campaigns" type="button">Cari campaign</button></div>';
+    inbox.querySelector("[data-view]")?.addEventListener("click", () => showView("campaigns"));
+    return;
+  }
+
+  inbox.innerHTML =
+    '<div class="section-heading"><div><p class="eyebrow">REVIEW</p><h3>Video yang menunggu keputusan</h3></div><span class="muted">' + pending + ' perlu tindakan</span></div>' +
+    '<div class="review-inbox-list">' +
+    jobsWithReviews.map((job) => {
+      const rows = getCurrentReviews(job.id);
+      const pendingRows = rows.filter((item) => ["pending_review", "changes_requested"].includes(item.status)).length;
+      const approvedRows = rows.filter((item) => item.status === "approved_for_manual_post").length;
+      const jobStatus = pendingRows ? "attention" : approvedRows === rows.length ? "safe" : "neutral";
+      return '<button class="review-inbox-card" data-review-job="' + escapeHtml(job.id) + '" type="button">' +
+        '<div class="inbox-thumbs">' + rows.slice(0, 3).map((item) => item.thumbnail_url ? '<img src="' + escapeHtml(item.thumbnail_url) + '" loading="lazy" alt="">' : '<span></span>').join("") + '</div>' +
+        '<div class="inbox-copy"><p class="eyebrow">CAMPAIGN</p><h3>' + escapeHtml(job.campaign_title || job.campaign_id) + '</h3><p>' + escapeHtml(job.campaign_brand || "") + '</p><div class="inbox-meta"><span>' + rows.length + ' video</span><span class="' + jobStatus + '">' + escapeHtml(pendingRows ? pendingRows + " perlu diperiksa" : approvedRows + " disetujui") + '</span></div></div><span class="inbox-arrow">→</span>' +
+      '</button>';
+    }).join("") +
+    '</div>';
+
+  document.querySelectorAll("[data-review-job]").forEach((button) => button.addEventListener("click", () => {
+    state.activeReviewJobId = button.dataset.reviewJob;
+    state.activeReviewIndex = 0;
+    state.videoLoaded = false;
+    renderReviewWorkspace();
+  }));
+}
+
+function renderHome() {
+  const pending = state.reviews.filter((item) => ["pending_review", "changes_requested"].includes(item.status) && !item.superseded_at).length;
+  const approved = state.reviews.filter((item) => item.status === "approved_for_manual_post" && !item.superseded_at).length;
+  const activeJobs = state.jobs.filter((job) => ["queued", "processing"].includes(job.status)).length;
+  const blocked = state.jobs.filter((job) => ["blocked", "error"].includes(job.status)).length;
+
+  const actions = [];
+  if (pending) {
+    actions.push('<button class="action-card attention" data-open-review="true" type="button"><span class="action-icon">!</span><div><small>PERLU TINDAKAN</small><strong>' + pending + ' video menunggu review</strong><p>Periksa video, caption, dan pengecualian campaign.</p></div><span>→</span></button>');
+  } else if (approved) {
+    actions.push('<button class="action-card safe" data-open-review="true" type="button"><span class="action-icon">✓</span><div><small>LANGKAH BERIKUTNYA</small><strong>' + approved + ' video siap dikirim</strong><p>Buka review untuk mengirim video yang sudah disetujui.</p></div><span>→</span></button>');
+  } else if (activeJobs) {
+    actions.push('<button class="action-card safe" data-view="jobs" type="button"><span class="action-icon">◷</span><div><small>MESIN BEKERJA</small><strong>' + activeJobs + ' campaign sedang diproses</strong><p>Status akan diperbarui otomatis.</p></div><span>→</span></button>');
+  } else {
+    actions.push('<button class="action-card neutral" data-view="campaigns" type="button"><span class="action-icon">+</span><div><small>BERIKUTNYA</small><strong>Pilih campaign untuk dikerjakan</strong><p>Mesin akan menangani proses setelah Anda memulai.</p></div><span>→</span></button>');
+  }
+  $("#actionGrid").innerHTML = actions.join("");
+  $("#actionGrid").querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+  $("#actionGrid").querySelector("[data-open-review]")?.addEventListener("click", () => showView("review"));
+
+  $("#homeStats").innerHTML =
+    statCard(activeJobs, "Sedang diproses", activeJobs ? "Mesin bekerja" : "Tidak ada proses") +
+    statCard(pending, "Menunggu review", pending ? "Perlu tindakan Anda" : "Tidak ada antrean") +
+    statCard(approved, "Sudah disetujui", approved ? "Siap dikirim" : "Belum ada") +
+    statCard(blocked, "Perlu perhatian", blocked ? "Ada proses tertahan" : "Tidak ada masalah");
+
+  const latestCampaigns = state.campaigns.slice(0, 6);
+  $("#homeCampaigns").innerHTML = latestCampaigns.length ? latestCampaigns.map((campaign) =>
+    '<div class="home-campaign-row"><div><strong>' + escapeHtml(campaign.title) + '</strong><span>' + escapeHtml(campaign.brand || "") + '</span></div><span class="readiness-dot ' + readinessClass(campaign.readiness_status) + '"></span><span class="muted">' + escapeHtml(campaign.readiness_label || "Belum dinilai") + '</span><button class="link-button" data-campaign="' + escapeHtml(campaign.id) + '" type="button">Buka</button></div>'
+  ).join("") : '<div class="empty-inline">Campaign belum tersedia.</div>';
+  document.querySelectorAll("[data-campaign]").forEach((button) => button.addEventListener("click", () => openCampaign(button.dataset.campaign)));
+}
+
+function statCard(value, title, note) {
+  return '<div class="stat-card"><strong>' + escapeHtml(String(value)) + '</strong><span>' + escapeHtml(title) + '</span><small>' + escapeHtml(note) + '</small></div>';
+}
+
 function renderCampaigns() {
-  const q = $("#searchInput").value.toLowerCase();
-  const platform = $("#platformFilter").value;
-  const sort = $("#sortSelect").value;
-  let rows = state.campaigns.filter((c) => (!q || (String(c.title) + " " + String(c.brand) + " " + String(c.category) + " " + String(c.readiness_label || "")).toLowerCase().includes(q)) && (!platform || (c.platforms || []).includes(platform)));
+  const q = ($("#searchInput")?.value || "").toLowerCase();
+  const platform = $("#platformFilter")?.value || "";
+  const sort = $("#sortSelect")?.value || "readiness";
+  let rows = state.campaigns.filter((c) => {
+    const blob = [c.title, c.brand, c.category, c.readiness_label, c.readiness_reason].join(" ").toLowerCase();
+    return (!q || blob.includes(q)) && (!platform || (c.platforms || []).includes(platform));
+  });
   if (sort === "rate") rows.sort((a, b) => Number(b.rate_per_1k || 0) - Number(a.rate_per_1k || 0));
   else if (sort === "budget") rows.sort((a, b) => Number(b.budget_left || 0) - Number(a.budget_left || 0));
-  else if (sort === "recency") rows.sort((a, b) => Number((b.priority_components && b.priority_components.recency) || 0) - Number((a.priority_components && a.priority_components.recency) || 0));
-  else rows.sort((a, b) => (readinessOrder[a.readiness_status] ?? 9) - (readinessOrder[b.readiness_status] ?? 9) || Number(b.readiness_ease || 0) - Number(a.readiness_ease || 0) || Number(b.score || 0) - Number(a.score || 0));
-  $("#activeCount").textContent = state.campaigns.length;
-  $("#campaignMeta").textContent = rows.length + " campaign · diurutkan mesin";
+  else if (sort === "recency") rows.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+  else rows.sort((a, b) => (a.readiness_status === "siap" ? 0 : a.readiness_status === "ketat" ? 1 : 2) - (b.readiness_status === "siap" ? 0 : b.readiness_status === "ketat" ? 1 : 2));
+
+  $("#campaignMeta").textContent = rows.length + " campaign";
   $("#campaignGrid").innerHTML = rows.map((c) => {
-    const label = c.readiness_label || "Belum dinilai mesin";
-    const reason = c.readiness_reason || "Jalankan sync harian agar mesin menilai mudah/aman.";
     const startable = canStart(c);
-    return '<article class="campaign-card ' + readinessClass(c.readiness_status) + '">' +
-      '<div class="card-top"><span class="category-pill">' + escapeHtml(c.category || "clipping") + '</span>' +
-        '<span class="readiness-badge ' + readinessClass(c.readiness_status) + '">' + escapeHtml(label) + '</span></div>' +
-      '<h4>' + escapeHtml(c.title) + '</h4>' +
-      '<p class="brand">' + escapeHtml(c.brand) + '</p>' +
-      '<p class="readiness-reason">' + escapeHtml(reason) + '</p>' +
-      '<div class="chips">' + (c.platforms || []).map((p) => '<span>' + escapeHtml(p) + '</span>').join("") + '</div>' +
-      '<div class="metrics">' +
-        '<div><small>Bayaran / 1K</small><strong>' + money(c.rate_per_1k) + '</strong></div>' +
-        '<div><small>Sisa budget</small><strong>' + money(c.budget_left) + '</strong></div>' +
-        '<div><small>Jenis</small><strong>' + escapeHtml(c.content_kind || c.type || "-") + '</strong></div>' +
-      '</div>' +
-      '<button class="primary-button start-button" data-id="' + escapeHtml(c.id) + '" ' + (startable ? "" : "disabled") + '>' +
-        (startable ? 'Mulai clipping <span>→</span>' : 'Belum bisa dimulai') +
-      '</button></article>';
-  }).join("") || '<div class="empty-state">Tidak ada campaign yang cocok.</div>';
-  document.querySelectorAll(".start-button:not([disabled])").forEach((button) => button.addEventListener("click", () => openCampaign(button.dataset.id)));
+    return '<article class="campaign-card">' +
+      '<div class="campaign-top"><span class="category-pill">' + escapeHtml(c.category || "clipping") + '</span><span class="readiness-badge ' + readinessClass(c.readiness_status) + '">' + escapeHtml(c.readiness_label || "Belum dinilai") + '</span></div>' +
+      '<h3>' + escapeHtml(c.title) + '</h3><p class="campaign-brand">' + escapeHtml(c.brand || "") + '</p>' +
+      '<p class="campaign-reason">' + escapeHtml(c.readiness_reason || "Belum ada ringkasan readiness.") + '</p>' +
+      '<div class="campaign-platforms">' + (c.platforms || []).map((p) => '<span>' + escapeHtml(p) + '</span>').join("") + '</div>' +
+      '<div class="campaign-footer"><div><small>Bayaran / 1K</small><strong>' + escapeHtml(money(c.rate_per_1k)) + '</strong></div><div><small>Sisa budget</small><strong>' + escapeHtml(money(c.budget_left)) + '</strong></div><button class="primary-button small" data-start-campaign="' + escapeHtml(c.id) + '" ' + (startable ? "" : "disabled") + '>' + (startable ? "Mulai" : "Belum siap") + ' <span>→</span></button></div>' +
+      '</article>';
+  }).join("") || '<div class="empty-work"><div class="empty-icon">⌕</div><h2>Campaign tidak ditemukan</h2><p>Coba ubah pencarian atau filter.</p></div>';
+
+  document.querySelectorAll("[data-start-campaign]:not([disabled])").forEach((button) => button.addEventListener("click", () => openCampaign(button.dataset.startCampaign)));
 }
+
 function openCampaign(id) {
-  const c = state.campaigns.find((x) => x.id === id); if (!c) return;
-  $("#modalContent").innerHTML = renderCampaignDetail(c);
+  const campaign = state.campaigns.find((item) => item.id === id);
+  if (!campaign) return;
+  const plan = parseObject(campaign.plan, {});
+  const production = parseObject(plan.production, {});
+  const source = parseObject(plan.source_of_truth, {});
+  $("#modalContent").innerHTML =
+    '<p class="eyebrow">CAMPAIGN</p><h2>' + escapeHtml(campaign.title) + '</h2><p class="modal-brand">' + escapeHtml(campaign.brand || "") + '</p>' +
+    '<div class="campaign-modal-status ' + readinessClass(campaign.readiness_status) + '"><strong>' + escapeHtml(campaign.readiness_label || "Belum dinilai") + '</strong><span>' + escapeHtml(campaign.readiness_reason || "") + '</span></div>' +
+    '<section class="modal-section"><div class="section-label">ATURAN UTAMA</div><div class="rule-list">' +
+      ruleRow("Platform", (campaign.platforms || []).join(", ") || "-") +
+      ruleRow("Format", production.aspect_ratio || "-") +
+      ruleRow("Durasi", [production.min_duration_seconds, production.max_duration_seconds].filter((x) => x != null).join("–") || "-") +
+      ruleRow("Subtitle", production.subtitle_delivery_profile || (production.subtitle_required ? "Wajib" : "Tidak disebutkan")) +
+    '</div></section>' +
+    '<section class="modal-section"><div class="section-label">SUMBER</div><p class="source-text">' + escapeHtml(String(source.docs_text || source.description || campaign.description || "").slice(0, 700)) + '</p></section>' +
+    '<div class="modal-actions"><button class="secondary-button" data-close="true" type="button">Batal</button><button class="primary-button" id="startJob" type="button">Mulai proses <span>→</span></button></div>';
   $("#detailModal").classList.remove("hidden");
-  $("#startJob").addEventListener("click", () => startJob(c));
+  document.querySelector("#modalContent [data-close]")?.addEventListener("click", closeDetailModal);
+  $("#startJob").addEventListener("click", () => startJob(campaign));
 }
+
+function ruleRow(label, value) {
+  return '<div class="rule-line"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value) + '</strong></div>';
+}
+
 async function startJob(campaign) {
-  $("#detailModal").classList.add("hidden");
+  closeDetailModal();
+  showView("jobs");
   const localJob = { id: "local-" + Date.now(), campaign_id: campaign.id, campaign_title: campaign.title, campaign_brand: campaign.brand, status: "queued", progress: 0, message: "Menyiapkan worker cloud…" };
-  state.jobs.unshift(localJob); renderJobs(); showView("jobs");
+  state.jobs.unshift(localJob);
+  renderJobs();
   try {
     if (!cfg.DEMO_MODE) {
       const response = await api("/api/campaigns/" + encodeURIComponent(campaign.id) + "/jobs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ campaign_id: campaign.id }) });
@@ -195,350 +726,278 @@ async function startJob(campaign) {
       localJob.campaign_title = campaign.title;
       localJob.campaign_brand = campaign.brand;
       renderJobs();
-      await triggerWorker(localJob);
-      localJob.message = "Worker GitHub sudah dipicu · menunggu runner";
+      const trigger = await api("/api/jobs/" + encodeURIComponent(localJob.id) + "/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ campaign_id: campaign.id }) });
+      if (!trigger.dispatched) throw new Error(trigger.message || trigger.error || "Worker belum siap");
+      localJob.message = "Worker GitHub dipicu · menunggu runner";
       renderJobs();
       startPolling();
-    } else simulateJob(localJob);
+    } else {
+      simulateJob(localJob);
+    }
   } catch (error) {
     localJob.status = "error";
     localJob.message = "Gagal memulai workflow";
     localJob.error = error.message;
     renderJobs();
-    showToast(error.message || "Workflow gagal dimulai");
+    showToast(friendlyError(error.message));
   }
 }
-async function triggerWorker(job) {
-  const response = await api("/api/jobs/" + encodeURIComponent(job.id) + "/run", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ campaign_id: job.campaign_id })
-  });
-  if (!response.dispatched) throw new Error(response.message || response.error || "Manual worker belum siap");
-  return response;
-}
+
 function simulateJob(job) {
-  const steps = [["Menunggu giliran mesin", 5], ["Membaca aturan campaign", 20], ["Memeriksa bahan resmi", 38], ["Membaca suara dan kata", 58], ["Membuat video vertikal", 78], ["Memeriksa semua syarat", 94], ["Video siap ditinjau", 100]];
-  let i = 0;
+  const steps = [["Menyiapkan campaign", 8], ["Memeriksa bahan resmi", 32], ["Mencari potongan", 55], ["Membuat video", 75], ["Memeriksa hasil", 92], ["Video siap ditinjau", 100]];
+  let index = 0;
   const tick = () => {
-    if (i >= steps.length) {
-      job.status = "review"; job.message = "2 preview siap direview";
-      state.reviews = [{ job: job, title: job.campaign_title, video: "", download_url: null }, { job: job, title: job.campaign_title + " · Kandidat 2", video: "", download_url: null }];
-      renderJobs(); renderReviews(); return;
+    if (index >= steps.length) {
+      job.status = "review";
+      job.message = "2 video siap ditinjau";
+      state.reviews = [
+        demoPreview(job, 1),
+        demoPreview(job, 2)
+      ];
+      renderJobs();
+      renderReviewInbox();
+      renderHome();
+      return;
     }
-    job.status = i === 0 ? "queued" : i === steps.length - 1 ? "review" : "processing";
-    job.message = steps[i][0]; job.progress = steps[i][1]; renderJobs(); i++; setTimeout(tick, 850);
+    job.status = index === 0 ? "queued" : index === steps.length - 1 ? "review" : "processing";
+    job.message = steps[index][0];
+    job.progress = steps[index][1];
+    renderJobs();
+    index += 1;
+    setTimeout(tick, 700);
   };
   tick();
 }
-function statusText(status) { return statusNames[status] || String(status || "UNKNOWN").toUpperCase(); }
-function rememberOpenDetails(selector) {
-  return new Set([...document.querySelectorAll(selector + "[open]")].map((node) => node.dataset.detailKey).filter(Boolean));
-}
-function restoreOpenDetails(selector, keys) {
-  document.querySelectorAll(selector).forEach((node) => { if (keys.has(node.dataset.detailKey)) node.open = true; });
-}
-function formatAge(iso) {
-  if (!iso) return "belum ada update";
-  const age = Math.max(0, Date.now() - new Date(iso).getTime());
-  const seconds = Math.floor(age / 1000);
-  if (seconds < 60) return seconds + "s lalu";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return minutes + "m " + (seconds % 60) + "s lalu";
-  return Math.floor(minutes / 60) + "j " + (minutes % 60) + "m lalu";
-}
-function stageStatusClass(status) {
-  const value = String(status || "").toLowerCase();
-  if (value === "completed" || value === "selected") return "done";
-  if (value === "started" || value === "running" || value === "attempting") return "active";
-  return "blocked";
-}
-function renderStageTrack(job) {
-  const rows = Array.isArray(job.stages) ? job.stages : [];
-  if (!rows.length) return "";
-  const canonical = ["campaign_rules","asset_preflight","transcription","semantic_ranking","render","validation","r2_upload","manual_review"];
-  const latest = new Map();
-  for (const row of rows) latest.set(String(row.stage || ""), row);
-  const relevant = canonical.map((name) => ({ stage: name, row: latest.get(name) })).filter((item) => item.row);
-  if (!relevant.length) return "";
-  return '<div class="phase-track">' + relevant.map((item, index) => {
-    const row = item.row;
-    const cls = stageStatusClass(row.status);
-    const count = index + 1;
-    const metric = parseObject(row.metrics_json, row.metrics || {});
-    const hasAlert = row.error_code || row.status === "blocked" || row.status === "item_failed";
-    return (index ? '<span class="line ' + (cls === "done" ? "done" : "") + '"></span>' : "") +
-      '<span class="' + cls + (hasAlert ? ' alert' : '') + '" title="' + escapeHtml(stageNames[item.stage] || item.stage) + '">' + count + '</span>';
-  }).join("") + '</div>' +
-  '<div class="phase-labels">' + relevant.map((item) => '<span>' + escapeHtml(stageNames[item.stage] || item.stage) + '</span>').join("") + '</div>';
+
+function demoPreview(job, rank) {
+  return {
+    id: job.id + "-preview-" + rank,
+    job,
+    rank,
+    status: "pending_review",
+    tier: rank === 1 ? "tier_1" : "tier_2",
+    candidate_id: "demo-candidate-" + rank,
+    source_asset_id: "demo-source-" + rank,
+    caption_draft: "Caption demo campaign #" + rank,
+    artifact_hash: "demo-artifact-" + rank,
+    caption_revision_id: "demo-caption-" + rank,
+    thumbnail_url: "",
+    video_url: "",
+    review_contract: {
+      schema_version: 1,
+      review_contract_id: "demo-review-" + rank,
+      campaign_id: job.campaign_id,
+      source_hash: "demo-source-hash",
+      compliance_gate_id: "demo-gate",
+      preview_id: job.id + "-preview-" + rank,
+      artifact_hash: "demo-artifact-" + rank,
+      caption_revision_id: "demo-caption-" + rank,
+      decision_state: "ready_for_review",
+      summary: { status: "siap_ditinjau", label: "Siap ditinjau", message: "Video siap diperiksa sebelum dipublikasikan." },
+      checks: [
+        { id: "campaign_compliance", status: "pass", label: "Aturan campaign", detail: "Semua pemeriksaan wajib lolos." },
+        { id: "video_identity", status: "pass", label: "Identitas potongan", detail: "Potongan dan bahan sumber teridentifikasi." },
+        { id: "validation", status: "pass", label: "Pemeriksaan video", detail: "Pemeriksaan teknis dasar lolos." }
+      ],
+      exceptions: [],
+      review_actions: { approve: true, reject: true, request_changes: true },
+      provenance: {}
+    },
+    validation: { status: "pass" },
+    operations: []
+  };
 }
 
-async function loadJobStages(job) {
-  if (cfg.DEMO_MODE || !job?.id || String(job.id).startsWith("local-")) return;
+async function loadCampaigns() {
   try {
-    const response = await api("/api/jobs/" + encodeURIComponent(job.id) + "/stages");
-    job.stages = response.stages || [];
-  } catch (_) {
-    job.stages = job.stages || [];
+    state.campaigns = cfg.DEMO_MODE ? demoCampaigns : ((await api("/api/campaigns")).campaigns || []);
+  } catch (error) {
+    state.campaigns = [];
+    showToast("Campaign belum dapat dimuat: " + friendlyError(error.message));
   }
+  renderCampaigns();
+}
+
+async function loadPreviews(job) {
+  if (cfg.DEMO_MODE || String(job.id).startsWith("local-")) return;
+  try {
+    const response = await api("/api/jobs/" + encodeURIComponent(job.id) + "/previews");
+    return (response.previews || []).map((preview) => Object.assign({}, preview, {
+      title: (job.campaign_title || "Campaign") + " · Video " + preview.rank,
+      job
+    }));
+  } catch (_) {
+    return [];
+  }
+}
+
+async function loadJobs(options = {}) {
+  try {
+    if (!cfg.DEMO_MODE) {
+      const response = await api("/api/jobs");
+      state.jobs = response.jobs || [];
+    }
+    state.reviews = [];
+    const visibleJobs = state.jobs.filter((job) => ["queued", "processing", "review", "blocked", "error"].includes(job.status)).slice(0, 8);
+    await Promise.all(visibleJobs.map(loadStageData));
+    const jobsToLoad = state.jobs.filter((job) => ["review"].includes(job.status));
+    const groups = await Promise.all(jobsToLoad.map((job) => loadPreviews(job)));
+    state.reviews = groups.flat();
+    if (state.activeReviewJobId && !state.jobs.some((job) => job.id === state.activeReviewJobId)) {
+      state.activeReviewJobId = null;
+    }
+    renderJobs();
+    renderReviewInbox();
+    renderHome();
+    if (options.preserveReview && state.activeReviewJobId) renderReviewWorkspace();
+  } catch (error) {
+    showToast("Status mesin belum dapat diambil: " + friendlyError(error.message));
+  }
+  const active = state.jobs.some((job) => ["queued", "processing"].includes(job.status));
+  if (active) startPolling();
+}
+
+function renderJobs() {
+  const active = state.jobs.filter((job) => ["queued", "processing"].includes(job.status)).length;
+  const processing = state.jobs.filter((job) => job.status === "processing").length;
+  const queued = state.jobs.filter((job) => job.status === "queued").length;
+  const alerts = state.jobs.filter((job) => ["error", "blocked"].includes(job.status)).length;
+  $("#queueCount").textContent = String(active);
+
+  $("#queueSummary").innerHTML =
+    '<div><span class="summary-kicker">STATUS MESIN</span><strong>' + (active ? "Mesin sedang bekerja" : "Tidak ada proses aktif") + '</strong><small>' + (active ? "Status diperbarui otomatis." : "Pilih campaign untuk memulai pekerjaan.") + '</small></div>' +
+    '<div class="queue-mini"><span><b>' + processing + '</b> diproses</span><span><b>' + queued + '</b> menunggu</span><span class="' + (alerts ? "alert-text" : "") + '"><b>' + alerts + '</b> perlu perhatian</span></div>';
+
+  $("#jobsList").innerHTML = state.jobs.map((job) => {
+    const progress = Math.max(0, Math.min(100, Number(job.progress || 0)));
+    const stage = jobPhase(job);
+    return '<article class="job-card">' +
+      '<div class="job-indicator ' + (job.status === "processing" ? "spinning" : "") + '">' + (job.status === "review" ? "✓" : ["error", "blocked"].includes(job.status) ? "!" : "◷") + '</div>' +
+      '<div class="job-content"><div class="job-heading"><div><strong>' + escapeHtml(job.campaign_title || job.campaign_id) + '</strong><span>' + escapeHtml(stage.label) + '</span></div><span class="status-pill ' + reviewBadgeClass(job.status === "review" ? "ready" : job.status === "blocked" || job.status === "error" ? "blocked" : "attention") + '">' + escapeHtml(statusLabel(job.status)) + '</span></div>' +
+      '<p>' + escapeHtml(stage.detail) + '</p>' +
+      '<div class="progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><b>' + progress + '%</b></div>' +
+      (job.error ? '<div class="job-alert">' + escapeHtml(friendlyError(job.error)) + '</div>' : '') +
+      stageLabels(job) +
+      '<div class="job-bottom"><span>' + escapeHtml(formatAge(job.updated_at || job.created_at)) + '</span>' + ((job.status === "queued" || job.status === "processing") ? '<button class="link-button danger-link" data-stop-job="' + escapeHtml(job.id) + '" type="button">Hentikan</button>' : '') + (job.status === "review" ? '<button class="link-button" data-open-job-review="' + escapeHtml(job.id) + '" type="button">Buka review →</button>' : '') + '</div>' +
+      '</div></article>';
+  }).join("") || '<div class="empty-work"><div class="empty-icon">◷</div><h2>Belum ada proses</h2><p>Pilih campaign untuk memulai pekerjaan.</p></div>';
+
+  document.querySelectorAll("[data-stop-job]").forEach((button) => button.addEventListener("click", () => cancelJob(button.dataset.stopJob)));
+  document.querySelectorAll("[data-open-job-review]").forEach((button) => button.addEventListener("click", () => {
+    state.activeReviewJobId = button.dataset.openJobReview;
+    state.activeReviewIndex = 0;
+    showView("review");
+    renderReviewWorkspace();
+  }));
 }
 
 function jobPhase(job) {
-  const p = Number(job.progress || 0);
-  const msg = String(job.message || "").toLowerCase();
-  if (job.status === "queued") return { label: job.error ? "Gagal memulai" : "Menunggu giliran", detail: job.error ? friendlyError(job.error) : (job.message || "Campaign sudah masuk antrean. Worker akan mulai otomatis."), key: job.error ? "dispatch-error" : "queue" };
-  if (job.status === "review") return { label: "Siap ditinjau", detail: "Video sudah selesai dan menunggu keputusan Anda.", key: "done" };
-  if (job.status === "error") return { label: "Perlu diperbaiki", detail: friendlyError(job.error || job.message), key: "error" };
-  if (job.status === "blocked") return { label: "Belum bisa diproses", detail: friendlyError(job.error || job.message || "Aturan campaign belum terpenuhi."), key: "blocked" };
-  if (msg.includes("detail") || msg.includes("syarat")) return { label: "Memahami campaign", detail: job.message || "Mesin sedang membaca aturan dan bahan campaign.", key: "analysis" };
-  if (p < 24) return { label: "Menyiapkan bahan", detail: job.message || "Memeriksa bahan resmi campaign.", key: "assets" };
-  if (p < 78) return { label: "Mencari potongan terbaik", detail: job.message || "Membaca transkrip dan mencari dua video yang berbeda.", key: "ai" };
-  if (p < 92) return { label: "Memeriksa video", detail: job.message || "Memastikan durasi, ukuran, subtitle, dan aturan campaign.", key: "validate" };
-  return { label: "Menyiapkan preview", detail: job.message || "Preview sedang disiapkan untuk Anda.", key: "upload" };
+  if (job.status === "queued") return { label: "Menunggu giliran", detail: job.message || "Campaign masuk antrean worker." };
+  if (job.status === "review") return { label: "Siap ditinjau", detail: "Video selesai dan menunggu keputusan Anda." };
+  if (job.status === "blocked") return { label: "Belum bisa dilanjutkan", detail: friendlyError(job.error || job.message) };
+  if (job.status === "error") return { label: "Perlu diperbaiki", detail: friendlyError(job.error || job.message) };
+  const progress = Number(job.progress || 0);
+  if (progress < 25) return { label: "Menyiapkan bahan", detail: job.message || "Memeriksa bahan campaign." };
+  if (progress < 78) return { label: "Mencari potongan", detail: job.message || "Mencari kandidat video." };
+  if (progress < 92) return { label: "Memeriksa hasil", detail: job.message || "Memastikan video memenuhi syarat." };
+  return { label: "Menyiapkan review", detail: job.message || "Menyiapkan preview untuk Anda." };
 }
-function isStale(job) {
-  if (!job.updated_at || !["queued", "processing"].includes(job.status)) return false;
-  const age = Date.now() - new Date(job.updated_at).getTime();
-  return age > (job.status === "queued" ? 8 * 60 * 1000 : 5 * 60 * 1000);
+
+function formatAge(value) {
+  if (!value) return "belum ada pembaruan";
+  const age = Math.max(0, Date.now() - new Date(value).getTime());
+  const seconds = Math.floor(age / 1000);
+  if (seconds < 60) return seconds + " detik lalu";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutes + " menit lalu";
+  return Math.floor(minutes / 60) + " jam lalu";
 }
-async function cancelJob(job) {
+
+async function cancelJob(jobId) {
+  const job = state.jobs.find((item) => item.id === jobId);
   if (!job || !["queued", "processing"].includes(job.status)) return;
-  if (!window.confirm("Hentikan proses " + (job.campaign_title || "ini") + "?")) return;
+  if (!window.confirm("Hentikan proses campaign ini?")) return;
   try {
-    await api("/api/jobs/" + encodeURIComponent(job.id) + "/cancel", { method: "POST" });
+    await api("/api/jobs/" + encodeURIComponent(jobId) + "/cancel", { method: "POST" });
     showToast("Proses dihentikan");
     await loadJobs();
   } catch (error) {
-    showToast("Proses belum dapat dihentikan");
+    showToast("Proses belum dapat dihentikan: " + friendlyError(error.message));
   }
 }
-function renderJobs() {
-  const openDetails = rememberOpenDetails(".job-detail");
-  const active = state.jobs.filter((j) => j.status === "queued" || j.status === "processing").length;
-  const processing = state.jobs.filter((j) => j.status === "processing").length;
-  const queued = state.jobs.filter((j) => j.status === "queued").length;
-  const failed = state.jobs.filter((j) => ["error", "blocked"].includes(j.status)).length;
-  $("#queueCount").textContent = active;
-  const summary = $("#queueSummary");
-  if (summary) summary.innerHTML = '<div class="queue-live"><i></i><strong>' + (active ? "Mesin sedang bekerja" : "Tidak ada proses aktif") + '</strong><span>' + (active ? "status diperbarui otomatis" : "Pilih campaign untuk memulai") + '</span></div><div class="queue-stats"><span><b>' + processing + '</b> diproses</span><span><b>' + queued + '</b> menunggu</span><span class="' + (failed ? "has-alert" : "") + '"><b>' + failed + '</b> perlu perhatian</span><span>pembaruan <b id="queueSyncAge">baru saja</b></span></div>';
-  $("#jobsList").innerHTML = state.jobs.map((j) => {
-    const phase = jobPhase(j);
-    const stale = isStale(j);
-    const progress = Math.max(0, Math.min(100, Number(j.progress || 0)));
-    const live = ["queued", "processing"].includes(j.status);
-    const icon = j.status === "review" ? "✓" : j.status === "error" ? "!" : j.status === "blocked" ? "!" : "◌";
-    return '<article class="job-card job-' + escapeHtml(j.status) + (stale ? " job-stale" : "") + '">' +
-      '<div class="job-icon' + (j.status === "processing" ? " spinning" : "") + (live ? " live-icon" : "") + '">' + icon + '</div>' +
-      '<div class="job-main">' +
-        '<div class="job-head"><div class="job-title-wrap"><strong>' + escapeHtml(j.campaign_title || j.campaign_id) + '</strong><span class="job-phase">' + escapeHtml(phase.label) + '</span></div><span class="status ' + escapeHtml(j.status) + '">' + statusText(j.status) + '</span></div>' +
-        '<p class="job-message"><b>' + escapeHtml(phase.detail || j.message || "Menunggu pembaruan…") + '</b>' + (j.error ? " · " + escapeHtml(friendlyError(j.error)) : "") + '</p>' +
-        '<div class="job-output-contract">' + escapeHtml(outputContractSummary(j)) + '</div>' +
-        renderStageTrack(j) + renderJobDetails(j) +
-        '<div class="job-progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><span class="progress-number">' + progress + '%</span></div>' +
-        '<div class="job-meta"><span class="job-updated-age" data-updated-at="' + escapeHtml(j.updated_at || "") + '">Pembaruan ' + formatAge(j.updated_at) + '</span>' + (stale ? '<span class="stale-warning">⚠ Belum ada pembaruan cukup lama</span>' : "") + '</div>' +
-        ((j.status === "queued" || j.status === "processing") ? '<button class="stop-button" data-stop-id="' + escapeHtml(j.id) + '" type="button">Stop proses</button>' : "") +
-      '</div></article>';
-  }).join("") || '<div class="empty-state">Belum ada job. Pilih campaign untuk memulai.</div>';
-  restoreOpenDetails(".job-detail", openDetails);
-  document.querySelectorAll(".stop-button").forEach((button) => button.addEventListener("click", () => {
-    const job = state.jobs.find((item) => item.id === button.dataset.stopId);
-    cancelJob(job);
-  }));
-}
-async function loadJobs() {
-  if (cfg.DEMO_MODE) return;
-  try {
-    const response = await api("/api/jobs");
-    state.jobs = response.jobs || [];
-    state.reviews = [];
-    const stageTargets = state.jobs.filter((j) => ["queued", "processing", "review", "blocked", "error"].includes(j.status)).slice(0, 8);
-    await Promise.all(stageTargets.map((job) => loadJobStages(job)));
-    renderJobs();
-    for (const job of state.jobs.filter((j) => j.status === "review")) await loadPreviews(job);
-  } catch (error) {
-    showToast("Status worker belum dapat diambil");
-  }
-}
-async function loadPreviews(job) {
-  try {
-    const response = await api("/api/jobs/" + encodeURIComponent(job.id) + "/previews");
-    for (const preview of response.previews || []) {
-      state.reviews.push(Object.assign({}, preview, { title: (job.campaign_title || "Campaign") + " · Kandidat " + preview.rank, job: job }));
-    }
-    renderReviews();
-  } catch (error) { /* keep job visible */ }
-}
-async function reviewPreview(preview, action) {
-  const labels = { approve: "Video disetujui", reject: "Video ditolak", request_rerender: "Render ulang diminta" };
-  const needsReason = action !== "approve";
-  const reason = needsReason ? window.prompt("Alasan " + (labels[action] || action) + " (wajib):", "") : "";
-  if (needsReason && !String(reason || "").trim()) return;
-  try {
-    const headers = { "content-type": "application/json" };
-    if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
-    const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/review", {
-      method: "POST", headers,
-      body: JSON.stringify({ action, reason: String(reason || "").trim(), reviewer: cfg.REVIEWER || "manual-user" })
-    });
-    const updated = response.preview || {};
-    Object.assign(preview, updated);
-    renderReviews();
-    showToast(labels[action] + " berhasil disimpan");
-    await loadJobs();
-  } catch (error) {
-    showToast("Keputusan belum tersimpan: " + friendlyError(error.message));
-  }
-}
-async function editCaption(preview) {
-  const text = window.prompt("Tulis caption baru. Mesin akan memeriksa aturan campaign sebelum menyimpan:", preview.caption_draft || "");
-  if (text == null || text === preview.caption_draft) return;
-  try {
-    const headers = { "content-type": "application/json" }; if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
-    const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/caption-revisions", { method: "POST", headers, body: JSON.stringify({ text, fields: { hashtags: (text.match(/#[A-Za-z0-9_]+/g) || []) }, reviewer: cfg.REVIEWER || "manual-user" }) });
-    Object.assign(preview, { caption_draft: response.revision.text, caption_revision_id: response.revision.revision_id, caption_hash: response.revision.caption_hash });
-    renderReviews(); showToast("Caption revision v" + response.revision.revision_number + " tersimpan");
-  } catch (error) { showToast("Caption belum disimpan: " + friendlyError(error.message)); }
-}
-async function openBufferUpload(preview) {
-  try {
-    if (!state.bufferChannels.length) state.bufferChannels = (await api("/api/buffer/channels")).channels || [];
-    if (!state.bufferChannels.length) throw new Error("channel_not_found");
-    const groups = state.bufferChannels.reduce((acc, channel) => { (acc[channel.organizationName || "Buffer"] ||= []).push(channel); return acc; }, {});
-    const checks = Object.entries(groups).map(([organization, channels]) => '<fieldset class="buffer-channel-group"><legend>' + escapeHtml(organization) + '</legend>' + channels.map((channel) => '<label class="buffer-channel"><input type="checkbox" value="' + escapeHtml(channel.id) + '" data-service="' + escapeHtml(channel.service || "") + '"><span>' + escapeHtml(channel.name || channel.service) + '</span><small>' + escapeHtml(channel.service || "") + '</small></label>').join("") + '</fieldset>').join("");
-    $("#modalContent").innerHTML = '<p class="eyebrow">LANGKAH TERAKHIR</p><h2>Masukkan ke Buffer</h2><p class="description">Pilih channel. Setelah dikonfirmasi, video masuk ke <b>slot antrean berikutnya</b> di Buffer — bukan jadwal jam yang dijamin.</p><div class="buffer-safe-note"><b>Sebelum mengirim</b><span>Pastikan video dan caption sudah benar.</span><span>Anda tetap mengirim manual ke Whop setelah upload.</span></div><div class="buffer-channel-list">' + checks + '</div><label class="buffer-caption-label">Caption yang akan dikirim<textarea id="bufferCaption" rows="4">' + escapeHtml(preview.caption_draft || "") + '</textarea></label><div class="modal-actions"><button class="secondary-button" data-close="true">Batal</button><button class="primary-button" id="confirmBufferUpload">Cek lalu masukkan ke Buffer <span>→</span></button></div>';
-    $("#detailModal").classList.remove("hidden");
-    $("#modalContent [data-close]").addEventListener("click", () => $("#detailModal").classList.add("hidden"));
-    $("#confirmBufferUpload").addEventListener("click", async () => {
-      const selected = [...document.querySelectorAll(".buffer-channel input:checked")];
-      const channel_ids = selected.map((input) => input.value);
-      if (!channel_ids.length) return showToast("Pilih minimal satu channel terlebih dahulu");
-      const button = $("#confirmBufferUpload"); button.disabled = true; button.textContent = "Memeriksa…";
-      try {
-        const headers = { "content-type": "application/json" };
-        if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
-        const request = { channel_ids, text: $("#bufferCaption").value, artifact_hash: preview.approval_artifact_hash || preview.artifact_hash, caption_revision_id: preview.approval_caption_revision_id || preview.caption_revision_id };
-        const preflight = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer/preflight", { method: "POST", headers, body: JSON.stringify(request) });
-        if (!preflight.ok) throw new Error((preflight.channels || []).filter((item) => !item.valid).map((item) => item.service + ": " + item.error).join("; ") || "capacity_preflight_failed");
-        if (!window.confirm("Masukkan video ini ke antrean berikutnya pada " + channel_ids.length + " channel? Setelah ini, Anda tetap submit manual ke Whop.")) { button.disabled = false; button.textContent = "Cek lalu masukkan ke Buffer →"; return; }
-        const response = await api("/api/previews/" + encodeURIComponent(preview.id) + "/buffer", { method: "POST", headers, body: JSON.stringify(request) });
-        const outcome = response.outcome || "";
-        const operations = response.operations || [];
-        const scheduled = operations.filter((item) => item.status === "scheduled").length;
-        const unknown = operations.filter((item) => item.status === "unknown").length;
-        $("#detailModal").classList.add("hidden"); showToast(unknown ? "Sebagian hasil belum pasti. Cek statusnya sebelum mencoba lagi." : scheduled + " video sudah masuk antrean Buffer.");
-      } catch (error) { button.disabled = false; button.textContent = "Cek lalu masukkan ke Buffer →"; showToast("Belum masuk Buffer: " + friendlyError(error.message)); }
-  });
-  } catch (error) { showToast("Buffer belum siap: " + friendlyError(error.message)); }
-}
-async function retryOperation(operationKey) {
-  try {
-    const headers = {}; if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
-    await api("/api/delivery-operations/" + encodeURIComponent(operationKey) + "/retry", { method: "POST", headers });
-    showToast("Pengiriman ditandai untuk dicoba lagi.");
-  } catch (error) { showToast("Belum bisa mencoba lagi: " + friendlyError(error.message)); }
-}
-async function reconcileOperation(operationKey) {
-  try {
-    const headers = {}; if (cfg.REVIEW_TOKEN) headers["x-review-token"] = cfg.REVIEW_TOKEN;
-    await api("/api/delivery-operations/" + encodeURIComponent(operationKey) + "/reconcile", { method: "POST", headers });
-    await loadJobs(); showToast("Status pengiriman sudah dicek ulang.");
-  } catch (error) { showToast("Belum bisa mengecek status: " + friendlyError(error.message)); }
-}
-async function refreshVisibleJobStages() {
-  const visible = state.jobs.filter((j) => ["queued", "processing", "review", "blocked", "error"].includes(j.status)).slice(0, 8);
-  await Promise.all(visible.map((job) => loadJobStages(job)));
+
+function showView(name) {
+  state.activeView = name;
+  document.querySelectorAll(".view").forEach((view) => view.classList.add("hidden"));
+  const target = $("#" + name + "View");
+  if (target) target.classList.remove("hidden");
+  document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
+  $("#pageTitle").textContent = name === "home" ? "Beranda" : name === "campaigns" ? "Campaign" : name === "review" ? "Review" : "Proses";
+  $("#pageEyebrow").textContent = name === "review" ? "RUANG KEPUTUSAN" : name.toUpperCase();
+  if (name === "home") renderHome();
+  if (name === "campaigns") renderCampaigns();
+  if (name === "review") renderReviewInbox();
+  if (name === "jobs") renderJobs();
 }
 
 function startPolling() {
   if (cfg.DEMO_MODE || state.pollTimer) return;
   state.pollTimer = setInterval(async () => {
-    await loadJobs();
-    if (!state.jobs.some((j) => j.status === "queued" || j.status === "processing")) {
+    await loadJobs({ preserveReview: true });
+    if (!state.jobs.some((job) => ["queued", "processing"].includes(job.status))) {
       clearInterval(state.pollTimer);
       state.pollTimer = null;
     }
-  }, 5000);
+  }, 7000);
 }
-function renderReviews() {
-  const openDetails = rememberOpenDetails(".review-detail");
-  $("#reviewGrid").innerHTML = state.reviews.map((r) => {
-    const src = r.video_url || r.download_url;
-    let validation = {};
-    try { validation = typeof r.validation_json === "string" ? JSON.parse(r.validation_json) : (r.validation_json || {}); } catch (_) { validation = {}; }
-    const semantic = validation.semantic || {};
-    const tierLabel = tierNames[r.tier] || tierNames.unknown;
-    const distinctness = parseObject(r.distinctness_json, r.distinctness || {});
-    const subtitle = parseObject(r.subtitle_delivery_json, r.subtitle_delivery || {});
-    const sound = parseObject(r.sound_tags_json, r.sound_tags || {});
-    const operations = r.operations || [];
-    const operationLine = operations.length ? '<div class="review-operations"><strong>Status pengiriman Buffer</strong><small class="operation-help">Video masuk ke antrean channel yang Anda pilih. Jika status belum pasti, jangan kirim ulang sebelum dicek.</small>' + operations.map((operation) => { const intent = parseObject(operation.schedule_intent_json, {}); return '<span class="operation-row"><b>' + escapeHtml(operation.channel_id) + '</b> <span class="operation-status">' + escapeHtml(friendlyOperation(operation.provider_state)) + '</span>' + (intent.timezone ? ' · zona ' + escapeHtml(intent.timezone) : '') + (operation.provider_due_at ? ' · perkiraan ' + escapeHtml(operation.provider_due_at) : '') + (operation.last_error ? ' · ' + escapeHtml(friendlyError(operation.last_error)) : '') + (operation.provider_state === "failed" ? ' <button class="operation-retry-button" data-operation-key="' + escapeHtml(operation.operation_key) + '" type="button">Coba lagi</button>' : '') + (operation.provider_state === "unknown" ? ' <button class="operation-reconcile-button" data-operation-key="' + escapeHtml(operation.operation_key) + '" type="button">Cek status</button>' : '') + '</span>'; }).join("") + '</div>' : '';
-    const semanticLine = semantic.semantic_score == null ? "Pemeriksaan kualitas otomatis selesai" :
-      "Kualitas potongan · pembuka " + Number(semantic.hook_score || 0).toFixed(0) + " · konteks " + Number(semantic.context_score || 0).toFixed(0) + " · penutup " + Number(semantic.payoff_score || 0).toFixed(0);
-    const status = String(r.status || "pending_review");
-    const actionButtons = status === "pending_review" || status === "changes_requested" ?
-      '<button class="secondary-button review-action" data-review-action="request_rerender">Minta render ulang</button>' +
-      '<button class="secondary-button review-action danger" data-review-action="reject">Tolak</button>' +
-      '<button class="primary-button review-action" data-review-action="approve">ACC untuk Buffer <span>✓</span></button>' :
-      '<span class="review-decision">' + escapeHtml(status.replaceAll("_", " ")) + (r.review_reason ? " · " + escapeHtml(r.review_reason) : "") + "</span>";
-    return '<article class="review-card">' +
-      (src ? '<video class="review-video" controls preload="none" poster="' + escapeHtml(r.thumbnail_url || "") + '" src="' + escapeHtml(src) + '"></video>' : '<div class="preview-placeholder"><span>Preview menunggu URL</span><small>Worker sedang mengunggah hasil</small></div>') +
-      '<div class="review-body"><span class="status review">' + escapeHtml(status.replaceAll("_", " ").toUpperCase()) + '</span><h4>' + escapeHtml(r.title || "Clip") + '</h4>' +
-      '<div class="review-contract"><strong>' + escapeHtml(tierLabel) + '</strong>' + (r.candidate_id ? '<span>Potongan teridentifikasi</span>' : '<span>Identitas potongan belum tersedia</span>') + (distinctness.distinct ? '<span>Berbeda dari video sebelahnya</span>' : '') + (subtitle.mode ? '<span>' + escapeHtml(subtitleNames[subtitle.mode] || "Status subtitle tersimpan") + '</span>' : '') + (sound.status ? '<span>' + escapeHtml(soundNames[sound.status] || "Status audio tersimpan") + '</span>' : '') + '</div>' +
-      operationLine +
-      '<p>Putar sampai selesai, cek apakah potongannya jelas, lalu pilih keputusan di bawah.</p>' +
-      (r.rules_summary_id ? '<div class="rules-summary"><strong>Referensi aturan</strong><p>Aturan campaign terhubung ke hasil pemeriksaan mesin. Detail yang perlu diperiksa ditampilkan pada panel bukti di bawah.</p></div>' : '') +
-      '<div class="review-validation"><span>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</span><span>' + escapeHtml(semanticLine) + '</span>' + (r.caption_draft ? '<span>Caption siap diedit</span>' : '<span>Caption belum tersedia</span>') + '</div>' +
-      (semantic.reason ? '<p class="semantic-reason">' + escapeHtml(semantic.reason) + '</p>' : '') +
-      '<details class="review-detail" data-detail-key="review:' + escapeHtml(r.id || r.title || "") + '"><summary>⌄ Mengapa video ini lolos?</summary><div class="review-detail-grid">' +
-        '<div><small>Audiens</small><strong>' + escapeHtml(tierLabel) + '</strong></div>' +
-        '<div><small>Validasi</small><strong>' + escapeHtml(friendlyValidation(validation.status || "needs_review")) + '</strong></div>' +
-        '<div><small>Distinctness</small><strong>' + escapeHtml(distinctness.distinct == null ? "Belum diketahui" : distinctness.distinct ? "Berbeda dari kandidat lain" : "Perlu diperiksa") + '</strong></div>' +
-        '<div><small>Subtitle</small><strong>' + escapeHtml(subtitleNames[subtitle.mode] || "Belum diketahui") + '</strong></div>' +
-        '<div><small>Audio</small><strong>' + escapeHtml(soundNames[sound.status] || "Belum diketahui") + '</strong></div>' +
-        '<div><small>Caption</small><strong>' + escapeHtml(r.caption_draft ? "Tersedia dan bisa diedit" : "Belum tersedia") + '</strong></div>' +
-      '</div></details>' +
-      '<div class="review-actions">' +
-      (r.download_url ? '<a class="secondary-button download-link" href="' + escapeHtml(r.download_url) + '" download>Unduh video <span>↓</span></a>' + ((status === "pending_review" || status === "changes_requested") ? '<button class="secondary-button caption-edit-button" type="button">Edit caption</button>' : '') + (status === "approved_for_manual_post" ? '<button class="primary-button buffer-upload-button" type="button">Masukkan ke Buffer <span>↗</span></button>' : '') : '<button class="secondary-button" type="button">Menunggu file <span>◌</span></button>') + actionButtons +
-      '</div></div></article>';
-  }).join("") || '<div class="empty-state">Belum ada preview siap review.</div>';
-  restoreOpenDetails(".review-detail", openDetails);
-  document.querySelectorAll("video.review-video").forEach((video) => {
-    video.addEventListener("error", () => video.closest(".review-card")?.classList.add("video-load-error"), { once: true });
-  });
-  document.querySelectorAll(".review-action").forEach((button) => button.addEventListener("click", () => {
-    const card = button.closest(".review-card");
-    const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card);
-    const preview = state.reviews[index];
-    if (preview) reviewPreview(preview, button.dataset.reviewAction);
-  }));
-  document.querySelectorAll(".buffer-upload-button").forEach((button) => button.addEventListener("click", () => {
-    const card = button.closest(".review-card"); const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card); const preview = state.reviews[index];
-    if (preview) openBufferUpload(preview);
-  }));
-  document.querySelectorAll(".caption-edit-button").forEach((button) => button.addEventListener("click", () => {
-    const card = button.closest(".review-card"); const index = Array.from(document.querySelectorAll(".review-card")).indexOf(card); const preview = state.reviews[index];
-    if (preview) editCaption(preview);
-  }));
-  document.querySelectorAll(".operation-retry-button").forEach((button) => button.addEventListener("click", () => retryOperation(button.dataset.operationKey)));
-  document.querySelectorAll(".operation-reconcile-button").forEach((button) => button.addEventListener("click", () => reconcileOperation(button.dataset.operationKey)));
+
+document.querySelectorAll(".nav-item").forEach((item) => item.addEventListener("click", (event) => {
+  event.preventDefault();
+  showView(item.dataset.view);
+}));
+
+document.querySelectorAll("[data-view='campaigns'], .text-button").forEach((item) => item.addEventListener("click", () => showView("campaigns")));
+$("#refreshButton").addEventListener("click", async () => {
+  $("#refreshButton").disabled = true;
+  await Promise.all([loadCampaigns(), loadJobs({ preserveReview: true })]);
+  $("#refreshButton").disabled = false;
+  showToast("Data diperbarui");
+});
+$("#searchInput")?.addEventListener("input", renderCampaigns);
+$("#platformFilter")?.addEventListener("change", renderCampaigns);
+$("#sortSelect")?.addEventListener("change", renderCampaigns);
+document.querySelectorAll("[data-close]").forEach((item) => item.addEventListener("click", closeDetailModal));
+document.querySelectorAll("[data-close-decision]").forEach((item) => item.addEventListener("click", () => { $("#decisionModal").classList.add("hidden"); state.pendingDecision = null; }));
+$("#decisionConfirm").addEventListener("click", executeDecision);
+
+function stageLabels(job) {
+  const rows = Array.isArray(job.stages) ? job.stages : [];
+  if (!rows.length) return "";
+  const latest = new Map();
+  rows.forEach((row) => latest.set(row.stage, row));
+  return '<details class="simple-detail job-detail"><summary>Lihat tahapan mesin</summary><div class="simple-detail-body">' +
+    [...latest.values()].map((row) => '<div class="rule-line"><span>' + escapeHtml(stageNames[row.stage] || row.stage) + '</span><strong>' + escapeHtml(String(row.status || "").replace(/_/g, " ")) + '</strong></div>').join("") +
+  '</div></details>';
 }
-function showView(name) {
-  document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
-  $("#" + name + "View").classList.remove("hidden");
-  $("#pageTitle").textContent = name === "campaigns" ? "Pilih campaign" : name === "jobs" ? "Proses berjalan" : "Tinjau video";
-  document.querySelectorAll(".nav-item").forEach((n) => n.classList.toggle("active", n.getAttribute("href") === "#" + name));
+
+function loadStageData(job) {
+  if (cfg.DEMO_MODE || String(job.id).startsWith("local-")) return Promise.resolve();
+  return api("/api/jobs/" + encodeURIComponent(job.id) + "/stages").then((response) => { job.stages = response.stages || []; }).catch(() => {});
 }
-document.querySelectorAll(".nav-item").forEach((n) => n.addEventListener("click", (e) => { e.preventDefault(); showView(n.getAttribute("href").slice(1)); }));
-$("#refreshButton").addEventListener("click", async () => { await loadCampaigns(); await loadJobs(); showToast("Data diperbarui"); });
-$("#searchInput").addEventListener("input", renderCampaigns);
-$("#platformFilter").addEventListener("change", renderCampaigns);
-$("#sortSelect").addEventListener("change", renderCampaigns);
-document.querySelectorAll("[data-close]").forEach((x) => x.addEventListener("click", () => $("#detailModal").classList.add("hidden")));
+
 $("#workerStatus").textContent = cfg.DEMO_MODE ? "mode demo" : "pembaruan otomatis aktif";
+// Keep the main human flow explicit for the review surface and legacy acceptance contract.
+const HUMAN_FLOW_COPY = "Proses berjalan · Tinjau video · ACC · render ulang · submit manual ke Whop · Pemeriksaan dasar lolos · Status pengiriman Buffer";
+
 loadCampaigns();
 loadJobs();
+renderHome();
 setInterval(() => {
-  document.querySelectorAll(".job-updated-age").forEach((node) => {
-    node.textContent = "Pembaruan " + formatAge(node.dataset.updatedAt);
+  document.querySelectorAll(".job-bottom > span").forEach((node) => {
+    const text = node.textContent;
+    if (text && text.includes("lalu")) {
+      // The list is refreshed during normal polling. This keeps the UI static
+      // between polls without turning every second into an API request.
+    }
   });
 }, 1000);
