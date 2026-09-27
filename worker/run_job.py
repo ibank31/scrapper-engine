@@ -669,6 +669,24 @@ def main() -> None:
             "hard_policy_rejects": candidate_stats["hard_policy_rejects"],
             "runtime": semantic_runtime,
         })
+        fallback_reason = str((semantic_runtime or {}).get("fallback_reason") or "")
+        if (semantic_runtime or {}).get("decision") == "semantic_required" and (
+            fallback_reason.startswith("model_")
+            or fallback_reason.startswith("llama_cpp_")
+            or fallback_reason.startswith("model_inference_failed")
+        ):
+            stage_event(
+                args.api_base, args.job_id, args.worker_token, run_id,
+                "semantic_ranking", "blocked", semantic_runtime,
+                "semantic_model_invalid", "Semantic model was required but returned an invalid/unusable result",
+            )
+            update(
+                args.api_base, args.job_id, args.worker_token,
+                "blocked", 100,
+                "Semantic ranking wajib tetapi model tidak menghasilkan output valid",
+                json.dumps(semantic_runtime, ensure_ascii=False),
+            )
+            return
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "transcription", "completed", candidate_stats)
         if not all_candidates:
             update(
