@@ -134,8 +134,8 @@ function canStart(campaign) {
 }
 
 function reviewBadgeClass(status) {
-  if (status === "approved_for_manual_post" || status === "pass" || status === "ready") return "safe";
-  if (status === "pending_render" || status === "processing" || status === "review" || status === "pending_review" || status === "changes_requested") return "attention";
+  if (status === "approved_for_manual_post" || status === "pass" || status === "ready" || status === "siap_ditinjau") return "safe";
+  if (status === "pending_render" || status === "processing" || status === "review" || status === "pending_review" || status === "changes_requested" || status === "perlu_perhatian") return "attention";
   return "danger";
 }
 
@@ -745,6 +745,7 @@ function simulateJob(job) {
       ];
       renderJobs();
       renderReviewInbox();
+      renderHome();
       return;
     }
     job.status = index === 0 ? "queued" : index === steps.length - 1 ? "review" : "processing";
