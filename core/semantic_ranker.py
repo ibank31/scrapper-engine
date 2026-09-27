@@ -350,6 +350,7 @@ def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any
             "candidate_count": len(candidates),
             "scope": "global_single_candidate",
             "shortlist_limit": max(1, int(semantic_limit)),
+            "evaluated_count": len(semantic_candidates),
             "decision": "semantic_required",
             "decision_reason": decision_reason,
             "per_candidate_fallbacks": model_fallbacks[:5],
@@ -374,6 +375,7 @@ def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any
             "candidate_count": len(candidates),
             "scope": "global",
             "shortlist_limit": 0,
+            "evaluated_count": 0,
             "decision": "semantic_skipped",
             "decision_reason": decision_reason,
         }
