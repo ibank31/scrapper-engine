@@ -54,8 +54,16 @@ def caption_metadata(plan: dict, candidate: dict) -> dict:
     if scoped_handles:
         handles = list(dict.fromkeys(scoped_handles))
     cta_values = _values(profile.get("cta")) or _values(production.get("cta_urls")) + _values(production.get("cta_text"))
+    unresolved_cta = _values(profile.get("unresolved_cta")) + _values(production.get("unresolved_cta"))
     parts.extend(handles)
     parts.extend(cta_values)
+    if unresolved_cta:
+        # Preserve the human-readable CTA intent, but never emit a fake account
+        # placeholder such as @..... into the submission caption.
+        for value in unresolved_cta:
+            cleaned = re.sub(r"\\s*@\\.{3,}\\s*", " ", value).strip()
+            if cleaned:
+                parts.append(cleaned)
     if candidate.get("text"): parts.append(candidate["text"].strip())
     tags = _values(profile.get("required_hashtags")) or _hashtags(plan, candidate)
     caption = " ".join(x for x in parts if x).strip()
@@ -109,8 +117,8 @@ def _checklist(plan: dict, validation: dict) -> list[str]:
         tasks.append("Add required handles in the platform's native tagging field.")
     if production.get("cta_urls"):
         tasks.append("Add the required CTA in the location stated by the campaign.")
-    unresolved_cta = [str(x).strip() for x in (production.get("unresolved_cta") or []) if str(x).strip()]
-    for value in unresolved_cta:
+    unresolved_cta_items = [str(x).strip() for x in (production.get("unresolved_cta") or []) if str(x).strip()]
+    for value in unresolved_cta_items:
         tasks.append("MANDATORY campaign requirement: Resolve CTA placeholder before submission: " + value)
     if production.get("prohibited"):
         tasks.append("Confirm the clip does not contain any prohibited content or format.")
