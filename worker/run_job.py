@@ -273,34 +273,36 @@ def main() -> None:
         with open(plan_path, "w", encoding="utf-8") as fh: json.dump(plan, fh, ensure_ascii=False, indent=2)
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "campaign_rules", "completed", {"has_plan": bool(plan), "ai_rules_status": plan.get("ai_rules_status", "unavailable")})
 
-        # CA-09: a rendered preview may only enter human review when the
-        # persisted CA-08 gate exists and is not blocked. This is checked
-        # before expensive asset work so a missing/stale safety contract does
-        # not waste runner time or produce an unreviewable preview.
+        # CA-09 governs human approval, not whether an otherwise ready
+        # clipping source may be rendered. Dashboard campaigns can legitimately
+        # reach this worker before the intelligence cache has persisted a CA-08
+        # gate (for example immediately after scraping or after an AI refresh).
+        # Missing gate therefore enters a render-only state: previews may be
+        # produced, but approval/publishing remains impossible until a current
+        # CA-08/CA-09 contract exists. A present blocked gate remains a hard stop.
         campaign_ai = plan.get("ai_rules") if isinstance(plan.get("ai_rules"), dict) else {}
         compliance_gate = campaign_ai.get("compliance_gate") if isinstance(campaign_ai.get("compliance_gate"), dict) else None
         compliance_gate_status = str((compliance_gate or {}).get("status") or "").lower()
-        if not compliance_gate or compliance_gate.get("schema_version") != 1 or not compliance_gate.get("compliance_gate_id"):
+        compliance_gate_valid = bool(
+            compliance_gate
+            and compliance_gate.get("schema_version") == 1
+            and compliance_gate.get("compliance_gate_id")
+        )
+        if compliance_gate_valid and compliance_gate_status == "blocked":
             update(
                 args.api_base, args.job_id, args.worker_token, "blocked", 100,
-                "Campaign belum memiliki pemeriksaan compliance final yang dapat dipakai untuk review",
-                "ca09_review_contract_missing",
+                "Campaign memiliki masalah compliance yang menghentikan produksi",
+                "ca08_compliance_blocked",
             )
             return
-        if compliance_gate_status == "blocked":
+        if compliance_gate_valid and compliance_gate_status not in {"ready", "review"}:
             update(
                 args.api_base, args.job_id, args.worker_token, "blocked", 100,
-                "Campaign memiliki masalah compliance yang menghentikan review",
-                "ca09_review_blocked_by_compliance_gate",
+                "Status compliance campaign tidak dapat dipakai",
+                f"ca08_invalid_compliance_status={compliance_gate_status}",
             )
             return
-        if compliance_gate_status not in {"ready", "review"}:
-            update(
-                args.api_base, args.job_id, args.worker_token, "blocked", 100,
-                "Status compliance campaign tidak dapat dipakai untuk review",
-                f"ca09_invalid_compliance_status={compliance_gate_status}",
-            )
-            return
+        render_only_without_compliance = not compliance_gate_valid
 
         # Hard-block only when AI has analyzed and rejected the rules.
         # "unavailable" / missing means campaign-sync-ai has not run yet —
@@ -807,17 +809,23 @@ def main() -> None:
             preview_payload = {"id": f"{args.job_id}-{item['rank']}", "rank": item["rank"], "status": "pending_review", "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "video_key": prefix + ".mp4", "review_video_key": review_prefix, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "download_url": video_url, "validation": validation_payload, "caption_draft": item.get("caption_draft"), "caption_revision_id": revision.get("revision_id") or f"{args.job_id}-{item['rank']}-caption-v1", "caption_hash": revision.get("caption_hash"), "caption_revision": revision, "platform": item.get("platform"), "platform_profile": item.get("platform_profile"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_hash": artifact_hash, "distinctness": distinctness, "rules_summary_id": item.get("rules_summary_id"), "checklist": item.get("checklist", [])}
             review_contract = compile_review_contract(compliance_gate, preview_payload, campaign_id=str(job["campaign_id"]))
             if review_contract.get("decision_state") != "ready_for_review":
-                stage_event(args.api_base, args.job_id, args.worker_token, run_id, "manual_review", "blocked", {
+                if not render_only_without_compliance:
+                    stage_event(args.api_base, args.job_id, args.worker_token, run_id, "manual_review", "blocked", {
+                        "rank": item["rank"],
+                        "review_contract_id": review_contract.get("review_contract_id"),
+                        "summary": review_contract.get("summary") or {},
+                    }, "review_contract_blocked", "CA-09 review contract is not ready")
+                    update(
+                        args.api_base, args.job_id, args.worker_token, "blocked", 100,
+                        "Preview dibuat tetapi belum memenuhi kontrak review manusia",
+                        "ca09_review_contract_blocked",
+                    )
+                    return
+                stage_event(args.api_base, args.job_id, args.worker_token, run_id, "manual_review", "deferred", {
                     "rank": item["rank"],
                     "review_contract_id": review_contract.get("review_contract_id"),
                     "summary": review_contract.get("summary") or {},
-                }, "review_contract_blocked", "CA-09 review contract is not ready")
-                update(
-                    args.api_base, args.job_id, args.worker_token, "blocked", 100,
-                    "Preview dibuat tetapi belum memenuhi kontrak review manusia",
-                    "ca09_review_contract_blocked",
-                )
-                return
+                }, "ca08_compliance_pending", "Preview dirender; approval ditahan sampai CA-08/CA-09 tersedia")
             preview_payload["review_contract"] = review_contract
             previews.append(preview_payload)
             manifest_previews.append({"rank": item["rank"], "status": item.get("status"), "tier": candidate_payload.get("tier"), "candidate_id": candidate_payload.get("candidate_id"), "source_asset_id": validation_payload.get("source_asset_id"), "platform": item.get("platform"), "caption_revision_id": revision.get("revision_id"), "caption_hash": revision.get("caption_hash"), "subtitle_delivery": item.get("subtitle_delivery"), "sound_tags": item.get("sound_tags"), "artifact_key": prefix + ".mp4", "artifact_hash": artifact_hash, "thumbnail_key": prefix + ".jpg" if thumb_url else None, "validation_status": validation_payload.get("status"), "rendered_duration": validation_payload.get("duration_seconds") or validation_payload.get("rendered_duration")})
