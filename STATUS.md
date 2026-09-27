@@ -21,11 +21,15 @@ Ryan Zofay is a regression case, not the product target.
 
 CA-00, CA-01, and CA-02 implementation are merged on `main` at `47ab5d11935fe74406ed210a2db122a3d02e5f2d`.
 
+**Foundation chain verified:** CA-00 → CA-01 → CA-02 is executable, integrated, and has controlled production acceptance evidence. This proves the intelligence foundation, not the complete downstream Campaign Agent.
+
 CA-01 production acceptance was verified by GitHub Actions run `36279279316`, including targeted Ryan re-analysis and persisted Campaign Brain verification. Do not claim that every production campaign has been migrated.
 
 ## CA-00 status
 
 **PASS / CLOSED.** Do not add CA-00 features except regression fixes backed by evidence.
+
+Evidence Contract is implemented and exercised through deterministic evidence/provenance logic, campaign-diversity fixtures, cache invalidation, and bounded production acceptance. Production migration remains targeted, not global.
 
 ## CA-01 status
 
@@ -48,25 +52,33 @@ The deterministic Campaign Critic now:
 - preserves legitimate variants and unresolved conflicts as non-duplicate/non-contradictory cases;
 - is exposed as `campaign_critic` beside the authoritative `campaign_brain` and legacy compatibility projection.
 
-Local CA-02 verification:
+### CA-02 verified execution chain
 
-- six-shape corpus: clean Brain produces zero critic findings;
-- seeded negative tests cover all ten required detection categories;
+```
+source → evidence → campaign_brain → campaign_critic → persisted AI result
+```
+
+Controlled production acceptance run `36284355791` on main SHA `47ab5d1` successfully verified persisted critic/Brain identity and source-hash linkage, legacy compatibility, and zero critical findings without Buffer or publishing mutation.
+
+Observed production result: `CRITIC_STATUS=review`, `CRITIC_FINDINGS=7`, with `CRITICAL=0`. These warnings are observable review signals and remain intentionally unresolved for CA-03. They are not silent repairs.
+
+The same merged SHA passed tests run `36284355788` and phase5-acceptance run `36284355798`.
+
+### CA-02 verification baseline
+
+- six-shape clean corpus: zero critic findings;
+- seeded negative tests: all ten required detection categories;
 - focused CA-01/CA-02 tests: **52 passed**;
 - full repository suite: **230 passed**;
-- `py_compile`, `compileall`, `pip check`, and `git diff --check`: passed.
+- compile, dependency, and diff checks passed in the recorded verification run.
 
-Controlled production acceptance passed in GitHub Actions run `36284355791` on the merged main SHA. The `targeted-acceptance` job verified persisted critic/Brain identity and source-hash linkage, legacy compatibility, and zero critical findings without Buffer or publishing mutation.
-
-Observed production result: `CRITIC_STATUS=review`, `CRITIC_FINDINGS=7`, with `CRITICAL=0`. The seven warnings are observable review signals, not silent repairs or execution blockers; their detailed reconciliation remains CA-03 scope.
-
-The same merged SHA also passed `tests` run `36284355788` and `phase5-acceptance` run `36284355798`.
+These counts are accepted only where recorded by the CA-02 verification evidence; do not extrapolate them into a claim of complete production correctness.
 
 ## Next exact slice
 
 **CA-03 — Rule Reconciliation.**
 
-CA-03 owns resolution of conflicts; CA-02 must remain detection-only.
+CA-03 owns resolution of conflicts and actionable critic findings. It must consume evidence + Brain + critic findings and produce an explicit reconciled rule set or explicit unresolved state. CA-02 remains detection-only.
 
 ## Permanent rules
 
