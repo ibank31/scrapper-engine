@@ -54,6 +54,17 @@ def current_cache(campaign_id="cached"):
                 "brain_id": "brain-v1:test",
                 "reconciliation_id": "reconciliation-v1:test",
             },
+            "material_plan": {
+                "schema_version": 1,
+                "material_plan_id": "material-plan-v1:test",
+                "campaign_id": campaign_id,
+                "source_hash": "source-hash",
+                "brain_id": "brain-v1:test",
+                "reconciliation_id": "reconciliation-v1:test",
+                "production_contract_id": "production-contract-v1:test",
+                "requirements": [],
+                "assets": [],
+            },
             "evidence_contract": {
                 "schema_version": 1,
                 "verified": [],

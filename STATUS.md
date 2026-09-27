@@ -1,7 +1,7 @@
 # Scrapper Engine — Current Status
 
 **Updated:** 27 September 2026
-**Branch:** `main`
+**Branch:** `feat/ca05-material-intelligence`
 **Current direction:** Campaign Agent; clipping adalah vertical pertama
 **Production:** Cloudflare Pages `clipper-engine`
 
@@ -19,7 +19,7 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-Current merged `main`: `803997a3a3b221acd6c29e65b2a6003e7a7d9fb8` (CA-03 PR #48 plus generic CTA recovery PR #49). CA-00 → CA-02 historical acceptance remains recorded on `47ab5d11935fe74406ed210a2db122a3d02e5f2d`. No CA-00/CA-01/CA-02 implementation regression was found during this slice.
+Current merged `main`: `deee8cd4ca3373732b33851e9339aa6e43557bd2` (CA-04 PR #51). CA-00 → CA-03 historical acceptance remains recorded in the milestone sections below. CA-05 is the active implementation slice.
 
 **Foundation chain verified:** CA-00 → CA-01 → CA-02 is executable, integrated, and has controlled production acceptance evidence. This proves the intelligence foundation, not the complete downstream Campaign Agent.
 
@@ -76,13 +76,13 @@ These counts are accepted only where recorded by the CA-02 verification evidence
 
 ## Next exact slice
 
-**CA-03 — Rule Reconciliation: PASS / CLOSED** (merged PRs #48 and #49; main SHA `803997a3a3b221acd6c29e65b2a6003e7a7d9fb8`).
+**CA-03 — Rule Reconciliation: PASS / CLOSED** (merged PRs #48 and #49; historical main SHA `803997a3a3b221acd6c29e65b2a6003e7a7d9fb8`).
 
 `normalize_ai_result()` persists `campaign_reconciliation` beside Brain and Critic; stale/mismatched cache identities are rejected. The follow-up makes annotated CTA values undergo the same deterministic source-evidence recovery as flat CTA values. **246 local tests passed**; Python compile, dependency, and diff checks passed. Main-branch tests (`36287752375`) and phase-5 acceptance (`36287752363`) passed.
 
 Final bounded production run `36287752424` passed on merged main: reconciliation `review`, 40 rules, two Critic findings retained (one unresolved), 34 verified evidence items, zero unverified evidence, 100% evidence coverage, CTA preserved, and legacy compatibility. `CLIPPER_AUTO_QUEUE=0`; no Buffer publishing mutation or manual D1 edit. Several intervening provider reruns failed strict pre-existing evidence/CTA assertions; acceptance criteria were not weakened. The final main run passed after the generic annotation recovery fix.
 
-CA-03 preserves evidence IDs/source references, stable rule/conflict links, requirement semantics, and scoped variants. No-precedence ambiguity remains explicit, evidence-only missing rules are reconstructed as quoted source text, and unsupported inference is not promoted. CA-02 remains detection-only. See `docs/CA03_ACCEPTANCE_CONTRACT.md`. Next phase is CA-04 Production Contract Compiler; it was not started in this task.
+CA-03 preserves evidence IDs/source references, stable rule/conflict links, requirement semantics, and scoped variants. No-precedence ambiguity remains explicit, evidence-only missing rules are reconstructed as quoted source text, and unsupported inference is not promoted. CA-02 remains detection-only. See `docs/CA03_ACCEPTANCE_CONTRACT.md`.
 
 ## Permanent rules
 
@@ -96,10 +96,14 @@ CA-03 preserves evidence IDs/source references, stable rule/conflict links, requ
 - Scope is clipping only.
 - Local execution tooling is implementation detail, not a separate product workflow.
 
-## CA-04 — Production Contract Compiler (implementation branch)
+## CA-04 — Production Contract Compiler (PASS / CLOSED)
 
-**Implemented on `feat/ca04-production-contract`; local acceptance verified.**
+**Merged in PR #51 at main SHA `deee8cd4ca3373732b33851e9339aa6e43557bd2`; CI and bounded acceptance passed.**
 
 `core/production_contract.py` deterministically compiles CA-03 reconciliation into Production, Material, Clip, Posting, and Compliance contracts. The normalized `ai_rules_json` envelope now persists `production_contract` beside Brain/Critic/Reconciliation, and the sync cache rejects missing or stale contract identity. Legacy `ai_rules.rules` remains available; no D1 schema migration, Buffer mutation, or global campaign migration was performed.
 
 Focused CA-04 matrix and CA-00–CA-03 regressions pass. Bounded acceptance is available at `scripts/accept_ca04.py` and verifies serialized persistence, identity linkage, provenance, unresolved issue visibility, legacy compatibility, input immutability, `BUFFER_PUBLISHING_MUTATION=NONE`, and `MANUAL_D1_MUTATION=NONE`. See `docs/CA04_ACCEPTANCE_CONTRACT.md`.
+
+## CA-05 — Material Intelligence (PASS / CLOSED)
+
+CA-05 deterministically compiles the CA-04 Material Contract into a provenance-preserving material plan. Local acceptance on this branch passed with **264 tests**, compile/dependency/diff checks, and `python scripts/accept_ca05.py`. The bounded fixture verified `MATERIAL_PLAN_PRESENT=true`, missing mandatory material → `blocked`, a verified candidate → `ready`, provenance coverage `1.0`, legacy compatibility, cache invalidation, `BUFFER_PUBLISHING_MUTATION=NONE`, and `MANUAL_D1_MUTATION=NONE`. Current merged main remains `deee8cd4ca3373732b33851e9339aa6e43557bd2` until the CA-05 PR is merged. Next milestone after CA-05 is CA-06 Clip Strategy.
