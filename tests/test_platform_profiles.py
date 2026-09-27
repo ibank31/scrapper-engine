@@ -33,5 +33,13 @@ class PlatformProfilesTests(unittest.TestCase):
         self.assertIn("rule_evidence", plan["platform_profiles"]["youtube"])
 
 
+    def test_placeholder_handles_are_not_treated_as_real_accounts(self):
+        detail = {"campaign": {"platforms": ["Instagram", "TikTok"]}}
+        production = {"required_handles": ["@.....", "@brand"], "cta_text": "Follow @..... for more"}
+        source = {"normalized_requirements": []}
+        profiles = build_platform_profiles(detail, production, source)
+        self.assertEqual(profiles["instagram"]["required_handles"], ["@brand"])
+        self.assertNotIn("Follow @..... for more", profiles["instagram"]["cta"])
+        self.assertIn("Follow @..... for more", profiles["instagram"]["unresolved_cta"])
 if __name__ == "__main__":
     unittest.main()
