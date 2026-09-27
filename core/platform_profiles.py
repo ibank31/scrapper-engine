@@ -37,6 +37,16 @@ def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], 
     platform_rules = production.get("platform_rules") if isinstance(production.get("platform_rules"), dict) else {}
     global_required_handles = _values(production.get("required_handles"))
     platform_handle_overrides = production.get("platform_handles") if isinstance(production.get("platform_handles"), dict) else {}
+    if not platform_handle_overrides:
+        # Backward-compatible recovery for persisted plans compiled before
+        # platform-scoped handles existed. The campaign source text remains
+        # authoritative; no handle is invented.
+        source_text = str(source_of_truth.get("docs_text") or "")
+        for match in re.finditer(r"(@[A-Za-z0-9_.-]+)\\s+for\\s+(Instagram|TikTok|YouTube)", source_text, re.I):
+            platform = match.group(2).lower()
+            platform_handle_overrides.setdefault(platform, [])
+            if match.group(1) not in platform_handle_overrides[platform]:
+                platform_handle_overrides[platform].append(match.group(1))
     global_hashtags = _values(production.get("hashtags"))
     global_disclosures = _values(production.get("disclosures"))
     global_cta = _values(production.get("cta_urls")) + _values(production.get("cta_text"))
