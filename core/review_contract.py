@@ -153,6 +153,11 @@ def compile_review_contract(
     distinctness = item.get("distinctness") if isinstance(item.get("distinctness"), Mapping) else {}
     subtitle = item.get("subtitle_delivery") if isinstance(item.get("subtitle_delivery"), Mapping) else {}
     sound = item.get("sound_tags") if isinstance(item.get("sound_tags"), Mapping) else {}
+    source_asset_id = _norm(item.get("source_asset_id"))
+    source_hash = _norm(item.get("source_hash") or validation.get("source_hash"))
+    source_identity_ok = bool(source_asset_id and source_asset_id != "unknown-source" and source_hash)
+    checklist = item.get("checklist") if isinstance(item.get("checklist"), list) else []
+    mandatory_review_items = [str(x).strip() for x in checklist if str(x).strip().lower().startswith("mandatory campaign requirement:")]
 
     checks.append(_check(
         "campaign_compliance",
@@ -167,9 +172,9 @@ def compile_review_contract(
 
     checks.append(_check(
         "video_identity",
-        "pass" if item.get("candidate_id") and item.get("source_asset_id") else "review",
+        "pass" if item.get("candidate_id") and source_identity_ok else "review",
         "Identitas potongan",
-        "Potongan dan bahan sumber teridentifikasi." if item.get("candidate_id") and item.get("source_asset_id") else "Identitas potongan belum lengkap; periksa hasil sebelum menyetujui.",
+        "Potongan dan bahan sumber teridentifikasi." if item.get("candidate_id") and source_identity_ok else "Identitas potongan atau asal bahan belum lengkap; jangan menyetujui sebelum lineage terverifikasi.",
     ))
 
     checks.append(_check(
@@ -226,6 +231,15 @@ def compile_review_contract(
         "Audio sudah terverifikasi." if sound_status == "verified" else "Audio perlu diperiksa atau ditambahkan manual.",
         action="Periksa audio" if sound_status != "verified" else None,
     ))
+
+    if mandatory_review_items:
+        checks.append(_check(
+            "mandatory_requirements",
+            "review",
+            "Syarat wajib campaign",
+            "Ada syarat wajib campaign yang tercatat tetapi belum memiliki bukti pemenuhan pada output.",
+            action="Lihat syarat wajib",
+        ))
 
     for issue in gate.get("issues") or []:
         if not isinstance(issue, Mapping):
@@ -295,8 +309,23 @@ def compile_review_contract(
         "checks": checks,
         "exceptions": sorted(exceptions, key=lambda x: (x.get("severity") != "critical", x.get("code", ""), x.get("id", ""))),
         "issues": sorted(issues, key=lambda x: (str(x.get("severity") or ""), str(x.get("code") or ""), str(x.get("field") or ""))),
+        "submission_ready": (
+            decision_state == "ready_for_review"
+            and all(check.get("status") == "pass" for check in checks)
+            and not exceptions
+            and not issues
+            and bool(item.get("artifact_hash"))
+            and bool(item.get("caption_revision_id"))
+        ),
         "review_actions": {
-            "approve": decision_state == "ready_for_review" and bool(item.get("artifact_hash")) and bool(item.get("caption_revision_id")),
+            "approve": (
+                decision_state == "ready_for_review"
+                and bool(item.get("artifact_hash"))
+                and bool(item.get("caption_revision_id"))
+                and all(check.get("status") == "pass" for check in checks)
+                and not exceptions
+                and not issues
+            ),
             "reject": decision_state == "ready_for_review",
             "request_changes": decision_state == "ready_for_review",
         },
