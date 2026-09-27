@@ -2,8 +2,8 @@
 
 **Updated:** 27 September 2026
 **Repository:** `ibank31/scrapper-engine`
-**Branch:** `main`
-**Latest merged SHA:** `803997a3a3b221acd6c29e65b2a6003e7a7d9fb8` (PRs #48 and #49)
+**Branch:** `feat/ca05-material-intelligence`
+**Latest merged SHA:** `deee8cd4ca3373732b33851e9339aa6e43557bd2` (CA-04 PR #51; PRs #48 and #49 are historical CA-03)
 
 ## Mission
 
@@ -72,7 +72,7 @@ The same SHA passed tests run `36284355788` and phase5-acceptance run `362843557
 
 Local verification: **246 tests passed**; `py_compile`, `compileall`, `pip check`, and `git diff --check` passed. Main test run `36287752375` and phase-5 run `36287752363` passed. Final bounded production acceptance run `36287752424` passed on main: reconciliation `review`, 40 rules, two Critic findings preserved (one unresolved), 34 verified evidence items, zero unverified, full coverage, CTA and legacy compatibility, and no Buffer mutation. Several earlier provider reruns failed strict evidence/CTA assertions; the final successful run kept all gates unchanged and involved no manual D1 changes.
 
-See `docs/CA03_ACCEPTANCE_CONTRACT.md` for schema, policy, and gates. Unresolved findings remain observable; campaign behavior is not hard-coded. CA-04 Production Contract Compiler is next and was not started in this task.
+See `docs/CA03_ACCEPTANCE_CONTRACT.md` for schema, policy, and gates. Unresolved findings remain observable; campaign behavior is not hard-coded.
 
 ## Do not
 
@@ -88,6 +88,10 @@ See `docs/CA03_ACCEPTANCE_CONTRACT.md` for schema, policy, and gates. Unresolved
 - modify rendering, subtitles, Buffer publishing, or material downloader architecture during CA-03.
 
 
-## CA-04 — Production Contract Compiler (implementation branch)
+## CA-04 — Production Contract Compiler (PASS / CLOSED)
 
-CA-04 is implemented on `feat/ca04-production-contract`. `core/production_contract.py` compiles CA-03 reconciliation deterministically into five domains and preserves requirement semantics, scope, and evidence provenance. Normalization persists `production_contract` in the existing intelligence envelope; the cache gate validates its identity linkage. No external provider, Buffer, D1 mutation, schema migration, or downstream milestone was added. See `docs/CA04_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca04.py`.
+CA-04 merged in PR #51 at main SHA `deee8cd4ca3373732b33851e9339aa6e43557bd2`. `core/production_contract.py` compiles CA-03 reconciliation deterministically into five domains and preserves requirement semantics, scope, and evidence provenance. Normalization persists `production_contract` in the existing intelligence envelope; the cache gate validates its identity linkage. CI run `36289080543` and phase5 acceptance run `36289078676` succeeded. See `docs/CA04_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca04.py`.
+
+## CA-05 — Material Intelligence (PASS / CLOSED)
+
+CA-05 consumes the CA-04 Material Contract and builds a deterministic, evidence-backed Material Plan. It preserves scope, provenance, explicit fallback policy, deterministic asset identity, lifecycle state, and cache linkage without introducing a new AI call or implementing CA-06 clip strategy. Local bounded acceptance passed with 264 tests and verified missing mandatory material → `blocked`, verified candidate → `ready`, provenance coverage `1.0`, legacy compatibility, and no Buffer/D1 mutation. Current merged main remains `deee8cd4ca3373732b33851e9339aa6e43557bd2` until the CA-05 PR is merged. Next milestone: CA-06 Clip Strategy.
