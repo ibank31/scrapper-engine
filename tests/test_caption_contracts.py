@@ -34,6 +34,14 @@ class CaptionContractsTests(unittest.TestCase):
             self.assertFalse(result["ok"], needle)
             self.assertIn(code, {item["code"] for item in result["failures"]})
 
+    def test_placeholder_handle_is_not_a_valid_required_handle(self):
+        profile = dict(PROFILE)
+        profile["required_handles"] = ["@....."]
+        revision = self.revision("approved phrase #Campaign #ad https://example.com")
+        result = validate_caption_revision(revision, profile, expected_rules_hash="rules-1")
+        self.assertFalse(result["ok"])
+        self.assertIn("required_handle_missing", {x["code"] for x in result["failures"]})
+
     def test_prohibited_and_rules_hash_fail_without_provider_request(self):
         revision = self.revision("approved phrase @brand #Campaign #ad https://example.com guaranteed")
         result = validate_caption_revision(revision, PROFILE, expected_rules_hash="rules-2")
