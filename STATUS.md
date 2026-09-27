@@ -129,5 +129,3 @@ See `docs/CA08_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca08.py`.
 ## CA-07 — Posting Package Compiler (PASS / CLOSED)
 
 CA-07 adds a deterministic, read-only `posting_package` compiler over the authoritative Production Contract, Clip Strategy, and explicit campaign posting fields. It preserves exact CTA, hashtags, handles, caption, disclosures, audio policy, subtitle delivery, native platform requirements, schedule intent, platform scope, and provenance. Mandatory missing, conflicting, unsupported, stale, or provenance-invalid posting fields block; non-critical manual actions remain explicit. The normalized envelope keeps legacy `rules` additive and the worker rejects stale CA-07 packages without Buffer or D1 mutation. See `docs/CA07_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca07.py`.
-
-CA-08 is next; do not implement it in this slice.
