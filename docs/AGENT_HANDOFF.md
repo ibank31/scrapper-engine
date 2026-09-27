@@ -104,4 +104,14 @@ CA-06 consumed the Production Contract and Material Plan and emitted additive `c
 
 CA-07 adds `core/posting_package.py`, normalized-envelope persistence, cache validation, focused tests, and bounded acceptance. The compiler is deterministic and read-only, consumes the Production Contract and Clip Strategy, preserves exact platform-scoped posting values and evidence lineage, and makes manual/native actions explicit. Missing mandatory values or incomplete provenance block; no values are invented. Legacy `ai_rules.rules` remains available. See `docs/CA07_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca07.py`. No Buffer publishing or manual D1 mutation occurred.
 
-CA-08 is next. Do not implement it in this slice.
+## CA-08 — Final Campaign Compliance Gate (PASS / CLOSED)
+
+CA-08 is merged in PR #55 at main SHA `467e091ae3ea5ea1ed9bb7118662874511dfacd7`. The final deterministic gate validates the complete evidence → Brain → Critic → Reconciliation → Production Contract → Material Plan → Clip Strategy → Posting Package chain for current identity, source freshness, provenance, mandatory preservation, platform scope, content restrictions, material readiness, and upstream status.
+
+Final CI run `36296398152` passed the full 289-test repository regression, CA-08 bounded acceptance, compile/dependency checks, semantic golden fixture, artifact upload, and Node syntax checks. The CA-08 preview for commit `58901644b37366fe17f3909b4de319451b2d42c9` deployed successfully. Cloudflare production deployment `bf77f27f-8cee-4540-a117-007bd28457e0` is active on merge commit `467e091ae3ea5ea1ed9bb7118662874511dfacd7`, with every deployment stage successful.
+
+Boundary retained: CA-08 adds verification only. It does not invent policy, call an LLM from the gate, migrate all campaigns, mutate D1, publish to Buffer, render media, or alter the renderer/publisher architecture. Older CA-07 envelopes without a compliance gate remain readable.
+
+## Next exact slice
+
+**CA-09 — Indonesian Human Review Layer.**
