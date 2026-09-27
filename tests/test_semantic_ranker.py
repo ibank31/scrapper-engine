@@ -136,6 +136,28 @@ class SemanticRankerTest(unittest.TestCase):
             self.assertEqual(runtime["decision_reason"], "deterministic_confident")
             self.assertEqual(len(ranked), 2)
 
+    def test_global_semantic_required_evaluates_full_pool(self):
+        plan = {
+            "ai_rules": {"confidence": 0.95},
+            "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
+        }
+        candidates = [
+            {"candidate_id": f"c-{i}", "tier": "tier_1" if i < 6 else "tier_2", "source_asset_id": f"a-{i}", "source_hash": f"h-{i}", "start": i * 30, "end": i * 30 + 20, "duration": 20, "score": 0.90 - i * 0.001, "text": f"Business point {i}."}
+            for i in range(10)
+        ]
+        calls = []
+        def fake_rank(items, plan):
+            calls.append(items[0]["candidate_id"])
+            item = dict(items[0])
+            item["semantic"] = {"decision": "render", "semantic_score": 80, "hook_score": 80, "context_score": 80, "payoff_score": 80, "completeness_score": 80, "campaign_relevance": "pass", "reason": "model", "risks": []}
+            item["score"] = 0.8
+            return [item], {"schema_version": 1, "engine": "qwen", "fallback_used": False, "fallback_reason": None, "candidate_count": 1}
+        with mock.patch("core.semantic_ranker.rank_candidates_with_metadata", side_effect=fake_rank):
+            ranked, runtime = rank_global_candidates(candidates, plan, 2)
+        self.assertEqual(len(calls), len(candidates))
+        self.assertEqual(runtime["evaluated_count"], len(candidates))
+        self.assertTrue(all(not item["semantic"].get("fallback_used") for item in ranked))
+
     def test_global_gate_keeps_semantic_ai_for_ambiguous_pair(self):
         with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "auto"}):
             plan = {
