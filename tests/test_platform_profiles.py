@@ -16,6 +16,14 @@ class PlatformProfilesTests(unittest.TestCase):
         self.assertEqual(profiles["tiktok"]["required_handles"], ["@brand"])
         self.assertIn("Use the approved opening phrase", profiles["instagram"]["required_phrases"])
 
+    def test_document_only_requirement_is_not_literal_caption_phrase(self):
+        profiles = build_platform_profiles(
+            {"campaign": {"platforms": ["Instagram", "TikTok"]}}, {},
+            {"normalized_requirements": [{"id": "demographic_information", "text": "Include demographic information", "mandatory": True, "platform": "all"}]},
+        )
+        self.assertNotIn("Include demographic information", profiles["instagram"]["required_phrases"])
+        self.assertNotIn("Include demographic information", profiles["tiktok"]["required_phrases"])
+
     def test_platform_specific_override_is_scoped(self):
         profiles = build_platform_profiles(
             {"campaign": {"platforms": ["youtube", "ig"]}},
