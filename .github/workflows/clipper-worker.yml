@@ -14,10 +14,6 @@ on:
         required: false
         type: string
         default: ""
-  # One-shot real E2E trigger path. The sentinel is touched only for operator trials.
-  push:
-    paths:
-      - ".worker-e2e-trigger"
 
 concurrency:
   # Serialize retries for the same manually started job.
