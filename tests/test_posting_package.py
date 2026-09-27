@@ -77,7 +77,7 @@ class PostingPackageTests(unittest.TestCase):
         self.assertEqual(package["summary"]["provenance_coverage"], 1.0)
 
         campaign["posting_provenance"]["evidence_ids"] = []
-        blocked = compile_posting_package(self.contract, self.strategy, campaign)
+        blocked = compile_posting_package(contract, self.strategy, campaign)
         self.assertEqual(blocked["status"], "blocked")
         self.assertEqual(blocked["summary"]["provenance_coverage"], 6 / 7)
         self.assertTrue(any(i["type"] == "provenance_invalid" and i["field"] == "cta" for i in blocked["issues"]))
