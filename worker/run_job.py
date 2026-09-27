@@ -29,6 +29,7 @@ from core.candidate_identity import deduplicate_source_records
 from core.output_selection import select_required_output_pair
 from core.output_gate import evaluate_output_pair, evaluate_render_pair
 from core.review_contract import compile_review_contract
+from core.platform_profiles import build_platform_profiles
 from core.asset_gate import manifest_has_invalid_media, manifest_video_paths
 from core.media_signals import source_quality_preflight
 from core.production_policy import duration_bands
@@ -273,6 +274,21 @@ def main() -> None:
             plan = json.loads(plan_path.read_text(encoding="utf-8"))
         else:
             plan_path = Path(root) / "plan.json"
+        # Recompile provider-neutral platform profiles from the immutable plan
+        # snapshot at execution time. This repairs older persisted plans without
+        # mutating campaign source-of-truth data.
+        try:
+            plan["platform_profiles"] = build_platform_profiles(
+                plan.get("campaign") or {},
+                plan.get("production") or {},
+                plan.get("source_of_truth") or {},
+            )
+        except Exception as exc:
+            raise RuntimeError(f"platform_profile_compile_failed:{type(exc).__name__}") from exc
+        plan["platform_profile_version"] = next(
+            (item.get("version") for item in (plan.get("platform_profiles") or {}).values() if isinstance(item, dict) and item.get("version")),
+            plan.get("platform_profile_version"),
+        )
         plan_path = os.path.join(root, "plan.json")
         with open(plan_path, "w", encoding="utf-8") as fh: json.dump(plan, fh, ensure_ascii=False, indent=2)
         stage_event(args.api_base, args.job_id, args.worker_token, run_id, "campaign_rules", "completed", {"has_plan": bool(plan), "ai_rules_status": plan.get("ai_rules_status", "unavailable")})
