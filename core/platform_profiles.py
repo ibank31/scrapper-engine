@@ -36,6 +36,7 @@ def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], 
     """Normalize platform applicability without making provider calls."""
     platform_rules = production.get("platform_rules") if isinstance(production.get("platform_rules"), dict) else {}
     global_required_handles = _values(production.get("required_handles"))
+    platform_handle_overrides = production.get("platform_handles") if isinstance(production.get("platform_handles"), dict) else {}
     global_hashtags = _values(production.get("hashtags"))
     global_disclosures = _values(production.get("disclosures"))
     global_cta = _values(production.get("cta_urls")) + _values(production.get("cta_text"))
@@ -53,7 +54,7 @@ def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], 
         result[platform] = {
             "version": PROFILE_VERSION,
             "platform": platform,
-            "required_handles": _values(override.get("required_handles", global_required_handles)),
+            "required_handles": _values(override.get("required_handles", platform_handle_overrides.get(platform, global_required_handles))),
             "suggested_handles": _values(override.get("suggested_handles")),
             "required_hashtags": _values(override.get("required_hashtags", global_hashtags)),
             "suggested_hashtags": _values(override.get("suggested_hashtags")),
