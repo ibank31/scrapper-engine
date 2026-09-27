@@ -15,7 +15,7 @@ Ryan Zofay is a regression fixture, never a special production case.
 
 ### CA-00 — Evidence Contract
 
-**PASS / CLOSED.** Evidence ledger, source fingerprinting, provenance, cache invalidation, targeted migration, and controlled production acceptance are complete.
+**PASS / CLOSED.** Evidence ledger, source fingerprinting, provenance, cache invalidation, targeted migration, and controlled production acceptance are complete. Production migration is bounded, not global.
 
 ### CA-01 — Canonical Campaign Brain
 
@@ -25,54 +25,52 @@ Production acceptance: GitHub Actions run `36279279316`, successful `targeted-ac
 
 Do not cite the historical **219 tests** claim as independently verified from CI artifacts. The CA-01 preservation gate also maps critical preservation to mandatory preservation; this remains an accepted baseline limitation.
 
-## Closed milestone
-
 ### CA-02 — Campaign Critic
 
 **PASS / CLOSED.**
 
 The critic is deterministic and read-only. It compares source/evidence against the canonical Brain and does not reconcile or mutate it. CA-03 owns conflict resolution.
 
-Implemented in `core/campaign_critic.py` with minimal integration in `normalize_ai_result` as `campaign_critic`.
+Implemented in `core/campaign_critic.py` with integration in `normalize_ai_result` as `campaign_critic`.
 
-Required detection categories are covered:
+The ten required detection categories are covered, findings are deterministic and serializable, and seeded negative cases verify the defect classes while legitimate variants/scopes/conflicts are protected from false duplicate/contradiction classification.
 
-1. missing rule;
-2. duplicate rule;
-3. contradiction;
-4. unsupported inference;
-5. platform scope mismatch;
-6. lost value;
-7. wrong CTA;
-8. wrong handle;
-9. wrong hashtag;
-10. missing material requirement.
+## Verified CA-00 → CA-02 chain
 
-Findings are stable and serializable with deterministic `finding_id`, exact severity (`CRITICAL`, `WARNING`, `AMBIGUITY`, `INFO`), category, rule path, Brain rule IDs, evidence IDs, source references, reason, and `status=open`.
+The foundation is now proven as an executable chain, not merely three isolated milestones:
+
+```
+source
+  ↓
+CA-00 Evidence
+  ↓
+CA-01 Campaign Brain
+  ↓
+CA-02 Campaign Critic
+  ↓
+persisted AI intelligence
+```
+
+Controlled acceptance run `36284355791` on SHA `47ab5d1` verified persisted `campaign_critic`, Brain/critic identity and source-hash linkage, legacy compatibility, and zero critical findings without Buffer/publishing mutation.
+
+Observed result: `CRITIC_STATUS=review`, `CRITIC_FINDINGS=7`, `CRITICAL=0`. The seven warnings are intentionally left for CA-03 reconciliation. This is a successful detection gate, not proof that all campaign semantics are already resolved.
+
+The same SHA passed tests run `36284355788` and phase5-acceptance run `36284355798`.
 
 ## Verification baseline
 
 - focused CA-01/CA-02 tests: **52 passed**;
 - full repository suite: **230 passed**;
-- `python3 -m py_compile core/*.py modules/*/*.py worker/*.py tests/*.py`: passed;
-- `python3 -m compileall -q core modules worker`: passed;
-- `python3 -m pip check`: passed;
-- `git diff --check`: passed;
+- compile/dependency/diff checks passed in the recorded verification run;
 - six-shape clean corpus produces no critic findings;
 - seeded negative tests cover all ten required categories;
-- Brain remains byte-for-byte unchanged by critique.
-
-Controlled production acceptance passed in GitHub Actions run `36284355791` on the merged main SHA. The `targeted-acceptance` job verified persisted `campaign_critic`, Brain/critic identity and source-hash linkage, legacy compatibility, and zero critical findings without Buffer or publishing mutation.
-
-Observed production result: `CRITIC_STATUS=review`, `CRITIC_FINDINGS=7`, `CRITICAL=0`. Warnings remain observable review signals and are not silently reconciled; resolution belongs to CA-03.
-
-The same merged SHA passed `tests` run `36284355788` and `phase5-acceptance` run `36284355798`.
+- Brain remains unchanged by critique.
 
 ## Exact next slice
 
 **CA-03 — Rule Reconciliation.**
 
-CA-03 may consume the seven warning findings, but must not be started as part of the CA-02 closeout.
+CA-03 may consume the seven warning findings and must preserve evidence provenance. It owns deterministic reconciliation, explicit conflict state, and resolution provenance. It must not silently overwrite source-backed facts and must not be implemented as an extension of CA-02.
 
 ## Do not
 
@@ -85,4 +83,4 @@ CA-03 may consume the seven warning findings, but must not be started as part of
 - spend premium AI calls on deterministic work;
 - treat green CI as production proof;
 - add unrelated product/affiliate automation;
-- modify rendering, subtitles, Buffer publishing, or material downloader architecture.
+- modify rendering, subtitles, Buffer publishing, or material downloader architecture during CA-03.
