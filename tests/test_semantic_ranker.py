@@ -152,8 +152,9 @@ class SemanticRankerTest(unittest.TestCase):
             item["semantic"] = {"decision": "render", "semantic_score": 80, "hook_score": 80, "context_score": 80, "payoff_score": 80, "completeness_score": 80, "campaign_relevance": "pass", "reason": "model", "risks": []}
             item["score"] = 0.8
             return [item], {"schema_version": 1, "engine": "qwen", "fallback_used": False, "fallback_reason": None, "candidate_count": 1}
-        with mock.patch("core.semantic_ranker.rank_candidates_with_metadata", side_effect=fake_rank):
-            ranked, runtime = rank_global_candidates(candidates, plan, 2)
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_ENABLED": "true"}):
+            with mock.patch("core.semantic_ranker.rank_candidates_with_metadata", side_effect=fake_rank):
+                ranked, runtime = rank_global_candidates(candidates, plan, 2)
         self.assertEqual(len(calls), len(candidates))
         self.assertEqual(runtime["evaluated_count"], len(candidates))
         self.assertTrue(all(not item["semantic"].get("fallback_used") for item in ranked))
