@@ -187,8 +187,8 @@ class ComplianceGateTests(unittest.TestCase):
 
     def test_valid_chain_is_ready_and_current(self):
         gate = self.gate()
-        self.assertEqual(gate["status"], "ready")
-        self.assertTrue(all(gate["checks"].values()))
+        self.assertEqual(gate["status"], "ready", gate["issues"])
+        self.assertTrue(all(gate["checks"].values()), gate["issues"])
         self.assertTrue(gate["compliance_gate_id"].startswith("compliance-gate-v1:"))
         self.assertTrue(compliance_gate_is_current(
             gate, self.evidence, self.brain, self.critic, self.reconciliation,
@@ -218,7 +218,7 @@ class ComplianceGateTests(unittest.TestCase):
 
     def test_optional_posting_requirement_may_be_absent(self):
         gate = self.gate()
-        self.assertEqual(gate["status"], "ready")
+        self.assertEqual(gate["status"], "ready", gate["issues"])
         self.assertFalse(any(i["code"] == "posting_requirement_lost" for i in gate["issues"]))
 
     def test_invalid_mandatory_provenance_blocks(self):
