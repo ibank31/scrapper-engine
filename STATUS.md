@@ -1,8 +1,8 @@
 # Scrapper Engine — Current Status
 
-**Updated:** 26 September 2026  
-**Branch:** `main`  
-**Current direction:** Campaign Agent; clipping adalah vertical pertama  
+**Updated:** 27 September 2026
+**Branch:** `main`
+**Current direction:** Campaign Agent; clipping adalah vertical pertama
 **Production:** Cloudflare Pages `clipper-engine`
 
 ## Mission
@@ -19,62 +19,57 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-PR #28 (**CA-00 acceptance hardening**) and PR #32 (**CA-00 campaign diversity + provenance hardening**) are merged to `main`. The latest verified functional code baseline is `465b2b6cf1d955e2c193aedba82a35937fa5a389`. Subsequent commits only narrow repository scope and update documentation/remove unrelated tooling.
+CA-00 and CA-01 implementation are merged on `main`.
 
-CI status for the latest commit is not exposed by the current GitHub connector surface; the repository's existing CI baseline remains green from the prior verified runs. Cloudflare production deployment of the latest main commit completed successfully.
+**Latest main SHA:** `b0180f1d96644f3d114c4860be4ba744b76e70b0`
 
-Production:
-- last verified functional deployment: `99d49f6e-59cf-4204-8b6e-ce20ac683e3a`
-- deployment code baseline: `8dd04a440651922b966d76ed37817e4959fc5aad`
-- controlled CA-00 production acceptance was later verified against main code baseline `465b2b6cf1d955e2c193aedba82a35937fa5a389`
-- deployment URL: https://105b16be.clipper-engine.pages.dev
+CA-01 implementation spans PR #38–#44 and includes the canonical Campaign Brain, deterministic identity, source-backed rule/evidence linkage, structured mandatory/optional requirements, platform/language scope, variants/conflicts, and legacy compatibility projection.
+
+The bounded CA-01 production acceptance was verified by GitHub Actions run `36279279316`. Its `targeted-acceptance` job completed successfully, including both:
+- Targeted Ryan production re-analysis
+- Verify persisted acceptance contract
+
+The acceptance run proved persisted `schema_version=2`, canonical `campaign_brain` presence, matching source hashes, brain identity, evidence coverage, CTA preservation, and legacy handles/hashtags compatibility.
 
 ## CA-00 status
 
-**Implementation:** merged.  
-**Deterministic acceptance hardening:** merged.  
-**Controlled production acceptance:** **PASS**.
+**PASS.** CA-00 is closed. Do not add CA-00 features except regression fixes backed by evidence.
 
-CA-00 sekarang ditutup. Jangan menambah fitur CA-00 lagi kecuali regression fix yang dibuktikan oleh test.
+## CA-01 status
 
-The prior Ryan production row may remain legacy until a future bounded re-analysis writes CA-01 brain data. Do not manually mutate D1 to simulate acceptance.
+**PASS.**
 
-## Current acceptance coverage
+Verified acceptance gates:
 
-Merged hardening proves, in generic fixtures:
+- canonical `campaign_brain`;
+- deterministic `brain_id`;
+- source fingerprint / `source_hash`;
+- structured rule records;
+- mandatory / optional / unknown semantics;
+- direct evidence linkage;
+- platform and language scope;
+- conflict / variant preservation;
+- unavailable-AI protection against false boolean facts;
+- legacy `ai_rules.rules` compatibility projection;
+- existing six-shape corpus acceptance;
+- bounded Ryan production persistence acceptance.
 
-- six campaign rule shapes are represented: document-only, platform-specific, restrictive/ambiguous, conflicting-source, multilingual, and material-heavy;
-- stable source fingerprint;
-- document-only source changes change fingerprint;
-- mandatory evidence provenance;
-- stable evidence IDs;
-- fake evidence is rejected explicitly;
-- legacy evidence-less cache is not reusable;
-- valid evidence-contract cache is reusable;
-- `CLIPPER_CAMPAIGN_IDS` scopes migration to requested campaigns;
-- evidence ledger can retain declared source references, URL, source timestamp, extraction method, source priority, and character spans when supplied.
+CA-01 production acceptance is a targeted proof, not a claim that every production campaign has already been migrated.
 
-This is deterministic proof. It is not yet production proof.
+## CA-01 audit finding
 
-## Known regression
+The implementation is accepted, but the acceptance evidence has two documentation/test-quality limitations:
 
-Ryan Zofay historically lost CTA, platform-specific handles, and hashtags during AI normalization. Keep the fix generic: source-backed reconciliation and canonical brain preservation, never Ryan-specific branching.
+1. `STATUS.md` and `docs/AGENT_HANDOFF.md` previously described CA-01 as the next unfinished milestone. That was stale and has now been corrected.
+2. The repository does not currently expose an authoritative CI artifact proving the exact claimed total of **219 tests** through the available connector. Do not repeat that number as independently verified. The CA-01-specific tests and production acceptance are verified from repository/workflow definitions and the successful bounded run.
 
-Treat this strictly as regression evidence. Never add Ryan-specific runtime logic.
+The acceptance contract also lists critical-rule preservation and platform-scope preservation as metrics. Current deterministic evaluation derives critical preservation from mandatory preservation and exercises platform scope through targeted fixtures. This is sufficient for the existing CA-01 gate, but these metrics should be made independently explicit in a future hardening change rather than silently assuming they are identical.
 
 ## Next exact slice
 
-**CA-01 — Canonical Campaign Brain.**
+**CA-02 — Campaign Critic.**
 
-Bounded implementation:
-
-1. canonicalize AI output into campaign_brain;
-2. prove preservation on the existing six-shape corpus;
-3. persist the brain without changing downstream consumers;
-4. invalidate evidence-only caches;
-5. after merge, use the bounded Ryan workflow to verify production persistence.
-
-Do not run a corpus-wide AI migration.
+Do not begin CA-02 implementation in the same documentation patch. CA-01 is closed; the next engineering slice must define its hypothesis, seeded critic findings, acceptance metrics, and regression tests before implementation.
 
 ## Permanent rules
 
@@ -85,5 +80,5 @@ Do not run a corpus-wide AI migration.
 - Do not manually mutate production D1 to make acceptance green.
 - Do not spend quota on full-corpus migration when targeted proof is sufficient.
 - Buffer/provider mutation remains behind approval gates.
-- Scope is clipping only. Affiliate/product-image work, unrelated scrapers, and personal automation do not belong in this repository.
+- Scope is clipping only.
 - Local execution tooling is implementation detail, not a separate product workflow.
