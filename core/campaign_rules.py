@@ -136,6 +136,13 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
     tags = sorted(set(re.findall(r"@[A-Za-z0-9_.-]+", full_text)))
     ai_handles = [str(x) for x in (ai_rule_set.get("handles") or []) if x]
     ai_hashtags = [str(x) for x in (ai_rule_set.get("hashtags") or []) if x]
+    platform_handles: dict[str, list[str]] = {}
+    for match in re.finditer(r"@([A-Za-z0-9_.-]+)\\s+for\\s+(Instagram|TikTok|YouTube)", full_text, re.I):
+        handle = "@" + match.group(1)
+        platform = match.group(2).lower()
+        platform_handles.setdefault(platform, [])
+        if handle not in platform_handles[platform]:
+            platform_handles[platform].append(handle)
     ai_disclosures = [str(x) for x in (ai_rule_set.get("disclosures") or []) if x]
     topic_terms = [str(x).strip().lower() for x in (ai_rule_set.get("topic_terms") or []) if str(x).strip()]
     cta_urls = [u for u in urls if any(x in u.lower() for x in ("http://", "https://")) and not any(
@@ -199,6 +206,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
         "watermark_required": watermark_required,
         "no_third_party_watermark": no_third_party_watermark,
         "required_handles": tags,
+        "platform_handles": platform_handles,
         "cta_urls": cta_urls,
         "minimum_views": int(min_views) if min_views is not None else None,
         "maximum_payout": max_payout,
