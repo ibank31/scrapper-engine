@@ -72,7 +72,7 @@ class ReviewContractTests(unittest.TestCase):
         contract = compile_review_contract(self.gate, preview)
         self.assertEqual(contract["decision_state"], "blocked")
         self.assertFalse(contract["review_actions"]["approve"])
-        self.assertTrue(any(item["code"] == "review_check_blocked" for item in contract["issues"]))
+        self.assertEqual(contract["summary"]["status"], "tidak_dapat_dilanjutkan")
 
     def test_deterministic_and_input_immutable(self):
         gate = copy.deepcopy(self.gate)
