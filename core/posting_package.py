@@ -194,10 +194,35 @@ def compile_posting_package(production_contract: Mapping[str, Any], clip_strateg
                         if copied.get("manual_required"):
                             issues.append(_issue("mandatory_uncertain", "critical", platform, target, "Mandatory posting requirement is unresolved or unsupported.", copied["provenance"]))
             elif target in explicit:
-                package[target].append(_item(target, explicit[target], True, {"source_hash": identity["source_hash"]}, {"platforms": [platform]}))
+                # Campaign fallback remains mandatory and therefore needs verified provenance.
+                fallback_provenance = source.get("posting_provenance") or source.get("provenance") or {}
+                fallback_provenance = dict(fallback_provenance) if isinstance(fallback_provenance, Mapping) else {}
+                fallback_provenance.setdefault("source_hash", identity["source_hash"])
+                fallback_provenance.setdefault("source_references", [{"source_type": "campaign", "location": f"posting.{target}"}])
+                fallback_provenance.setdefault("evidence_ids", [])
+                fallback_provenance.setdefault("interpretation_type", "explicit")
+                fallback = _item(target, explicit[target], True, fallback_provenance, {"platforms": [platform]})
+                package[target].append(fallback)
+                mandatory_total += 1
+                if fallback["provenance"]["evidence_ids"] and fallback["provenance"]["source_hash"] == identity["source_hash"]:
+                    mandatory_with_provenance += 1
+                else:
+                    issues.append(_issue("provenance_invalid", "critical", platform, target, "Mandatory campaign fallback lacks verified evidence or current source hash.", fallback["provenance"]))
         caption = explicit.get("caption") or explicit.get("caption_text")
         if caption is not None:
-            package["caption"] = [_item("caption", caption, True, {"source_hash": identity["source_hash"]}, {"platforms": [platform]})]
+            fallback_provenance = source.get("posting_provenance") or source.get("provenance") or {}
+            fallback_provenance = dict(fallback_provenance) if isinstance(fallback_provenance, Mapping) else {}
+            fallback_provenance.setdefault("source_hash", identity["source_hash"])
+            fallback_provenance.setdefault("source_references", [{"source_type": "campaign", "location": f"posting.caption.{platform}"}])
+            fallback_provenance.setdefault("evidence_ids", [])
+            fallback_provenance.setdefault("interpretation_type", "explicit")
+            caption_item = _item("caption", caption, True, fallback_provenance, {"platforms": [platform]})
+            package["caption"] = [caption_item]
+            mandatory_total += 1
+            if caption_item["provenance"]["evidence_ids"] and caption_item["provenance"]["source_hash"] == identity["source_hash"]:
+                mandatory_with_provenance += 1
+            else:
+                issues.append(_issue("provenance_invalid", "critical", platform, "caption", "Mandatory campaign caption lacks verified evidence or current source hash.", caption_item["provenance"]))
         # Missing mandatory posting families are blocked only when the contract
         # actually declares that family mandatory; no requirement is invented.
         for field in ("cta", "hashtags", "handles", "disclosures"):
