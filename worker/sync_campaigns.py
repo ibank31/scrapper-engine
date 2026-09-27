@@ -27,6 +27,7 @@ from core.campaign_exclusions import excluded_campaign_terms
 from core.material_acquisition import build_legacy_compatible_policy, material_plan_fingerprint, validate_material_policy
 from core.material_intelligence import material_plan_is_current
 from core.clip_strategy import clip_strategy_is_current
+from core.posting_package import posting_package_is_current
 from modules.reward_campaign.pull_detail import extract_detail
 
 DOC_ID_RE = re.compile(r"docs\.google\.com/document/d/([A-Za-z0-9_-]+)", re.I)
@@ -162,6 +163,8 @@ def _cache_is_current(previous: dict[str, Any] | None, rules_hash: str) -> bool:
     # CA-06 is additive: validate it whenever present, while allowing older
     # CA-05 envelopes to remain readable for legacy consumers.
     if "clip_strategy" in cached and not clip_strategy_is_current(cached.get("clip_strategy"), production_contract, cached.get("material_plan")):
+        return False
+    if "clip_strategy" in cached and ("posting_package" not in cached or not posting_package_is_current(cached.get("posting_package"), production_contract, cached.get("clip_strategy"))):
         return False
     critic = cached.get("campaign_critic")
     if not isinstance(critic, dict) or not critic.get("critic_id"):
