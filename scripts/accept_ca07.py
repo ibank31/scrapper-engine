@@ -62,7 +62,7 @@ def main() -> None:
     assert fallback["platforms"]["instagram"]["schedule_intent"][0]["value"] == "next approved slot"
 
     campaign["posting_provenance"]["evidence_ids"] = []
-    fallback_blocked = compile_posting_package(contract, strategy, campaign)
+    fallback_blocked = compile_posting_package(fallback_contract, strategy, campaign)
     assert fallback_blocked["status"] == "blocked"
     assert fallback_blocked["summary"]["provenance_coverage"] == 6 / 7
     assert any(i["type"] == "provenance_invalid" and i["field"] == "cta" for i in fallback_blocked["issues"])
