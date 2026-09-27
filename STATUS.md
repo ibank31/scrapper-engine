@@ -108,6 +108,6 @@ Focused CA-04 matrix and CA-00–CA-03 regressions pass. Bounded acceptance is a
 
 CA-05 deterministically compiles the CA-04 Material Contract into a provenance-preserving material plan. It is merged in PR #52 at main SHA `14d49cfbabde15634bfe278bbb739022279dc65c`. The bounded fixture verified missing mandatory material → `blocked`, a verified candidate → `ready`, provenance coverage `1.0`, legacy compatibility, cache invalidation, and no Buffer/D1 mutation.
 
-## CA-06 — Campaign-aware Clip Strategy (ACTIVE)
+## CA-06 — Campaign-aware Clip Strategy (PASS / CLOSED)
 
-CA-06 deterministically compiles the Production Contract and Material Plan into an additive, provenance-preserving clip strategy. It selects only verified/acquired/ready material, keeps missing timestamps unresolved, preserves platform and duration constraints, and makes fallback activation explicit. It does not render, download, publish, mutate Buffer, or mutate D1. See `docs/CA06_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca06.py`.
+CA-06 deterministically compiles the Production Contract and Material Plan into an additive, provenance-preserving clip strategy. It selects only verified/acquired/ready material, keeps missing timestamps unresolved, preserves platform and duration constraints, and makes fallback activation explicit. PR #53 merged at main SHA `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`; PR checks, Cloudflare Pages, post-merge tests, phase5 acceptance, and Ryan acceptance passed. See `docs/CA06_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca06.py`. Limitation: segment localization without structured timestamps remains downstream/manual review. Next milestone is CA-07; do not implement it in this slice.
