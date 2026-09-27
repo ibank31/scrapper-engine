@@ -1,104 +1,85 @@
 # Scrapper Engine — Active Agent Handoff
 
-**Updated:** 26 September 2026  
-**Repository:** `ibank31/scrapper-engine`  
-**Branch:** `main`  
-**Last verified functional baseline:** `465b2b6cf1d955e2c193aedba82a35937fa5a389`
-
-Repository scope cleanup follows this baseline; documentation/deletion commits after it are non-functional.
+**Updated:** 27 September 2026
+**Repository:** `ibank31/scrapper-engine`
+**Branch:** `feat/ca02-campaign-critic`
+**CA-01 main baseline:** `b0180f1d96644f3d114c4860be4ba744b76e70b0`
 
 ## Mission
 
 Build a **campaign-agnostic Campaign Agent**. Clipping is the first execution vertical. Campaign discovery, evidence, material acquisition, strategy, execution, compliance, review, publishing, and outcome learning are reusable layers.
 
-Ryan Zofay is a regression fixture, never a special production case. Campaign differences belong in source evidence and normalized rules.
+Ryan Zofay is a regression fixture, never a special production case.
 
-Human review is basic QC. The machine is responsible for understanding campaign rules, material requirements, platform requirements, compliance, and posting-package details.
+## Closed milestones
+
+### CA-00 — Evidence Contract
+
+**PASS / CLOSED.** Evidence ledger, source fingerprinting, provenance, cache invalidation, targeted migration, and controlled production acceptance are complete.
+
+### CA-01 — Canonical Campaign Brain
+
+**PASS / CLOSED.** Merged implementation covers canonical `campaign_brain`, deterministic `brain_id`, source hash, structured rules, requirement semantics, evidence linkage, scope, variants/conflicts, compatibility projection, six-shape corpus acceptance, and bounded Ryan persistence.
+
+Production acceptance: GitHub Actions run `36279279316`, successful `targeted-acceptance` job.
+
+Do not cite the historical **219 tests** claim as independently verified from CI artifacts. The CA-01 preservation gate also maps critical preservation to mandatory preservation; this remains an accepted baseline limitation.
 
 ## Current milestone
 
-**CA-01 — Canonical Campaign Brain**
+### CA-02 — Campaign Critic
 
-### Completed and merged
+**Implementation complete; production acceptance pending merge.**
 
-- source document extraction;
-- deterministic source fingerprint;
-- evidence ledger;
-- stable evidence IDs;
-- AI quote verification;
-- evidence-aware AI normalization;
-- legacy AI-cache invalidation;
-- Bearer campaign-sync authentication;
-- targeted migration support;
-- generic CA-00 acceptance fixtures and cache/migration regression tests;
-- six-shape campaign diversity corpus;
-- evidence provenance metadata: declared URLs, timestamps when supplied, extraction method, source priority, and character spans;
-- bounded `campaign_ids` input exposed in `campaign-sync-ai`.
+The critic is deterministic and read-only. It compares source/evidence against the canonical Brain and does not reconcile or mutate it. CA-03 owns conflict resolution.
 
-PR #28 is merged as `c1ef801367cba42fe12178088dec099c055afae9`.
+Implemented in `core/campaign_critic.py` with minimal integration in `normalize_ai_result` as `campaign_critic`.
 
-This handoff snapshot is carried by documentation commit `3a65b1a8d05902c72a56852d59ca7124d26de6c8`.
+Required detection categories are covered:
 
-## CA-00 production acceptance
+1. missing rule;
+2. duplicate rule;
+3. contradiction;
+4. unsupported inference;
+5. platform scope mismatch;
+6. lost value;
+7. wrong CTA;
+8. wrong handle;
+9. wrong hashtag;
+10. missing material requirement.
 
-**PASS.** Controlled production acceptance proved the generic AI router fallback path with evidence contract preservation.
-
-Production D1 was checked directly for Ryan Zofay after the merge. The stored intelligence remains legacy `schema_version=1`.
-
-Do not manually rewrite the row.
-
-The remaining production proof is a bounded re-analysis that stores CA-01 brain data. Corpus-wide migration remains forbidden while one targeted campaign is sufficient.
-
-## Exact next action
-
-Implement CA-01A/B/C as one bounded milestone: canonical brain, deterministic preservation gate, persistence/compatibility. Do not reopen CA-00 except for a regression proven by a failing fixture or production acceptance test.
-
-CA-00 acceptance evidence:
-
-- `schema_version=2`;
-- `source_hash`;
-- `source_ledger`;
-- verified evidence;
-- `evidence_contract`;
-- CTA retained;
-- platform handles retained;
-- hashtags retained;
-- controlled production acceptance `PASS`.
+Findings are stable and serializable with deterministic `finding_id`, exact severity (`CRITICAL`, `WARNING`, `AMBIGUITY`, `INFO`), category, rule path, Brain rule IDs, evidence IDs, source references, reason, and `status=open`.
 
 ## Verification baseline
 
-Latest merged CI is represented by the post-merge Actions runs for `3a65b1a8d05902c72a56852d59ca7124d26de6c8`.
+- focused CA-01/CA-02 tests: **52 passed**;
+- full repository suite: **230 passed**;
+- `python3 -m py_compile core/*.py modules/*/*.py worker/*.py tests/*.py`: passed;
+- `python3 -m compileall -q core modules worker`: passed;
+- `python3 -m pip check`: passed;
+- `git diff --check`: passed;
+- six-shape clean corpus produces no critic findings;
+- seeded negative tests cover all ten required categories;
+- Brain remains byte-for-byte unchanged by critique.
 
-Current production deployment is tied to the same `main` commit through Cloudflare Pages.
+The controlled workflow has been extended to persist and verify `campaign_critic` for the bounded Ryan acceptance. It will assert Brain/critic identity and source-hash linkage and reject critical findings. No production acceptance claim is made until that merged workflow completes.
 
-A previous controlled E2E reached two rendered/validated review previews without Buffer mutation. Its intelligence failure remains the canonical rule-loss regression.
+## Exact next action
 
-## Operating protocol
-
-```
-PLAN → EXECUTE → VERIFY → DOCUMENT → CONTINUE
-```
-
-If E2E finds a new valid bug:
-
-```
-STOP
-preserve evidence
-add regression
-fix root cause
-verify
-document
-repeat E2E
-```
+1. Commit and push CA-02 implementation and documentation.
+2. Open/merge the bounded CA-02 pull request without Buffer or publishing mutation.
+3. Verify the controlled Ryan workflow and persisted critic result.
+4. If it passes, close CA-02 and begin **CA-03 — Rule Reconciliation**.
 
 ## Do not
 
 - hard-code Ryan Zofay or any campaign;
 - invent campaign rules;
-- trust valid JSON as proof of correct intelligence;
+- let the critic mutate or silently repair the Brain;
+- resolve conflicts in CA-02;
 - manually mutate D1 to bypass acceptance;
 - rerun full AI migration when targeted migration is sufficient;
 - spend premium AI calls on deterministic work;
 - treat green CI as production proof;
-- add unrelated product/affiliate automation to this repository;
-- revive obsolete Termux/product-image workflows; the repository scope is clipping only.
+- add unrelated product/affiliate automation;
+- modify rendering, subtitles, Buffer publishing, or material downloader architecture.

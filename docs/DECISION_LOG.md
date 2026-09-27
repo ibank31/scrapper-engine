@@ -38,7 +38,6 @@ Superseded phase reports and audits are archived rather than deleted from Git hi
 
 Reason: historical evidence is useful, but current agents must not mistake it for the active contract.
 
-
 ## 2026-09-26 — Canonical Campaign Brain before downstream migration
 
 CA-01 introduces campaign_brain as the authoritative canonical intelligence representation while retaining ai_rules.rules as a compatibility projection.
@@ -46,7 +45,6 @@ CA-01 introduces campaign_brain as the authoritative canonical intelligence repr
 Reason: downstream clipping stages still depend on the flat rule shape. Replacing it in place would couple Campaign Brain work to unrelated execution regressions.
 
 Invariants: supported rules require verified source evidence; unknown values are not manufactured as false; platform/language variants are preserved; conflicts are preserved but not resolved until CA-03.
-
 
 ## 2026-09-26 — CA-01 production acceptance exposed brain identity defect
 
@@ -56,9 +54,26 @@ The same run also exposed that cta_text evidence can be sourced from the cta_req
 
 Decision: fix the generic canonicalizer, strengthen regression tests, and rerun the same bounded production proof. Do not manually repair the production D1 row.
 
-
 ## 2026-09-26 — Keep canonical annotations bounded
 
 CA-01 does not require the model to emit a rule annotation for every rule. That would unnecessarily multiply output size and makes free-router reliability part of the brain contract.
 
 Decision: flat rules plus verified evidence remain the normal input to deterministic canonicalization. rule_annotations is an exception channel for semantics that cannot be recovered safely, such as explicit scope, requirement interpretation, or variants. This keeps the canonical brain strict without forcing the provider to return a much larger payload.
+
+## 2026-09-27 — Campaign Critic is detection-only
+
+CA-02 adds `campaign_critic` beside the authoritative `campaign_brain`. The critic compares source/evidence against the Brain and emits findings; it never edits, repairs, or reconciles Brain rules.
+
+Reason: CA-02 must expose semantic defects while preserving the original evidence and Brain for audit. Conflict resolution belongs exclusively to CA-03.
+
+## 2026-09-27 — Severity is machine-readable
+
+Critic findings use exactly four primary severities: `CRITICAL`, `WARNING`, `AMBIGUITY`, and `INFO`. A critic result is `blocked` when at least one critical finding exists, `review` when only warnings or ambiguities exist, and `pass` when no findings exist.
+
+Reason: downstream execution needs a deterministic safety signal without parsing prose. The finding retains evidence IDs, Brain rule IDs, and source references so later automation can act without reinterpreting the source.
+
+## 2026-09-27 — Deterministic comparison before AI reasoning
+
+CA-02 uses deterministic evidence and structured Brain comparison for exact values such as CTA text, handles, hashtags, duration, scope, and material requirements. It does not invoke an AI provider.
+
+Reason: exact source-token preservation is a verification problem, not a generation problem. This minimizes cost and makes acceptance reproducible.
