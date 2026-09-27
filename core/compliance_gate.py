@@ -325,7 +325,7 @@ def _check_requirement_preservation(brain: Mapping[str, Any], reconciliation: Ma
     for req in _iter_material_requirements(material):
         rid = str(req.get("production_contract_requirement_id") or "")
         if rid and rid not in production_material_ids:
-            issues.append(_issue("lineage_gap", "critical", "Material Plan requirement is not bound to a Production Contract material requirement.", stage="material_plan", field=str(req.get("material_requirement_id") or ""))
+            issues.append(_issue("lineage_gap", "critical", "Material Plan requirement is not bound to a Production Contract material requirement.", stage="material_plan", field=str(req.get("material_requirement_id") or "")))
         provenance = req.get("provenance") if isinstance(req.get("provenance"), Mapping) else {}
         recon_rule = str(provenance.get("rule_id") or "")
         if recon_rule and recon_rule not in recon_ids:
