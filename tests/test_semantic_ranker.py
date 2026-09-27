@@ -42,6 +42,18 @@ class SemanticRankerTest(unittest.TestCase):
         self.assertEqual(runtime["fallback_reason"], "model_disabled_or_path_missing")
         self.assertEqual(ranked[0]["semantic"]["fallback_reason"], runtime["fallback_reason"])
 
+    def test_normalizes_single_model_result_with_mismatched_model_rank(self):
+        candidate = {"rank": 7, "candidate_id": "c7"}
+        parsed = {"results": [{
+            "rank": 1, "decision": "render", "semantic_score": 80,
+            "hook_score": 80, "context_score": 80, "payoff_score": 80,
+            "completeness_score": 80, "campaign_relevance": "pass",
+            "reason": "ok", "risks": []
+        }]}
+        normalized, reason = _normalize_model_results(parsed, [candidate])
+        self.assertIsNone(reason)
+        self.assertEqual(normalized[0]["rank"], 7)
+
     def test_normalizes_single_model_result_without_rank(self):
         candidates = [{"rank": 1, "start": 0, "end": 20, "duration": 20, "text": "A complete point."}]
         normalized, reason = _normalize_model_results({"decision": "render", "semantic_score": 80, "hook_score": 80, "context_score": 80, "payoff_score": 80, "completeness_score": 80, "campaign_relevance": "pass", "reason": "complete", "risks": []}, candidates)
