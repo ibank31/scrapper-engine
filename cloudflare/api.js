@@ -705,8 +705,12 @@ export default {
         if (action === "approve" && (!current.artifact_hash || !current.caption_revision_id || !current.rules_hash)) return json({ error: "approval_provenance_missing" }, 409);
         const artifactHash = String(body.artifact_hash || current.artifact_hash || "");
         const captionRevisionId = String(body.caption_revision_id || current.caption_revision_id || "");
-        if (action === "approve" && (artifactHash !== current.artifact_hash || captionRevisionId !== current.caption_revision_id)) return json({ error: "approval_revision_mismatch" }, 409);
+        const reviewContract = parseJson(current.review_contract_json, {});
         if (action === "approve") {
+          if (!reviewContract || reviewContract.schema_version !== 1 || !reviewContract.review_contract_id) return json({ error: "review_contract_missing" }, 409);
+          if (reviewContract.preview_id !== current.id || reviewContract.artifact_hash !== current.artifact_hash || reviewContract.caption_revision_id !== current.caption_revision_id) return json({ error: "review_contract_stale" }, 409);
+          if (!reviewContract.compliance_gate_id || reviewContract.decision_state !== "ready_for_review" || reviewContract.review_actions?.approve !== true) return json({ error: "review_contract_not_approvable" }, 409);
+          if (artifactHash !== current.artifact_hash || captionRevisionId !== current.caption_revision_id) return json({ error: "approval_revision_mismatch" }, 409);
           const revision = await env.DB.prepare("SELECT * FROM caption_revisions WHERE id=? AND preview_id=?").bind(captionRevisionId, parts[2]).first();
           if (!revision) return json({ error: "caption_revision_missing" }, 409);
           const compliance = validateCaptionRevision({ ...revision, fields: parseJson(revision.fields_json, {}) }, parseJson(current.platform_profile_json, { platform: current.platform }), current.rules_hash);
@@ -721,10 +725,10 @@ export default {
           await env.DB.prepare("INSERT INTO preview_events (id,preview_id,from_status,to_status,action,reason,actor,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(eventId, parts[2], current.status, "changes_requested", action, reason, actor, timestamp).run();
           return json({ ok: true, rerender_requested: true, preview: { id: newId, parent_preview_id: current.id, revision_number: revisionNumber, render_revision: `render-${revisionNumber}`, job_id: current.job_id, status: "pending_render", review_reason: reason, reviewed_by: actor, reviewed_at: timestamp } });
         }
-        const updated = await env.DB.prepare("UPDATE previews SET status=?,review_reason=?,reviewed_by=?,reviewed_at=?,approval_artifact_hash=?,approval_caption_revision_id=?,approval_rules_hash=? WHERE id=? AND status IN ('pending_review','changes_requested')").bind(next, reason || null, actor, timestamp, action === "approve" ? artifactHash : null, action === "approve" ? captionRevisionId : null, action === "approve" ? current.rules_hash : null, parts[2]).run();
+        const updated = await env.DB.prepare("UPDATE previews SET status=?,review_reason=?,reviewed_by=?,reviewed_at=?,approval_artifact_hash=?,approval_caption_revision_id=?,approval_rules_hash=?,approval_review_contract_id=?,approval_compliance_gate_id=? WHERE id=? AND status IN ('pending_review','changes_requested')").bind(next, reason || null, actor, timestamp, action === "approve" ? artifactHash : null, action === "approve" ? captionRevisionId : null, action === "approve" ? current.rules_hash : null, action === "approve" ? reviewContract.review_contract_id : null, action === "approve" ? reviewContract.compliance_gate_id : null, parts[2]).run();
         if (!(updated.meta?.changes > 0)) return json({ error: "review_transition_lost" }, 409);
         await env.DB.prepare("INSERT INTO preview_events (id,preview_id,from_status,to_status,action,reason,actor,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(eventId, parts[2], current.status, next, action, reason || null, actor, timestamp).run();
-        return json({ ok: true, preview: { id: parts[2], job_id: current.job_id, status: next, review_reason: reason || null, reviewed_by: actor, reviewed_at: timestamp } });
+        return json({ ok: true, preview: { id: parts[2], job_id: current.job_id, status: next, review_reason: reason || null, reviewed_by: actor, reviewed_at: timestamp, approval_review_contract_id: action === "approve" ? reviewContract.review_contract_id : null, approval_compliance_gate_id: action === "approve" ? reviewContract.compliance_gate_id : null } });
       }
       if (parts[1] === "previews" && parts[2] && parts[3] === "caption-revisions" && request.method === "POST") {
         if (!reviewAuthorized(request, env)) return json({ error: "review_unauthorized" }, 401);
