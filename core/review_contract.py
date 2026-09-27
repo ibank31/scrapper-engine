@@ -250,6 +250,18 @@ def compile_review_contract(
             "Kontrak review tidak memiliki identitas campaign dan compliance gate yang lengkap.",
         ))
 
+    # A blocked preview check is itself a hard stop. Do not let a malformed
+    # or technically failed preview reach an approval action merely because
+    # the upstream campaign gate was otherwise reviewable.
+    for check in checks:
+        if check.get("status") == "blocked":
+            issues.append({
+                "code": "review_check_blocked",
+                "severity": "critical",
+                "field": str(check.get("id") or ""),
+                "message": str(check.get("detail") or "Review check is blocked."),
+            })
+
     blocked = any(issue.get("severity") == "critical" for issue in issues)
     attention = any(check.get("status") == "review" for check in checks) or bool(exceptions)
     if blocked:
