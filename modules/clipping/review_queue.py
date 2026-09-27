@@ -67,6 +67,10 @@ def caption_metadata(plan: dict, candidate: dict) -> dict:
     if candidate.get("text"): parts.append(candidate["text"].strip())
     tags = _values(profile.get("required_hashtags")) or _hashtags(plan, candidate)
     caption = " ".join(x for x in parts if x).strip()
+    # Never publish an unresolved account placeholder, including when it appears
+    # in the transcribed spoken content rather than the CTA metadata.
+    caption = re.sub(r"@\.{3,}", "", caption)
+    caption = re.sub(r"[ \t]{2,}", " ", caption).strip()
     if tags: caption = caption + "\n\n" + " ".join(tags)
     source = plan.get("source_of_truth") or {}
     required = []
