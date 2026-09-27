@@ -356,8 +356,6 @@ function bindReviewWorkspace(preview, rows) {
     const button = document.querySelector("[data-play-preview]");
     if (button) button.disabled = true;
     try {
-      // Reload preview metadata immediately before playback so a long-open review
-      // page never attempts to play an expired signed URL.
       const fresh = await api("/api/jobs/" + encodeURIComponent(preview.job_id) + "/previews");
       const current = (fresh.previews || []).find((item) => item.id === preview.id);
       if (!current?.video_url) throw new Error("video_stream_missing");
