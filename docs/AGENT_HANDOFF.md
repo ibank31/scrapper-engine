@@ -2,8 +2,9 @@
 
 **Updated:** 27 September 2026
 **Repository:** `ibank31/scrapper-engine`
-**Branch:** `main`
-**Latest main SHA:** `47ab5d11935fe74406ed210a2db122a3d02e5f2d`
+**Branch:** `feat/ca03-rule-reconciliation` (PR #48)
+**Verified main baseline:** `38a7850087a010ca9e5040e815edac2e80d6cde7`
+**CA-03 final verified SHA:** `383e8fc77a7c18cc7e9194024d0cbee53ccc3c64`
 
 ## Mission
 
@@ -66,11 +67,13 @@ The same SHA passed tests run `36284355788` and phase5-acceptance run `362843557
 - seeded negative tests cover all ten required categories;
 - Brain remains unchanged by critique.
 
-## Exact next slice
+## CA-03 — Rule Reconciliation (PASS; PR awaits merge)
 
-**CA-03 — Rule Reconciliation.**
+Implementation is committed and pushed to `feat/ca03-rule-reconciliation`; PR #48 is open. `campaign_reconciliation` is emitted beside Brain/Critic in normalized and persisted intelligence. The cache gate requires the reconciliation contract and matching Brain/Critic/source/campaign identities. The legacy rules projection remains unchanged.
 
-CA-03 may consume the seven warning findings and must preserve evidence provenance. It owns deterministic reconciliation, explicit conflict state, and resolution provenance. It must not silently overwrite source-backed facts and must not be implemented as an extension of CA-02.
+Local verification: **245 tests passed**; `py_compile`, `compileall`, `pip check`, and `git diff --check` passed. PR tests and phase-5 acceptance passed. Bounded production acceptance run `36286329412` passed on SHA `383e8fc`: reconciliation `review`, 17 rules, one Critic finding preserved unresolved, 14 verified evidence items, zero unverified evidence, full coverage, legacy compatibility, and no Buffer mutation. Two intervening provider reruns failed the unchanged strict upstream Brain evidence-coverage gate; the final run passed it without a waiver or manual D1 changes.
+
+See `docs/CA03_ACCEPTANCE_CONTRACT.md` for schema, policy, and gates. Unresolved findings remain observable; historical Ryan findings are not hard-coded. Merge PR #48 and STOP. Do not implement CA-04 in this task.
 
 ## Do not
 

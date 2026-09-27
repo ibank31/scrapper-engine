@@ -66,7 +66,7 @@ Covered by `tests/test_campaign_reconciliation.py`:
 
 ```text
 python -m unittest -v tests.test_campaign_reconciliation
-python -m unittest -v tests.test_campaign_evidence tests.test_campaign_brain tests.test_campaign_critic
+python -m unittest -v tests.test_campaign_evidence_acceptance tests.test_campaign_brain tests.test_campaign_critic
 python -m unittest discover -s tests -v
 python -m py_compile core/*.py modules/*/*.py worker/*.py tests/*.py
 python -m compileall -q core modules worker
@@ -86,7 +86,7 @@ The existing controlled Ryan workflow is extended to verify one targeted campaig
 - legacy `ai_rules.rules` remains present and compatible;
 - sync uses `CLIPPER_AUTO_QUEUE=0` and invokes no Buffer publishing path.
 
-This is a bounded campaign acceptance, not a campaign-corpus migration. Production acceptance is **not considered passed until the workflow completes successfully and its persisted output is inspected**.
+Final bounded production acceptance passed in GitHub Actions run `36286329412` on branch SHA `383e8fc77a7c18cc7e9194024d0cbee53ccc3c64`. Persisted output: status `review`; 17 reconciled rules; one Critic finding retained as one unresolved finding; 14 verified evidence items; zero unverified evidence; coverage 1.0. Legacy rules compatibility passed, and `CLIPPER_AUTO_QUEUE=0` confirmed no Buffer publishing mutation. The PR test and phase-5 checks also passed. This is a bounded campaign acceptance, not a campaign-corpus migration. Two earlier fresh-AI attempts failed the unchanged pre-existing 100% Brain evidence-coverage gate; the final run passed without weakening that gate or changing production data manually.
 
 ## Deliberate limitations
 
