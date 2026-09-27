@@ -95,3 +95,11 @@ CA-03 preserves evidence IDs/source references, stable rule/conflict links, requ
 - Buffer/provider mutation remains behind approval gates.
 - Scope is clipping only.
 - Local execution tooling is implementation detail, not a separate product workflow.
+
+## CA-04 — Production Contract Compiler (implementation branch)
+
+**Implemented on `feat/ca04-production-contract`; local acceptance verified.**
+
+`core/production_contract.py` deterministically compiles CA-03 reconciliation into Production, Material, Clip, Posting, and Compliance contracts. The normalized `ai_rules_json` envelope now persists `production_contract` beside Brain/Critic/Reconciliation, and the sync cache rejects missing or stale contract identity. Legacy `ai_rules.rules` remains available; no D1 schema migration, Buffer mutation, or global campaign migration was performed.
+
+Focused CA-04 matrix and CA-00–CA-03 regressions pass. Bounded acceptance is available at `scripts/accept_ca04.py` and verifies serialized persistence, identity linkage, provenance, unresolved issue visibility, legacy compatibility, input immutability, `BUFFER_PUBLISHING_MUTATION=NONE`, and `MANUAL_D1_MUTATION=NONE`. See `docs/CA04_ACCEPTANCE_CONTRACT.md`.

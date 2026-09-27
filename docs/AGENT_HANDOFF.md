@@ -86,3 +86,8 @@ See `docs/CA03_ACCEPTANCE_CONTRACT.md` for schema, policy, and gates. Unresolved
 - treat green CI as production proof;
 - add unrelated product/affiliate automation;
 - modify rendering, subtitles, Buffer publishing, or material downloader architecture during CA-03.
+
+
+## CA-04 — Production Contract Compiler (implementation branch)
+
+CA-04 is implemented on `feat/ca04-production-contract`. `core/production_contract.py` compiles CA-03 reconciliation deterministically into five domains and preserves requirement semantics, scope, and evidence provenance. Normalization persists `production_contract` in the existing intelligence envelope; the cache gate validates its identity linkage. No external provider, Buffer, D1 mutation, schema migration, or downstream milestone was added. See `docs/CA04_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca04.py`.
