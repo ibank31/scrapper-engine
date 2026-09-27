@@ -151,5 +151,5 @@ class ClipCandidatesTest(unittest.TestCase):
         self.assertEqual(diagnostics["candidate_pool_count"] > 0, True)
         self.assertLessEqual(media.call_count, 2)
 
-if __name__ == "__main__":
+        self.assertTrue(all(item.get("source_asset_id") and item.get("source_asset_id") != "unknown-source" for item in candidates))\n\nif __name__ == "__main__":
     unittest.main()
