@@ -45,6 +45,14 @@ def caption_metadata(plan: dict, candidate: dict) -> dict:
     platform = next(iter(profiles), "instagram")
     profile = profiles.get(platform) if isinstance(profiles.get(platform), dict) else {}
     handles = _values(profile.get("required_handles")) or _values(production.get("required_handles"))
+    source_text = str((plan.get("source_of_truth") or {}).get("docs_text") or "")
+    scoped_handles = []
+    import re
+    for match in re.finditer(r"(@[A-Za-z0-9_.-]+)\\s+for\\s+(Instagram|TikTok|YouTube)", source_text, re.I):
+        if match.group(2).lower() == platform:
+            scoped_handles.append(match.group(1))
+    if scoped_handles:
+        handles = list(dict.fromkeys(scoped_handles))
     cta_values = _values(profile.get("cta")) or _values(production.get("cta_urls")) + _values(production.get("cta_text"))
     parts.extend(handles)
     parts.extend(cta_values)
