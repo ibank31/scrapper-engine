@@ -146,6 +146,15 @@ def _cache_is_current(previous: dict[str, Any] | None, rules_hash: str) -> bool:
     reconciliation = cached.get("campaign_reconciliation")
     if not isinstance(reconciliation, dict) or reconciliation.get("schema_version") != 1 or not reconciliation.get("reconciliation_id"):
         return False
+    production_contract = cached.get("production_contract")
+    if not isinstance(production_contract, dict) or production_contract.get("schema_version") != 1 or not production_contract.get("contract_id"):
+        return False
+    if production_contract.get("campaign_id") != cached.get("campaign_id"):
+        return False
+    if production_contract.get("source_hash") != cached.get("source_hash"):
+        return False
+    if production_contract.get("brain_id") != brain.get("brain_id") or production_contract.get("reconciliation_id") != reconciliation.get("reconciliation_id"):
+        return False
     critic = cached.get("campaign_critic")
     if not isinstance(critic, dict) or not critic.get("critic_id"):
         return False

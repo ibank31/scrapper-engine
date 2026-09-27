@@ -309,6 +309,7 @@ class CampaignAITests(unittest.TestCase):
                 "campaign_brain": {"schema_version": 1, "brain_id": "brain-v1:test", "source_hash": "source-hash", "rules": [], "evidence": {"schema_version": 1}},
                 "campaign_reconciliation": {"schema_version": 1, "campaign_id": None, "brain_id": "brain-v1:test", "critic_id": "critic-v1:test", "source_hash": "source-hash", "reconciliation_id": "reconciliation-v1:test"},
                 "campaign_critic": {"schema_version": 1, "campaign_id": None, "brain_id": "brain-v1:test", "source_hash": "source-hash", "critic_id": "critic-v1:test"},
+                "production_contract": {"schema_version": 1, "contract_id": "production-contract-v1:test", "campaign_id": None, "source_hash": "source-hash", "brain_id": "brain-v1:test", "reconciliation_id": "reconciliation-v1:test"},
                 "evidence_contract": {"schema_version": 1, "verified": [], "unverified": []},
                 "rules": {"material_policy": {}},
             }),
