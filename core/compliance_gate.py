@@ -428,9 +428,10 @@ def compile_compliance_gate(
         "campaign_reconciliation": reconciliation, "production_contract": production,
         "material_plan": material, "clip_strategy": clip, "posting_package": posting,
     }
-    source_identity = {"id": str(source.get("id") or ""), "source_hash": str(source.get("source_hash") or "")}
     issues: list[dict[str, Any]] = []
-    issues.extend(_check_identity_and_schema(artifacts, source_identity))
+    # Keep the full campaign source here: source_fingerprint() is derived from
+    # its rule-bearing text, not from the campaign ID alone.
+    issues.extend(_check_identity_and_schema(artifacts, source))
     issues.extend(_check_provenance_chain(evidence, brain, critic, reconciliation, production, material, clip, posting))
     issues.extend(_check_statuses(brain, critic, reconciliation, production, material, clip, posting))
     issues.extend(_check_requirement_preservation(brain, reconciliation, production, material, clip, posting))
