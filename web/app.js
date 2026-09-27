@@ -254,9 +254,11 @@ function renderReviewGuide() {
   '</div></details>';
 }
 
+function renderOperations(preview) {
   const operations = Array.isArray(preview.operations) ? preview.operations : [];
   if (!operations.length) return "";
-  return '<section class="review-section delivery-section"><div class="section-label">PENGIRIMAN</div><div class="safe-note"><strong>Persetujuan tetap menjadi syarat pengiriman.</strong><span>Buffer hanya menerima versi video, caption, dan aturan yang sudah disetujui.</span></div>
+  return '<section class="review-section delivery-section"><div class="section-label">PENGIRIMAN</div>' +
+    '<div class="safe-note buffer-safe-note"><strong>Persetujuan tetap menjadi syarat pengiriman.</strong><span>Buffer hanya menerima versi video, caption, dan aturan yang sudah disetujui.</span></div>' +
     operations.map((operation) =>
       '<div class="delivery-row"><div><strong>' + escapeHtml(operation.channel_id || "Channel") + '</strong><span>' + escapeHtml(friendlyOperation(operation.provider_state)) + '</span></div>' +
       '<div class="delivery-actions">' +
