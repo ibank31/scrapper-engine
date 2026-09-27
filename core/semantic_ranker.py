@@ -12,6 +12,9 @@ import re
 from typing import Any
 
 
+_LLM_CACHE = None
+_LLM_CACHE_PATH = ""
+
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -157,7 +160,11 @@ def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple
     except ImportError:
         return None, "llama_cpp_unavailable"
     try:
-        llm = Llama(model_path=model_path, n_ctx=8192, n_threads=max(1, int(os.environ.get("CLIPPER_SEMANTIC_THREADS", "4"))), verbose=False)
+        global _LLM_CACHE, _LLM_CACHE_PATH
+        if _LLM_CACHE is None or _LLM_CACHE_PATH != model_path:
+            _LLM_CACHE = Llama(model_path=model_path, n_ctx=8192, n_threads=max(1, int(os.environ.get("CLIPPER_SEMANTIC_THREADS", "4"))), verbose=False)
+            _LLM_CACHE_PATH = model_path
+        llm = _LLM_CACHE
         prompt_data = {
             "campaign_rules": _rules(plan),
             "candidates": [
