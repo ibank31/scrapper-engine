@@ -649,7 +649,7 @@ export default {
         return json({ job: row });
       }
       if (parts[1] === "jobs" && parts[2] && parts[3] === "previews" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id,job_id,rank,status,tier,candidate_id,source_asset_id,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,platform,platform_profile_json,subtitle_delivery_json,sound_tags_json,approval_artifact_hash,approval_caption_revision_id,approval_rules_hash,approval_review_contract_id,approval_compliance_gate_id,rules_summary_id,checklist_json,review_reason,reviewed_by,reviewed_at,review_contract_json,parent_preview_id,revision_number,render_revision,superseded_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
+        const result = await env.DB.prepare("SELECT id,job_id,rank,status,tier,candidate_id,source_asset_id,source_hash,video_key,review_video_key,thumbnail_key,download_url,validation_json,caption_draft,caption_revision_id,caption_hash,artifact_hash,distinctness_json,platform,platform_profile_json,subtitle_delivery_json,sound_tags_json,approval_artifact_hash,approval_caption_revision_id,approval_rules_hash,approval_review_contract_id,approval_compliance_gate_id,rules_summary_id,checklist_json,review_reason,reviewed_by,reviewed_at,review_contract_json,parent_preview_id,revision_number,render_revision,superseded_at,created_at FROM previews WHERE job_id = ? ORDER BY rank").bind(parts[2]).all();
         const previews = await Promise.all((result.results || []).map(async (preview) => ({
           ...preview,
           validation: parseJson(preview.validation_json, {}),
