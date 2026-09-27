@@ -26,7 +26,7 @@ The package identity is derived from:
 - Optional unresolved fields produce `review` where appropriate and never become mandatory.
 - Native or otherwise non-deterministic actions are represented as `manual_actions` / `manual_required`; the compiler never claims execution.
 - No publication timestamp is invented.
-- Every mandatory posting field must carry verified evidence IDs and the current source hash for `provenance_coverage=1.0`.
+- Every mandatory posting field, including explicit campaign fallbacks, must carry verified evidence IDs and the current source hash. Campaign fallback provenance is supplied through `posting_provenance` or `provenance`; absent evidence blocks the package.
 - Inputs are read-only and legacy `rules` remains in the normalized envelope.
 
 ## Status
