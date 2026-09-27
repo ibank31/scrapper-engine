@@ -110,7 +110,21 @@ CA-05 deterministically compiles the CA-04 Material Contract into a provenance-p
 
 ## CA-06 — Campaign-aware Clip Strategy (PASS / CLOSED)
 
-CA-06 deterministically compiles the Production Contract and Material Plan into an additive, provenance-preserving clip strategy. It selects only verified/acquired/ready material, keeps missing timestamps unresolved, preserves platform and duration constraints, and makes fallback activation explicit. PR #53 merged at main SHA `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`; PR checks, Cloudflare Pages, post-merge tests, phase5 acceptance, and Ryan acceptance passed. See `docs/CA06_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca06.py`. Limitation: segment localization without structured timestamps remains downstream/manual review. Next milestone is CA-07; do not implement it in this slice.
+CA-06 deterministically compiles the Production Contract and Material Plan into an additive, provenance-preserving clip strategy. It selects only verified/acquired/ready material, keeps missing timestamps unresolved, preserves platform and duration constraints, and makes fallback activation explicit. PR #53 merged at main SHA `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`; PR checks, Cloudflare Pages, post-merge tests, phase5 acceptance, and Ryan acceptance passed. See `docs/CA06_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca06.py`. Limitation: segment localization without structured timestamps remains downstream/manual review.
+
+## CA-08 — Final Campaign Compliance Gate (PASS / CLOSED)
+
+CA-08 adds a deterministic, provenance-aware final compliance verifier over the complete intelligence chain from Evidence through Posting Package. It validates stage schemas and identities, source freshness, provenance, mandatory requirement preservation, platform scope, content-restriction preservation, material readiness, and deterministic cached-gate freshness. The gate is read-only: no new policy, LLM call, renderer/publisher change, Buffer mutation, or D1 mutation.
+
+The normalized intelligence envelope persists `compliance_gate` additively. The sync worker validates a cached CA-08 gate when present while preserving readability of older CA-07 envelopes without forcing a global migration.
+
+PR #55 merged at main SHA `467e091ae3ea5ea1ed9bb7118662874511dfacd7`. Final GitHub Actions run `36296398152` passed the full 289-test regression suite, bounded CA-08 acceptance, compile/dependency checks, semantic fixture, artifact upload, and both Node syntax checks. The latest CA-08 Cloudflare preview on commit `58901644b37366fe17f3909b4de319451b2d42c9` deployed successfully. Production deployment `bf77f27f-8cee-4540-a117-007bd28457e0` was active on the CA-08 merge commit before documentation synchronization; the current production deployment is the documentation-synchronized main commit.
+
+See `docs/CA08_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca08.py`.
+
+## Next exact slice
+
+**CA-09 — Indonesian Human Review Layer.**
 
 ## CA-07 — Posting Package Compiler (PASS / CLOSED)
 
