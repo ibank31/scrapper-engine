@@ -2,8 +2,8 @@
 
 **Updated:** 27 September 2026
 **Repository:** `ibank31/scrapper-engine`
-**Branch:** `feat/ca05-material-intelligence`
-**Latest merged SHA:** `deee8cd4ca3373732b33851e9339aa6e43557bd2` (CA-04 PR #51; PRs #48 and #49 are historical CA-03)
+**Branch:** `feat/ca06-clip-strategy`
+**Latest merged SHA:** `14d49cfbabde15634bfe278bbb739022279dc65c` (CA-05 PR #52; PRs #48 and #49 are historical CA-03)
 
 ## Mission
 
@@ -94,4 +94,8 @@ CA-04 merged in PR #51 at main SHA `deee8cd4ca3373732b33851e9339aa6e43557bd2`. `
 
 ## CA-05 — Material Intelligence (PASS / CLOSED)
 
-CA-05 consumes the CA-04 Material Contract and builds a deterministic, evidence-backed Material Plan. It preserves scope, provenance, explicit fallback policy, deterministic asset identity, lifecycle state, and cache linkage without introducing a new AI call or implementing CA-06 clip strategy. Local bounded acceptance passed with 264 tests and verified missing mandatory material → `blocked`, verified candidate → `ready`, provenance coverage `1.0`, legacy compatibility, and no Buffer/D1 mutation. Current merged main remains `deee8cd4ca3373732b33851e9339aa6e43557bd2` until the CA-05 PR is merged. Next milestone: CA-06 Clip Strategy.
+CA-05 is PASS / CLOSED in merged PR #52 at main SHA `14d49cfbabde15634bfe278bbb739022279dc65c`. It consumes the CA-04 Material Contract and builds a deterministic, evidence-backed Material Plan while preserving scope, provenance, explicit fallback policy, asset identity, lifecycle state, and cache linkage. Local bounded acceptance passed with 264 tests and verified missing mandatory material → `blocked`, verified candidate → `ready`, provenance coverage `1.0`, legacy compatibility, and no Buffer/D1 mutation.
+
+## CA-06 — Campaign-aware Clip Strategy (ACTIVE)
+
+CA-06 consumes the Production Contract and Material Plan and emits additive `clip_strategy` persistence. The compiler is deterministic and read-only: it preserves platform/duration constraints and evidence lineage, selects only usable material, keeps timestamp uncertainty explicit, and never silently activates fallbacks. No renderer, publisher, Buffer mutation, D1 migration, or CA-07 work is included. Run `python scripts/accept_ca06.py` and see `docs/CA06_ACCEPTANCE_CONTRACT.md`.

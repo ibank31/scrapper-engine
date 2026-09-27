@@ -1,7 +1,7 @@
 # Scrapper Engine — Current Status
 
 **Updated:** 27 September 2026
-**Branch:** `feat/ca05-material-intelligence`
+**Branch:** `feat/ca06-clip-strategy`
 **Current direction:** Campaign Agent; clipping adalah vertical pertama
 **Production:** Cloudflare Pages `clipper-engine`
 
@@ -19,7 +19,7 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-Current merged `main`: `deee8cd4ca3373732b33851e9339aa6e43557bd2` (CA-04 PR #51). CA-00 → CA-03 historical acceptance remains recorded in the milestone sections below. CA-05 is the active implementation slice.
+Current merged `main`: `14d49cfbabde15634bfe278bbb739022279dc65c` (CA-05 PR #52). CA-00 → CA-05 acceptance remains recorded in the milestone sections below. CA-06 is the active implementation slice.
 
 **Foundation chain verified:** CA-00 → CA-01 → CA-02 is executable, integrated, and has controlled production acceptance evidence. This proves the intelligence foundation, not the complete downstream Campaign Agent.
 
@@ -106,4 +106,8 @@ Focused CA-04 matrix and CA-00–CA-03 regressions pass. Bounded acceptance is a
 
 ## CA-05 — Material Intelligence (PASS / CLOSED)
 
-CA-05 deterministically compiles the CA-04 Material Contract into a provenance-preserving material plan. Local acceptance on this branch passed with **264 tests**, compile/dependency/diff checks, and `python scripts/accept_ca05.py`. The bounded fixture verified `MATERIAL_PLAN_PRESENT=true`, missing mandatory material → `blocked`, a verified candidate → `ready`, provenance coverage `1.0`, legacy compatibility, cache invalidation, `BUFFER_PUBLISHING_MUTATION=NONE`, and `MANUAL_D1_MUTATION=NONE`. Current merged main remains `deee8cd4ca3373732b33851e9339aa6e43557bd2` until the CA-05 PR is merged. Next milestone after CA-05 is CA-06 Clip Strategy.
+CA-05 deterministically compiles the CA-04 Material Contract into a provenance-preserving material plan. It is merged in PR #52 at main SHA `14d49cfbabde15634bfe278bbb739022279dc65c`. The bounded fixture verified missing mandatory material → `blocked`, a verified candidate → `ready`, provenance coverage `1.0`, legacy compatibility, cache invalidation, and no Buffer/D1 mutation.
+
+## CA-06 — Campaign-aware Clip Strategy (ACTIVE)
+
+CA-06 deterministically compiles the Production Contract and Material Plan into an additive, provenance-preserving clip strategy. It selects only verified/acquired/ready material, keeps missing timestamps unresolved, preserves platform and duration constraints, and makes fallback activation explicit. It does not render, download, publish, mutate Buffer, or mutate D1. See `docs/CA06_ACCEPTANCE_CONTRACT.md` and `scripts/accept_ca06.py`.
