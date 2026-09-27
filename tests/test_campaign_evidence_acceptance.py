@@ -35,7 +35,15 @@ def current_cache(campaign_id="cached"):
                 "campaign_id": campaign_id,
                 "source_hash": "source-hash",
                 "brain_id": "brain-v1:test",
+                "critic_id": "critic-v1:test",
                 "reconciliation_id": "reconciliation-v1:test",
+            },
+            "campaign_critic": {
+                "schema_version": 1,
+                "campaign_id": campaign_id,
+                "source_hash": "source-hash",
+                "brain_id": "brain-v1:test",
+                "critic_id": "critic-v1:test",
             },
             "evidence_contract": {
                 "schema_version": 1,
@@ -166,6 +174,13 @@ class CampaignEvidenceAcceptanceTests(unittest.TestCase):
         payload.pop("campaign_reconciliation")
         missing_reconciliation["ai_rules_json"] = json.dumps(payload)
         self.assertFalse(_cache_is_current(missing_reconciliation, rh))
+
+        mismatched_identity = current_cache("cached")
+        mismatched_identity["rules_hash"] = rh
+        payload = json.loads(mismatched_identity["ai_rules_json"])
+        payload["campaign_reconciliation"]["critic_id"] = "critic-v1:wrong"
+        mismatched_identity["ai_rules_json"] = json.dumps(payload)
+        self.assertFalse(_cache_is_current(mismatched_identity, rh))
 
     def test_targeted_migration_only_sends_requested_campaign_to_ai(self):
         campaigns = [

@@ -238,6 +238,17 @@ class CampaignReconciliationTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertIn("critic_brain_id_mismatch", result["integrity_errors"])
 
+    def test_brain_marked_semantic_ambiguity_remains_explicit(self):
+        campaign = {"id": "brain-ambiguity", "description": "Use either a 1:1 or 9:16 crop."}
+        ev = evidence(campaign, "rules.aspect_ratio", "Use either a 1:1 or 9:16 crop.")
+        ambiguous_rule = rule("rules.aspect_ratio", "1:1 or 9:16", ev)
+        ambiguous_rule["interpretation_type"] = "ambiguous"
+        contract, brain, critic = make_inputs(campaign, [ambiguous_rule], evidence_items=[ev])
+        result = reconcile_campaign_rules(campaign, contract, brain, critic)
+        self.assertEqual(result["status"], "review")
+        self.assertEqual(result["rules"][0]["resolution"]["status"], "unresolved")
+        self.assertTrue(any(item["kind"] == "brain_semantic_ambiguity" for item in result["conflicts"]))
+
     def test_real_critic_findings_are_all_accounted_for(self):
         campaign = {"id": "critic-chain", "description": "Duration must be 15 seconds."}
         ev = evidence(campaign, "rules.duration", "Duration must be 15 seconds.")

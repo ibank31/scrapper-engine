@@ -112,6 +112,8 @@ jobs:
           assert reconciliation["critic_id"] == critic["critic_id"]
           assert reconciliation["status"] in {"resolved", "review", "blocked"}
           assert all(rule["evidence_ids"] and rule["source_references"] for rule in reconciliation["rules"]), reconciliation["rules"]
+          conflict_ids = {item["conflict_id"] for item in reconciliation["conflicts"]}
+          assert all(set(rule.get("conflict_ids", [])) <= conflict_ids for rule in reconciliation["rules"])
           critic_finding_ids = {item["finding_id"] for item in critic["findings"]}
           reconciled_finding_ids = {item["finding_id"] for item in reconciliation["findings"]}
           assert critic_finding_ids == reconciled_finding_ids, (critic_finding_ids, reconciled_finding_ids)

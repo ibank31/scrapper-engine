@@ -153,7 +153,23 @@ def reconcile_campaign_rules(
     evidence_by_id = _evidence_index(evidence_contract, brain)
     findings = [item for item in critic.get("findings") or [] if isinstance(item, dict)]
     integrity_errors = []
-    if str(brain.get("campaign_id") or campaign_id) != campaign_id:
+    if not evidence_contract.get("source_hash"):
+        integrity_errors.append("missing_evidence_source_hash")
+    if not source_hash:
+        integrity_errors.append("missing_source_hash")
+    if not brain_id:
+        integrity_errors.append("missing_brain_id")
+    if not critic_id:
+        integrity_errors.append("missing_critic_id")
+    if not brain.get("campaign_id"):
+        integrity_errors.append("missing_brain_campaign_id")
+    if not critic.get("brain_id"):
+        integrity_errors.append("missing_critic_brain_id")
+    if not critic.get("source_hash"):
+        integrity_errors.append("missing_critic_source_hash")
+    if evidence_contract.get("campaign_id") is not None and str(evidence_contract.get("campaign_id")) != campaign_id:
+        integrity_errors.append("evidence_campaign_id_mismatch")
+    if str(brain.get("campaign_id") or "") != campaign_id:
         integrity_errors.append("brain_campaign_id_mismatch")
     if critic.get("campaign_id") is not None and str(critic.get("campaign_id")) != campaign_id:
         integrity_errors.append("critic_campaign_id_mismatch")
