@@ -133,15 +133,19 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
         if _contains(full_text, *terms):
             prohibited.append(label)
 
-    tags = sorted(set(re.findall(r"@[A-Za-z0-9_.-]+", full_text)))
-    ai_handles = [str(x) for x in (ai_rule_set.get("handles") or []) if x]
+    def is_real_handle(value: Any) -> bool:
+        text = str(value or "").strip()
+        return bool(re.fullmatch(r"@[A-Za-z0-9_.-]{1,64}", text)) and set(text[1:]) != {"."} and not text.startswith("@.....")
+
+    tags = sorted(set(handle for handle in re.findall(r"@[A-Za-z0-9_.-]+", full_text) if is_real_handle(handle)))
+    ai_handles = [str(x) for x in (ai_rule_set.get("handles") or []) if is_real_handle(x)]
     ai_hashtags = [str(x) for x in (ai_rule_set.get("hashtags") or []) if x]
     platform_handles: dict[str, list[str]] = {}
     for match in re.finditer(r"@([A-Za-z0-9_.-]+)\\s+for\\s+(Instagram|TikTok|YouTube)", full_text, re.I):
         handle = "@" + match.group(1)
         platform = match.group(2).lower()
         platform_handles.setdefault(platform, [])
-        if handle not in platform_handles[platform]:
+        if is_real_handle(handle) and handle not in platform_handles[platform]:
             platform_handles[platform].append(handle)
     ai_disclosures = [str(x) for x in (ai_rule_set.get("disclosures") or []) if x]
     topic_terms = [str(x).strip().lower() for x in (ai_rule_set.get("topic_terms") or []) if str(x).strip()]
@@ -218,6 +222,7 @@ def compile_plan(detail: dict[str, Any]) -> dict[str, Any]:
         "posting_rules": [str(x) for x in (ai_rule_set.get("posting_rules") or []) if x],
         "account_rules": [str(x) for x in (ai_rule_set.get("account_rules") or []) if x],
         "cta_text": ai_rule_set.get("cta_text"),
+        "unresolved_cta": ([str(ai_rule_set.get("cta_text")).strip()] if ai_rule_set.get("cta_text") and "@" in str(ai_rule_set.get("cta_text")) and "....." in str(ai_rule_set.get("cta_text")) else []),
         "audience_tiers": ai_rule_set.get("audience_tiers") if isinstance(ai_rule_set.get("audience_tiers"), dict) else {},
         "platform_rules": ai_rule_set.get("platform_rules") if isinstance(ai_rule_set.get("platform_rules"), dict) else {},
         "sound_policy": str(ai_rule_set.get("sound_policy") or ("manual_required" if official_audio_required else "unsupported")),
