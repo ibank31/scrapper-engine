@@ -304,7 +304,6 @@ function renderReviewWorkspace() {
   const pendingRender = preview.status === "pending_render";
   const editable = ["pending_review", "changes_requested"].includes(preview.status);
 
-  releaseVideoPreview();
 
   inbox.classList.add("hidden");
   container.classList.remove("hidden");
