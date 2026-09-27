@@ -28,6 +28,7 @@ class ReviewContractTests(unittest.TestCase):
             "status": "pending_review",
             "candidate_id": "candidate-1",
             "source_asset_id": "asset-1",
+            "source_hash": "source-hash-1",
             "artifact_hash": "artifact-1",
             "caption_draft": "Caption",
             "caption_revision_id": "caption-1",
@@ -41,10 +42,27 @@ class ReviewContractTests(unittest.TestCase):
         contract = compile_review_contract(self.gate, self.preview)
         self.assertEqual(contract["decision_state"], "ready_for_review")
         self.assertEqual(contract["summary"]["label"], "Perlu diperiksa")
-        self.assertTrue(contract["review_actions"]["approve"])
+        self.assertFalse(contract["review_actions"]["approve"])
+        self.assertFalse(contract["submission_ready"])
         self.assertTrue(contract["review_actions"]["reject"])
         self.assertTrue(contract["review_actions"]["request_changes"])
         self.assertEqual(contract["exceptions"][0]["label"], "Ada bagian aturan campaign yang perlu diperhatikan.")
+
+    def test_unknown_source_identity_is_not_a_pass(self):
+        preview = copy.deepcopy(self.preview)
+        preview["source_asset_id"] = "unknown-source"
+        contract = compile_review_contract(self.gate, preview)
+        identity = next(item for item in contract["checks"] if item["id"] == "video_identity")
+        self.assertEqual(identity["status"], "review")
+        self.assertFalse(contract["review_actions"]["approve"])
+
+    def test_mandatory_checklist_without_output_evidence_requires_review(self):
+        preview = copy.deepcopy(self.preview)
+        preview["checklist"] = ["MANDATORY campaign requirement: Include demographic information"]
+        contract = compile_review_contract(self.gate, preview)
+        check = next(item for item in contract["checks"] if item["id"] == "mandatory_requirements")
+        self.assertEqual(check["status"], "review")
+        self.assertFalse(contract["review_actions"]["approve"])
 
     def test_blocked_compliance_cannot_be_approved(self):
         gate = copy.deepcopy(self.gate)
