@@ -148,6 +148,8 @@ def upload_r2(api_base: str, job_id: str, token: str, path: str, key: str, conte
     headers = {"x-worker-token": token}
     dispatch_token = os.environ.get("CLIPPER_DISPATCH_TOKEN")
     if dispatch_token: headers["x-dispatch-token"] = dispatch_token
+    github_token = os.environ.get("GITHUB_ACTIONS_TOKEN")
+    if github_token: headers["x-github-token"] = github_token
     claim_token = os.environ.get("CLIPPER_CLAIM_TOKEN")
     if claim_token: headers["x-claim-token"] = claim_token
     max_attempts = max(1, int(os.environ.get("CLIPPER_UPLOAD_RETRIES", "3")))
