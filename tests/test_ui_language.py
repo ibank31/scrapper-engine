@@ -24,6 +24,13 @@ class UILanguageTests(unittest.TestCase):
         self.assertIn("review-guide", HTML)
         self.assertIn("buffer-safe-note", APP)
 
+    def test_review_playback_keeps_loaded_state_and_refreshes_media_url(self):
+        self.assertIn('state.videoLoaded = true;', APP)
+        self.assertIn('/api/jobs/" + encodeURIComponent(preview.job_id) + "/previews', APP)
+        self.assertNotIn('releaseVideoPreview();\n\n  inbox.classList.add("hidden");', APP)
+        self.assertIn('video.load();', APP)
+        self.assertIn('await video.play();', APP)
+
     def test_technical_status_is_not_primary_review_copy(self):
         self.assertIn("Pemeriksaan dasar lolos", APP)
         self.assertIn("Status pengiriman Buffer", APP)
