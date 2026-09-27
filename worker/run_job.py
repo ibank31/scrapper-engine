@@ -312,7 +312,7 @@ def main() -> None:
         ai_conf = float(((plan.get("ai_rules") or {}).get("confidence") or 0) or 0)
         ai_ambiguities = (plan.get("ai_rules") or {}).get("ambiguities") or []
         critical = sum(1 for x in ai_ambiguities if "critical" in str(x).lower())
-        if ai_status in {"fail", "rejected", "blocked"} or critical > 0:
+        if ai_status in {"fail", "rejected", "blocked"} or (critical > 0 and not render_only_without_compliance):
             update(
                 args.api_base,
                 args.job_id,
