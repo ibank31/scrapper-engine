@@ -35,7 +35,7 @@ def _platforms(detail: dict[str, Any]) -> list[str]:
 def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], source_of_truth: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Normalize platform applicability without making provider calls."""
     platform_rules = production.get("platform_rules") if isinstance(production.get("platform_rules"), dict) else {}
-    global_required_handles = _values(production.get("required_handles"))
+    global_required_handles = [value for value in _values(production.get("required_handles")) if re.fullmatch(r"@[A-Za-z0-9_.-]{1,64}", value) and "....." not in value]
     platform_handle_overrides = production.get("platform_handles") if isinstance(production.get("platform_handles"), dict) else {}
     if not platform_handle_overrides:
         # Backward-compatible recovery for persisted plans compiled before
@@ -49,7 +49,9 @@ def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], 
                 platform_handle_overrides[platform].append(match.group(1))
     global_hashtags = _values(production.get("hashtags"))
     global_disclosures = _values(production.get("disclosures"))
-    global_cta = _values(production.get("cta_urls")) + _values(production.get("cta_text"))
+    raw_cta = _values(production.get("cta_urls")) + _values(production.get("cta_text"))
+    global_cta = [value for value in raw_cta if not ("@....." in value or ("@" in value and "....." in value))]
+    unresolved_cta = [value for value in raw_cta if value not in global_cta]
     global_prohibited = _values(production.get("prohibited"))
     required_phrases = []
     for item in source_of_truth.get("normalized_requirements") or []:
@@ -70,6 +72,7 @@ def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], 
             "suggested_hashtags": _values(override.get("suggested_hashtags")),
             "required_disclosures": _values(override.get("required_disclosures", global_disclosures)),
             "cta": _values(override.get("cta", global_cta)),
+            "unresolved_cta": unresolved_cta,
             "required_phrases": _values(override.get("required_phrases", required_phrases)),
             "prohibited_terms": _values(override.get("prohibited_terms", global_prohibited)),
             "caption_limit": int(override.get("caption_limit", default["caption_limit"])),
