@@ -287,16 +287,28 @@ def semantic_model_decision(candidates: list[dict[str, Any]], plan: dict[str, An
 
 
 def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any], semantic_limit: int = 15) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Cheap-rank globally, then run the local semantic model only for ambiguous cases."""
+    """Cheap-rank globally, then run the local semantic model on one candidate at a time.
+
+    The production Qwen model is small enough that batched structured JSON can
+    become malformed or return the wrong number of objects. Single-candidate
+    calls make the contract unambiguous while the cached model keeps startup
+    cost bounded.
+    """
     prepared = [dict(item) for item in candidates]
     prepared.sort(key=lambda x: (-float(x.get("score") or 0), float(x.get("start") or 0)))
 
     use_semantic, decision_reason = semantic_model_decision(prepared, plan, semantic_limit)
     if use_semantic:
         shortlist = prepared[:max(1, int(semantic_limit))]
-        for index, item in enumerate(shortlist, 1):
+        ranked_shortlist: list[dict[str, Any]] = []
+        model_runtimes: list[dict[str, Any]] = []
+        for index, candidate in enumerate(shortlist, 1):
+            item = dict(candidate)
             item["rank"] = index
-        ranked_shortlist, runtime = rank_candidates_with_metadata(shortlist, plan)
+            ranked_one, one_runtime = rank_candidates_with_metadata([item], plan)
+            ranked_shortlist.extend(ranked_one)
+            model_runtimes.append(one_runtime)
+
         by_key = {
             (str(item.get("source") or ""), round(float(item.get("start") or 0), 3), round(float(item.get("end") or 0), 3)): item
             for item in ranked_shortlist
@@ -320,12 +332,24 @@ def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any
                 item["semantic"] = local
                 item["score"] = round(float(item.get("score") or 0) * 0.65 + float(local.get("semantic_score") or 0) / 100 * 0.35, 4)
                 merged.append(item)
-        runtime = dict(runtime)
-        runtime["scope"] = "global"
-        runtime["shortlist_limit"] = max(1, int(semantic_limit))
-        runtime["candidate_count"] = len(candidates)
-        runtime["decision"] = "semantic_required"
-        runtime["decision_reason"] = decision_reason
+
+        model_fallbacks = [
+            str(runtime.get("fallback_reason") or "")
+            for runtime in model_runtimes
+            if runtime.get("fallback_used")
+        ]
+        runtime = {
+            "schema_version": 1,
+            "engine": "qwen" if not model_fallbacks else "deterministic",
+            "fallback_used": bool(model_fallbacks),
+            "fallback_reason": model_fallbacks[0] if model_fallbacks else None,
+            "candidate_count": len(candidates),
+            "scope": "global_single_candidate",
+            "shortlist_limit": max(1, int(semantic_limit)),
+            "decision": "semantic_required",
+            "decision_reason": decision_reason,
+            "per_candidate_fallbacks": model_fallbacks[:5],
+        }
     else:
         merged = []
         for original in prepared:
@@ -356,7 +380,6 @@ def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any
         if isinstance(item.get("semantic"), dict):
             item["semantic"]["rank"] = index
     return merged, runtime
-
 
 def rank_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
     """Backward-compatible ranking API; use rank_candidates_with_metadata for diagnostics."""
