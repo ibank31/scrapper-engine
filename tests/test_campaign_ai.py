@@ -263,6 +263,29 @@ class CampaignAITests(unittest.TestCase):
         self.assertEqual(result["evidence_contract"]["coverage"], 1.0)
         self.assertEqual(result["evidence_contract"]["unverified"], [])
 
+    def test_normalize_reconciles_mutated_cta_annotation_to_verified_source_quote(self):
+        campaign = {
+            "id": "cta-annotated-source",
+            "description": "Follow and meet Alex for more @.....",
+        }
+        item = {
+            "campaign_fit": {"score": 1, "label": "high", "reason": "matches"},
+            "rules": {"cta_required": True, "cta_text": "Follow and meet Alex for more @alex"},
+            "rule_annotations": [{
+                "rule_path": "rules.cta_text",
+                "value": "Follow and meet Alex for more @alex (Instagram)",
+                "requirement_level": "mandatory",
+                "interpretation_type": "explicit",
+                "scope": {"platforms": [], "languages": [], "audiences": []},
+            }],
+            "evidence": [{"rule_path": "rules.cta_text", "quote": "Follow and meet Alex for more @....."}],
+            "confidence": 0.9,
+        }
+        result = normalize_ai_result(item, "cta-annotated-source", campaign)
+        cta_rule = next(rule for rule in result["campaign_brain"]["rules"] if rule["source_rule_path"] == "rules.cta_text")
+        self.assertEqual(cta_rule["value"], "Follow and meet Alex for more @.....")
+        self.assertTrue(cta_rule["evidence_ids"])
+
 
     def test_legacy_campaign_ai_cache_is_stale_without_evidence_contract(self):
         campaign_hash = "same-rules-hash"
