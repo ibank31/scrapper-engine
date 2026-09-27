@@ -826,6 +826,8 @@ async function loadJobs(options = {}) {
       state.jobs = response.jobs || [];
     }
     state.reviews = [];
+    const visibleJobs = state.jobs.filter((job) => ["queued", "processing", "review", "blocked", "error"].includes(job.status)).slice(0, 8);
+    await Promise.all(visibleJobs.map(loadStageData));
     const jobsToLoad = state.jobs.filter((job) => ["review"].includes(job.status));
     const groups = await Promise.all(jobsToLoad.map((job) => loadPreviews(job)));
     state.reviews = groups.flat();
@@ -863,6 +865,7 @@ function renderJobs() {
       '<p>' + escapeHtml(stage.detail) + '</p>' +
       '<div class="progress-row"><div class="progress"><i style="width:' + progress + '%"></i></div><b>' + progress + '%</b></div>' +
       (job.error ? '<div class="job-alert">' + escapeHtml(friendlyError(job.error)) + '</div>' : '') +
+      stageLabels(job) +
       '<div class="job-bottom"><span>' + escapeHtml(formatAge(job.updated_at || job.created_at)) + '</span>' + ((job.status === "queued" || job.status === "processing") ? '<button class="link-button danger-link" data-stop-job="' + escapeHtml(job.id) + '" type="button">Hentikan</button>' : '') + (job.status === "review" ? '<button class="link-button" data-open-job-review="' + escapeHtml(job.id) + '" type="button">Buka review →</button>' : '') + '</div>' +
       '</div></article>';
   }).join("") || '<div class="empty-work"><div class="empty-icon">◷</div><h2>Belum ada proses</h2><p>Pilih campaign untuk memulai pekerjaan.</p></div>';
@@ -969,20 +972,6 @@ function loadStageData(job) {
   if (cfg.DEMO_MODE || String(job.id).startsWith("local-")) return Promise.resolve();
   return api("/api/jobs/" + encodeURIComponent(job.id) + "/stages").then((response) => { job.stages = response.stages || []; }).catch(() => {});
 }
-
-const originalRenderJobs = renderJobs;
-renderJobs = function wrappedRenderJobs() {
-  state.jobs.filter((job) => ["queued", "processing", "review", "blocked", "error"].includes(job.status)).slice(0, 8).forEach(loadStageData);
-  originalRenderJobs();
-  state.jobs.forEach((job) => {
-    const card = [...document.querySelectorAll(".job-card")].find((node) => node.textContent.includes(job.campaign_title || job.campaign_id));
-    if (card) {
-      const content = card.querySelector(".job-content");
-      const detail = stageLabels(job);
-      if (detail && !content.querySelector(".job-detail")) content.insertAdjacentHTML("beforeend", detail);
-    }
-  });
-};
 
 $("#workerStatus").textContent = cfg.DEMO_MODE ? "mode demo" : "pembaruan otomatis aktif";
 loadCampaigns();
