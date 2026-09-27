@@ -2,7 +2,7 @@
 
 CA-06 is PASS / CLOSED. PR #53 merged at `ce3ae8f2116e34ec8f8e702f8deb4cc45bcc76bb`; documentation closure and handoff synchronization followed on main. The deterministic compiler emits additive `clip_strategy` intelligence linked to campaign, source, Brain, reconciliation, Production Contract, and Material Plan identities. It preserves platform and duration constraints, only selects verified/acquired/ready material, retains evidence lineage, leaves timestamps unresolved when absent, and never silently activates authorized fallbacks. Rendering, downloading, posting, Buffer, D1, and CA-07 remain out of scope.
 
-**Current main after documentation synchronization:** `a9f4d1b608973f298803cb98fe00041ef164b28d`.
+**Current main after documentation synchronization:** `baa61b849e03bbe0c425b31b63fa8b3051b1ad43`.
 
 ## Historical CA-06 implementation note
 
