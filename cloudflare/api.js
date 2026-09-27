@@ -97,9 +97,11 @@ async function cleanupAuthorized(request, env) {
 async function workerOrDispatchAuthorized(request, env, jobId) {
   if (workerAuthorized(request, env)) return true;
   const dispatchToken = request.headers.get("x-dispatch-token") || "";
-  if (!dispatchToken) return false;
-  const job = await env.DB.prepare("SELECT dispatch_token FROM jobs WHERE id=?").bind(jobId).first();
-  return Boolean(job && job.dispatch_token && job.dispatch_token === dispatchToken);
+  if (dispatchToken) {
+    const job = await env.DB.prepare("SELECT dispatch_token FROM jobs WHERE id=?").bind(jobId).first();
+    if (job && job.dispatch_token && job.dispatch_token === dispatchToken) return true;
+  }
+  return githubRepositoryAuthorized(request, env);
 }
 async function executionAuthorized(request, env, jobId, body = {}) {
   if (!(await workerOrDispatchAuthorized(request, env, jobId))) return { ok: false, error: "worker_unauthorized", status: 401 };
