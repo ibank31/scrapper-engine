@@ -142,7 +142,7 @@ class SemanticRankerTest(unittest.TestCase):
             "output_contract": {"tier_allocation": {"tier_1": 1, "tier_2": 1}},
         }
         candidates = [
-            {"candidate_id": f"c-{i}", "tier": "tier_1" if i < 6 else "tier_2", "source_asset_id": f"a-{i}", "source_hash": f"h-{i}", "start": i * 30, "end": i * 30 + 20, "duration": 20, "score": 0.90 - i * 0.001, "text": f"Business point {i}."}
+            {"candidate_id": f"c-{i}", "tier": "tier_1" if i < 6 else "tier_2", "source_asset_id": f"a-{i}", "source_hash": f"h-{i}", "start": i * 30, "end": i * 30 + 20, "duration": 20, "score": 0.90 - i * 0.001, "text": f"Business point {i}.", "_relevance_status": "uncertain"}
             for i in range(10)
         ]
         calls = []
