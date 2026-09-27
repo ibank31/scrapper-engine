@@ -19,6 +19,18 @@ class RelevanceTest(unittest.TestCase):
         result = check_candidate(self.plan, {"text": "Here is a useful story with a clear lesson."})
         self.assertEqual(result["status"], "uncertain")
 
+    def test_validated_semantic_pass_resolves_literal_uncertainty(self):
+        plan = {"campaign": {"title": "Ryan Zofay", "brand": "Ryan Zofay"}, "ai_rules": {"rules": {"topic_terms": ["business", "leadership"]}}}
+        candidate = {"text": "This is a powerful lesson about purpose.", "semantic": {"engine": "qwen", "fallback_used": False, "campaign_relevance": "pass", "decision": "render"}}
+        result = check_candidate(plan, candidate)
+        self.assertEqual(result["status"], "pass")
+
+    def test_semantic_pass_cannot_override_competing_topic(self):
+        plan = {"campaign": {"title": "Ryan Zofay", "brand": "Ryan Zofay"}, "ai_rules": {"rules": {"topic_terms": ["business"]}}}
+        candidate = {"text": "roblox gameplay", "semantic": {"engine": "qwen", "fallback_used": False, "campaign_relevance": "pass", "decision": "render"}}
+        result = check_candidate(plan, candidate)
+        self.assertEqual(result["status"], "blocked")
+
     def test_forgegui_roblox_topic_passes(self):
         plan = {"campaign": {"title": "ForgeGUI Clipping", "brand": "BloxClips"}, "source_of_truth": {"description": "ForgeGUI is an AI tool for Roblox developers."}}
         result = check_candidate(plan, {"text": "I will sketch my idea in forge G-U-I for my Roblox game and convert it into 3D."})
