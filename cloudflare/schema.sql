@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS previews (
   approval_artifact_hash TEXT,
   approval_caption_revision_id TEXT,
   approval_rules_hash TEXT,
+  approval_review_contract_id TEXT,
+  approval_compliance_gate_id TEXT,
   platform_profile_version TEXT,
   schedule_intent_hash TEXT,
   rules_summary_id TEXT,
