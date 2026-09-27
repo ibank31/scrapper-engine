@@ -25,6 +25,25 @@ class ReviewQueueTest(unittest.TestCase):
         self.assertGreaterEqual(len(checklist), 5)
         self.assertIn("check the final frame", checklist)
 
+    def test_placeholder_account_is_never_emitted_in_caption(self):
+        plan = {
+            "campaign": {"title": "Demo campaign"},
+            "production": {"required_handles": ["@Demo"], "hashtags": ["#Campaign"]},
+            "platform_profiles": {
+                "instagram": {
+                    "version": "platform-profile-v1",
+                    "platform": "instagram",
+                    "required_handles": ["@Demo"],
+                    "cta": [],
+                    "unresolved_cta": ["Follow and meet Ryan for more @....."],
+                    "required_hashtags": ["#Campaign"],
+                }
+            },
+        }
+        metadata = caption_metadata(plan, {"text": "Follow and meet Ryan for more @..... and then continue."})
+        self.assertNotIn("@.....", metadata["caption"])
+        self.assertIn("Follow and meet Ryan for more", metadata["caption"])
+
     def test_mandatory_source_rule_is_visible(self):
         plan = {
             "source_of_truth": {
