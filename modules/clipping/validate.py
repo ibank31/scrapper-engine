@@ -90,7 +90,12 @@ def check_video(path: str, plan: dict | None, relevance: dict | None = None, can
             issues.append("campaign relevance failed: " + str(relevance.get("reason")))
         elif relevance.get("status") == "uncertain":
             review.append("campaign relevance is uncertain; human must verify topic and brand context")
-    status = "fail" if issues else ("needs_review" if review else "pass")
+    # A needs_review result must remain machine-auditable. Keep technical
+    # failures in issues and explicitly surface every manual-review condition
+    # so "needs_review" can never be paired with an empty issue list.
+    if review:
+        issues.extend([f"manual_review_required: {reason}" for reason in review])
+    status = "fail" if issues and not review else ("needs_review" if review else "pass")
     return {
         "path": path,
         "status": status,
