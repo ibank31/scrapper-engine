@@ -1,7 +1,7 @@
 # Scrapper Engine — Current Status
 
 **Updated:** 27 September 2026
-**Branch:** `feat/ca02-campaign-critic`
+**Branch:** `main`
 **Current direction:** Campaign Agent; clipping adalah vertical pertama
 **Production:** Cloudflare Pages `clipper-engine`
 
@@ -19,7 +19,7 @@ Ryan Zofay is a regression case, not the product target.
 
 ## Latest verified repository state
 
-CA-00 and CA-01 implementation are merged on `main` at `b0180f1d96644f3d114c4860be4ba744b76e70b0`.
+CA-00, CA-01, and CA-02 implementation are merged on `main` at `47ab5d11935fe74406ed210a2db122a3d02e5f2d`.
 
 CA-01 production acceptance was verified by GitHub Actions run `36279279316`, including targeted Ryan re-analysis and persisted Campaign Brain verification. Do not claim that every production campaign has been migrated.
 
@@ -38,7 +38,7 @@ Audit limitations retained from the CA-01 handoff:
 
 ## CA-02 status
 
-**Implementation:** complete on the CA-02 branch; controlled production acceptance is pending merge.
+**PASS / CLOSED.**
 
 The deterministic Campaign Critic now:
 
@@ -56,11 +56,15 @@ Local CA-02 verification:
 - full repository suite: **230 passed**;
 - `py_compile`, `compileall`, `pip check`, and `git diff --check`: passed.
 
-Production acceptance is intentionally not claimed until the merged controlled workflow verifies that the critic result persists and contains zero critical findings for the bounded Ryan run.
+Controlled production acceptance passed in GitHub Actions run `36284355791` on the merged main SHA. The `targeted-acceptance` job verified persisted critic/Brain identity and source-hash linkage, legacy compatibility, and zero critical findings without Buffer or publishing mutation.
+
+Observed production result: `CRITIC_STATUS=review`, `CRITIC_FINDINGS=7`, with `CRITICAL=0`. The seven warnings are observable review signals, not silent repairs or execution blockers; their detailed reconciliation remains CA-03 scope.
+
+The same merged SHA also passed `tests` run `36284355788` and `phase5-acceptance` run `36284355798`.
 
 ## Next exact slice
 
-After the CA-02 production gate passes: **CA-03 — Rule Reconciliation.**
+**CA-03 — Rule Reconciliation.**
 
 CA-03 owns resolution of conflicts; CA-02 must remain detection-only.
 

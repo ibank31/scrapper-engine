@@ -2,8 +2,8 @@
 
 **Updated:** 27 September 2026
 **Repository:** `ibank31/scrapper-engine`
-**Branch:** `feat/ca02-campaign-critic`
-**CA-01 main baseline:** `b0180f1d96644f3d114c4860be4ba744b76e70b0`
+**Branch:** `main`
+**Latest main SHA:** `47ab5d11935fe74406ed210a2db122a3d02e5f2d`
 
 ## Mission
 
@@ -25,11 +25,11 @@ Production acceptance: GitHub Actions run `36279279316`, successful `targeted-ac
 
 Do not cite the historical **219 tests** claim as independently verified from CI artifacts. The CA-01 preservation gate also maps critical preservation to mandatory preservation; this remains an accepted baseline limitation.
 
-## Current milestone
+## Closed milestone
 
 ### CA-02 — Campaign Critic
 
-**Implementation complete; production acceptance pending merge.**
+**PASS / CLOSED.**
 
 The critic is deterministic and read-only. It compares source/evidence against the canonical Brain and does not reconcile or mutate it. CA-03 owns conflict resolution.
 
@@ -62,14 +62,17 @@ Findings are stable and serializable with deterministic `finding_id`, exact seve
 - seeded negative tests cover all ten required categories;
 - Brain remains byte-for-byte unchanged by critique.
 
-The controlled workflow has been extended to persist and verify `campaign_critic` for the bounded Ryan acceptance. It will assert Brain/critic identity and source-hash linkage and reject critical findings. No production acceptance claim is made until that merged workflow completes.
+Controlled production acceptance passed in GitHub Actions run `36284355791` on the merged main SHA. The `targeted-acceptance` job verified persisted `campaign_critic`, Brain/critic identity and source-hash linkage, legacy compatibility, and zero critical findings without Buffer or publishing mutation.
 
-## Exact next action
+Observed production result: `CRITIC_STATUS=review`, `CRITIC_FINDINGS=7`, `CRITICAL=0`. Warnings remain observable review signals and are not silently reconciled; resolution belongs to CA-03.
 
-1. Commit and push CA-02 implementation and documentation.
-2. Open/merge the bounded CA-02 pull request without Buffer or publishing mutation.
-3. Verify the controlled Ryan workflow and persisted critic result.
-4. If it passes, close CA-02 and begin **CA-03 — Rule Reconciliation**.
+The same merged SHA passed `tests` run `36284355788` and `phase5-acceptance` run `36284355798`.
+
+## Exact next slice
+
+**CA-03 — Rule Reconciliation.**
+
+CA-03 may consume the seven warning findings, but must not be started as part of the CA-02 closeout.
 
 ## Do not
 
