@@ -53,4 +53,12 @@ def check_candidate(plan: dict, candidate: dict) -> dict:
     competing = [term for term in COMPETING_TERMS if term in text and term not in terms]
     if competing:
         return {"status": "blocked", "matches": competing[:8], "terms": terms[:30], "reason": "candidate contains a clearly competing campaign topic"}
+    semantic = candidate.get("semantic") if isinstance(candidate.get("semantic"), dict) else {}
+    if (
+        semantic.get("engine") == "qwen"
+        and semantic.get("fallback_used") is False
+        and semantic.get("campaign_relevance") == "pass"
+        and semantic.get("decision") in {"render", "review"}
+    ):
+        return {"status": "pass", "matches": ["semantic_model_pass"], "terms": terms[:30], "reason": "semantic model verified campaign relevance; no deterministic competing-topic conflict"}
     return {"status": "uncertain", "matches": [], "terms": terms[:30], "reason": "no literal topic match; render for human relevance review"}
