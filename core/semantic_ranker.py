@@ -170,7 +170,9 @@ def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple
         response = llm.create_chat_completion(
             messages=messages,
             temperature=0.0,
-            max_tokens=1800,
+            # Fifteen structured results from a 1.5B model can exceed 1800 tokens;
+            # truncation was observed as model_invalid_results_count in production.
+            max_tokens=3200,
             response_format={"type": "json_object"},
         )
         content = response["choices"][0]["message"].get("content", "")
