@@ -76,7 +76,7 @@ def main():
     assert any(item["code"] == "stale_source_hash" for item in stale_gate["issues"])
 
     restriction = copy.deepcopy(production)
-    restriction["clip"]["requirements"] = [{"field": "prohibited_content", "value": ["gambling"], "required": True, "scope": {}, "provenance": prov(source_hash=source_hash)}]
+    restriction["clip"]["requirements"] = [{"field": "prohibited_content", "value": ["gambling"], "required": True, "scope": {}, "provenance": prov(source_hash=production["source_hash"])}]
     restriction_clip = copy.deepcopy(clip)
     restriction_clip["constraints"] = []
     restriction_gate = compile_compliance_gate(campaign, evidence, brain, critic, reconciliation, restriction, material, restriction_clip, posting)
