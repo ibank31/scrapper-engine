@@ -63,7 +63,9 @@ def build_platform_profiles(detail: dict[str, Any], production: dict[str, Any], 
             # a production obligation, not literal caption text. Only explicit
             # caption/field phrases belong in required_phrases.
             kind = str(item.get("kind") or item.get("field") or item.get("type") or "").lower()
-            if kind in {"caption", "phrase", "caption_phrase"}:
+            requirement_id = str(item.get("id") or "").lower()
+            document_only_ids = {"demographic_information", "geographic_requirement", "geographic_target", "native_tags", "native_audio"}
+            if kind in {"caption", "phrase", "caption_phrase"} or (not kind and requirement_id not in document_only_ids):
                 required_phrases.append(text)
     result = {}
     for platform in _platforms(detail):
