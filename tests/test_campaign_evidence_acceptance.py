@@ -20,6 +20,7 @@ def current_cache(campaign_id="cached"):
         "rules_hash": source_fingerprint({"id": campaign_id, "description": "cached"}),
         "ai_rules_json": json.dumps({
             "schema_version": 2,
+            "campaign_id": campaign_id,
             "source_hash": "source-hash",
             "source_ledger": {"schema_version": 1},
             "campaign_brain": {
@@ -44,6 +45,14 @@ def current_cache(campaign_id="cached"):
                 "source_hash": "source-hash",
                 "brain_id": "brain-v1:test",
                 "critic_id": "critic-v1:test",
+            },
+            "production_contract": {
+                "schema_version": 1,
+                "contract_id": "production-contract-v1:test",
+                "campaign_id": campaign_id,
+                "source_hash": "source-hash",
+                "brain_id": "brain-v1:test",
+                "reconciliation_id": "reconciliation-v1:test",
             },
             "evidence_contract": {
                 "schema_version": 1,
