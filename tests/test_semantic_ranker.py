@@ -298,6 +298,58 @@ class GeminiProviderTests(unittest.TestCase):
         self.assertIsNone(results)
         self.assertEqual(reason, "gemini_api_key_missing")
 
+    def test_gemini_virality_fields_preserved_and_clamped(self):
+        from core import semantic_ranker
+        payload = {"results": [{"rank": 1, "decision": "render", "semantic_score": 80,
+                                "hook_score": 70, "context_score": 75, "payoff_score": 72,
+                                "completeness_score": 78, "campaign_relevance": "pass",
+                                "reason": "ok", "risks": [],
+                                "hook_sentence": "Nobody tells you this secret.",
+                                "hook_score_3s": 92, "virality_score": 120,
+                                "emotion_score": 80, "conflict_score": 75,
+                                "quotability_score": 88, "value_score": 70,
+                                "shareability_score": -5}]}
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            with mock.patch("core.campaign_ai._gemini_generate_with_schema", return_value=json.dumps(payload)):
+                results, reason = semantic_ranker._gemini_rank(
+                    [self._candidate()], {"production": {"topic_terms": ["business"]}})
+        self.assertIsNone(reason)
+        item = results[0]
+        self.assertEqual(item["hook_sentence"], "Nobody tells you this secret.")
+        self.assertEqual(item["hook_score_3s"], 92)
+        self.assertEqual(item["virality_score"], 100.0, "scores must clamp to 0-100")
+        self.assertEqual(item["shareability_score"], 0.0)
+        self.assertEqual(item["quotability_score"], 88)
+
+    def test_gemini_virality_fields_optional_for_backward_compat(self):
+        from core import semantic_ranker
+        payload = {"results": [{"rank": 1, "decision": "review", "semantic_score": 75,
+                                "hook_score": 72, "context_score": 78, "payoff_score": 74,
+                                "completeness_score": 80, "campaign_relevance": "uncertain",
+                                "reason": "ok", "risks": []}]}
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            with mock.patch("core.campaign_ai._gemini_generate_with_schema", return_value=json.dumps(payload)):
+                results, reason = semantic_ranker._gemini_rank(
+                    [self._candidate()], {"production": {"topic_terms": ["business"]}})
+        self.assertIsNone(reason)
+        self.assertEqual(results[0]["decision"], "review")
+        self.assertNotIn("hook_sentence", results[0])
+
+    def test_gemini_invalid_virality_types_are_dropped_not_fatal(self):
+        from core import semantic_ranker
+        payload = {"results": [{"rank": 1, "decision": "render", "semantic_score": 80,
+                                "hook_score": 70, "context_score": 75, "payoff_score": 72,
+                                "completeness_score": 78, "campaign_relevance": "pass",
+                                "reason": "ok", "risks": [],
+                                "hook_sentence": 123, "virality_score": "high"}]}
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            with mock.patch("core.campaign_ai._gemini_generate_with_schema", return_value=json.dumps(payload)):
+                results, reason = semantic_ranker._gemini_rank(
+                    [self._candidate()], {"production": {"topic_terms": ["business"]}})
+        self.assertIsNone(reason)
+        self.assertNotIn("hook_sentence", results[0])
+        self.assertNotIn("virality_score", results[0])
+
 
 
 if __name__ == "__main__":

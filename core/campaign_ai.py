@@ -373,11 +373,11 @@ def _error_reason(response: Any) -> str:
     return re.sub(r"AIza[0-9A-Za-z_-]{12,}", "[redacted]", reason)[:240]
 
 
-def _gemini_generate_with_schema(prompt: str, response_schema: dict[str, Any], timeout: int = 120) -> str:
-    """Generate with Gemini using a caller-supplied JSON response schema."""
+def _gemini_generate_with_parts(parts: list[dict[str, Any]], response_schema: dict[str, Any], timeout: int = 120) -> str:
+    """Generate with Gemini using caller-supplied content parts (text and/or inline images)."""
     url = f"{GEMINI_API_BASE.rstrip('/')}/models/{GEMINI_MODEL}:generateContent"
     payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {
             "temperature": 0.1,
             "topP": 0.8,
@@ -466,6 +466,11 @@ def _gemini_generate_with_schema(prompt: str, response_schema: dict[str, Any], t
         return text
 
     raise GeminiApiError("Gemini request exhausted retries")
+
+
+def _gemini_generate_with_schema(prompt: str, response_schema: dict[str, Any], timeout: int = 120) -> str:
+    """Generate with Gemini using a caller-supplied JSON response schema."""
+    return _gemini_generate_with_parts([{"text": prompt}], response_schema, timeout=timeout)
 
 
 def _gemini_generate(prompt: str, timeout: int = 120) -> str:

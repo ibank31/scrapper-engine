@@ -9,7 +9,11 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from core.clip_candidates import segment_transcript, select_candidates, select_candidates_for_bands
+from core.hook_timing import pad_hook_start, trim_silence_edges
 from core.media_signals import source_quality_preflight
+
+HOOK_PAD_SECONDS = float(os.environ.get("CLIPPER_HOOK_PAD_SECONDS", "2.0"))
+HOOK_TRIM_SILENCE = os.environ.get("CLIPPER_HOOK_TRIM_SILENCE", "true").lower() not in ("0", "false", "no")
 
 
 def main() -> None:
@@ -35,6 +39,20 @@ def main() -> None:
     out = args.out or os.path.join(os.path.dirname(os.path.abspath(args.transcript)), "candidates.json")
     units = segment_transcript(transcript)
     transcript_span = max((float(segment.get("end", 0)) for segment in transcript.get("segments", [])), default=0.0)
+    timing_notes: list[str] = []
+    timed: list[dict] = []
+    for item in candidates:
+        working = item
+        if HOOK_TRIM_SILENCE:
+            working, trim_info = trim_silence_edges(working, transcript)
+            if trim_info["trimmed"]:
+                timing_notes.append(f"rank {working.get('rank')}: trimmed silence to {working['start']:.2f}s-{working['end']:.2f}s")
+        if HOOK_PAD_SECONDS > 0:
+            working, pad_info = pad_hook_start(working, transcript, pad_seconds=HOOK_PAD_SECONDS, max_seconds=args.max_seconds)
+            if pad_info["padded"]:
+                timing_notes.append(f"rank {working.get('rank')}: hook-padded start {pad_info['old_start']:.2f}s -> {pad_info['new_start']:.2f}s")
+        timed.append(working)
+    candidates = timed
     payload = {
         "schema_version": 2,
         "transcript": transcript.get("input"),
@@ -49,6 +67,7 @@ def main() -> None:
             "transcript_span_seconds": round(transcript_span, 3),
             "unit_count": len(units),
             "candidate_count": len(candidates),
+            "hook_timing": {"pad_seconds": HOOK_PAD_SECONDS, "trim_silence": HOOK_TRIM_SILENCE, "notes": timing_notes},
             "reason_if_empty": "no contiguous transcript window within duration bounds and pause budget" if not candidates else None,
         },
         "candidates": candidates,

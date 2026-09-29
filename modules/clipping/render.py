@@ -10,9 +10,13 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from core.captioning import write_ass, write_srt
+from core.captioning import write_ass, write_karaoke_ass, write_srt
+from core.clip_metadata import generate_clip_metadata
 from core.subtitle_delivery import attach_artifact_hash, resolve_subtitle_profile
 from core.visual_crop import crop_filter
+
+KARAOKE_DEFAULT = os.environ.get("CLIPPER_KARAOKE_CAPTIONS", "true").lower() not in ("0", "false", "no")
+METADATA_DEFAULT = os.environ.get("CLIPPER_CLIP_METADATA", "true").lower() not in ("0", "false", "no")
 
 def _escape_filter_path(path: str) -> str:
     return path.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
@@ -69,7 +73,7 @@ def main() -> None:
             subtitle_path = None
             if subtitles_enabled:
                 subtitle_path = os.path.join(temp, f"{rank:03d}.ass")
-                write_ass(transcript, item, subtitle_path)
+                (write_karaoke_ass if KARAOKE_DEFAULT else write_ass)(transcript, item, subtitle_path)
                 filters.append("subtitles='" + _escape_filter_path(subtitle_path) + "'")
             elif native_caption_enabled:
                 subtitle_path = os.path.join(out_dir, f"clip-{rank:03d}.srt")
@@ -90,6 +94,18 @@ def main() -> None:
                 print("FAIL:", output, file=sys.stderr)
                 print(exc.stderr[-1600:] if exc.stderr else "ffmpeg error", file=sys.stderr)
                 raise
+            if METADATA_DEFAULT:
+                try:
+                    campaign_name = (plan or {}).get("campaign_name") or (plan or {}).get("campaign", {}).get("name", "")
+                    meta = generate_clip_metadata(item, str(campaign_name or ""))
+                    if meta:
+                        meta_path = os.path.join(out_dir, f"clip-{rank:03d}-meta.json")
+                        with open(meta_path, "w", encoding="utf-8") as handle:
+                            json.dump(meta, handle, ensure_ascii=False, indent=2)
+                            handle.write("\n")
+                        print("META:", meta_path)
+                except Exception as exc:  # metadata is a nicety, never fail the render
+                    print(f"WARN: clip metadata skipped for rank {rank}: {exc}", file=sys.stderr)
     delivery = attach_artifact_hash(subtitle_profile, json.dumps({"mode": subtitle_profile["mode"], "out_dir": out_dir}, sort_keys=True))
     with open(os.path.join(out_dir, "subtitle-delivery.json"), "w", encoding="utf-8") as handle:
         json.dump(delivery, handle, ensure_ascii=False, indent=2)

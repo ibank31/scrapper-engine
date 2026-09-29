@@ -9,6 +9,25 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from core.semantic_ranker import rank_candidates_with_metadata
+from core.visual_moment import extract_keyframes, visual_verdict
+
+VISUAL_CHECK_ENABLED = os.environ.get("CLIPPER_VISUAL_CHECK_ENABLED", "true").lower() not in ("0", "false", "no")
+VISUAL_CHECK_TOP_N = max(0, int(os.environ.get("CLIPPER_VISUAL_CHECK_TOP_N", "3")))
+
+
+def _attach_visual_verdicts(ranked: list[dict], video_path: str | None, campaign_name: str) -> list[dict]:
+    """Advisory Gemini vision check on top candidates. Never changes decisions."""
+    if not VISUAL_CHECK_ENABLED or not video_path or not os.path.exists(video_path):
+        return ranked
+    for item in ranked[:VISUAL_CHECK_TOP_N]:
+        try:
+            frames = extract_keyframes(video_path, float(item.get("start", 0)), float(item.get("end", 0)))
+            verdict = visual_verdict(frames, campaign_name)
+            if verdict:
+                item["visual_verdict"] = verdict
+        except Exception as exc:  # advisory only
+            print(f"WARN: visual check skipped for rank {item.get('rank')}: {exc}", file=sys.stderr)
+    return ranked
 
 
 def main() -> None:
@@ -21,6 +40,9 @@ def main() -> None:
     plan = json.load(open(args.plan, encoding="utf-8"))
     ranked, runtime = rank_candidates_with_metadata(candidates.get("candidates") or [], plan)
     out = args.out or args.candidates
+    video_path = candidates.get("transcript")  # transcribe.py stores the source media path here
+    campaign_name = (plan.get("campaign_name") or (plan.get("campaign") or {}).get("name") or "")
+    ranked = _attach_visual_verdicts(ranked, video_path if isinstance(video_path, str) else None, str(campaign_name))
     payload = dict(candidates)
     payload["semantic_schema_version"] = 1
     payload["semantic_model"] = os.environ.get("CLIPPER_SEMANTIC_MODEL") or "deterministic-fallback"

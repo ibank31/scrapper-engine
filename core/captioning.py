@@ -2,7 +2,10 @@
 """Clean word timestamps and build concise, readable caption cues."""
 from __future__ import annotations
 
+import os
 import re
+import shutil
+import subprocess
 
 FILLERS = {"um", "uh", "erm", "mm", "mhm", "hmm"}
 EMPHASIS_WORDS = {
@@ -124,3 +127,51 @@ def _ass_time(seconds: float) -> str:
     minutes, remainder = divmod(remainder, 6000)
     seconds_part, centiseconds = divmod(remainder, 100)
     return f"{hours}:{minutes:02d}:{seconds_part:02d}.{centiseconds:02d}"
+
+
+def _resolve_caption_font() -> str:
+    """Prefer a heavy display font; fall back to a guaranteed system font."""
+    preferred = os.environ.get("CLIPPER_CAPTION_FONT", "Montserrat ExtraBold")
+    if shutil.which("fc-list"):
+        try:
+            out = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True, timeout=10).stdout.lower()
+            if preferred.split()[0].lower() in out:
+                return preferred
+        except Exception:
+            pass
+    return "DejaVu Sans"
+
+
+def _karaoke_word(word: dict) -> str:
+    duration_cs = max(1, int(round((float(word.get("end", 0)) - float(word.get("start", 0))) * 100)))
+    return r"{\kf%d}" % duration_cs + _ass_escape(str(word.get("word", "")))
+
+
+def write_karaoke_ass(transcript: dict, candidate: dict, path: str, max_words: int = 3, max_chars: int = 24) -> list[dict]:
+    """Write word-level karaoke ASS captions (Hormozi style).
+
+    Each word carries a {\\kf} sweep tag so the active word highlights as it
+    is spoken. Cue density is capped at 2-3 words. Placement keeps text out of
+    the bottom platform-UI zone on 1080x1920 frames.
+    """
+    start = float(candidate.get("start", 0))
+    cues = build_cues(transcript, start, float(candidate.get("end", 0)), max_words=max_words, max_chars=max_chars)
+    font = _resolve_caption_font()
+    size = int(os.environ.get("CLIPPER_CAPTION_FONTSIZE", "68"))
+    margin_v = int(os.environ.get("CLIPPER_CAPTION_MARGINV", "520"))
+    lines = [
+        "[Script Info]", "ScriptType: v4.00+", "PlayResX: 1080", "PlayResY: 1920", "",
+        "[V4+ Styles]", "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        f"Style: Default,{font},{size},&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,3,1,2,80,80,{margin_v},1", "",
+        "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+    for cue in cues:
+        words = cue.get("words") or []
+        if words:
+            text = " ".join(_karaoke_word(word) for word in words)
+        else:
+            text = _ass_escape(cue.get("text", ""))
+        lines.append(f"Dialogue: 0,{_ass_time(cue['start'])},{_ass_time(cue['end'])},Default,,0,0,0,,{text}")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+    return cues
