@@ -132,6 +132,10 @@ def download_youtube(url: str, destination: str, required_size: int = 0, safety_
             sys.executable, "-m", "yt_dlp", "--no-playlist", "--retries", "5",
             "--fragment-retries", "5", "--extractor-retries", "3",
             "--retry-sleep", "http:linear=2::2", "--socket-timeout", "30",
+            # Android player client bypasses YouTube's "Sign in to confirm you're
+            # not a bot" check on datacenter IPs (verified 2026-09-30: full
+            # download succeeds where the default web client is blocked).
+            "--extractor-args", "youtube:player_client=android",
             "--max-filesize", str(max_bytes) if max_bytes > 0 else "800M", "--download-sections", "*0-300",
             "--force-keyframes-at-cuts", "-f", "bv*[height<=1080]+ba/b[height<=1080]",
             "--merge-output-format", "mp4", "-o", str(temp_dir / "source.%(ext)s"), url,
@@ -245,7 +249,9 @@ def _discover_youtube_entries(url: str, limit: int = 24) -> list[dict]:
     command = [
         sys.executable, "-m", "yt_dlp", "--flat-playlist", "--dump-single-json", "--skip-download",
         "--no-warnings", "--playlist-end", str(max(1, int(limit))),
-        "--extractor-args", "youtubetab:approximate_date", url,
+        # Same Android-client bypass as download_youtube: playlist/channel
+        # metadata is also bot-gated on datacenter IPs.
+        "--extractor-args", "youtube:player_client=android;youtubetab:approximate_date", url,
     ]
     completed = subprocess.run(command, check=False, text=True, capture_output=True, timeout=180)
     if completed.returncode != 0:

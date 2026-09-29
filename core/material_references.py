@@ -141,6 +141,7 @@ def resolve_named_youtube_reference(
     command = [
         sys.executable, "-m", "yt_dlp",
         "--flat-playlist", "--dump-single-json", "--skip-download",
+        "--extractor-args", "youtube:player_client=android",
         "--no-warnings", f"ytsearch{max(1, int(max_results))}:{query}",
     ]
     try:

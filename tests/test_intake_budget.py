@@ -153,3 +153,28 @@ class IntakeBudgetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    @patch("modules.reward_campaign.intake.subprocess.run")
+    def test_youtube_download_uses_android_player_client(self, run):
+        run.return_value = subprocess.CompletedProcess(args=["yt-dlp"], returncode=0, stdout="", stderr="")
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = str(Path(tmp) / "video.mp4")
+            with patch("modules.reward_campaign.intake._download_guard", return_value=("ready", None)):
+                # Force the "no complete file" path so we only assert the command.
+                intake.download_youtube("https://www.youtube.com/watch?v=abc123", dest)
+        cmd = run.call_args.args[0]
+        self.assertIn("--extractor-args", cmd)
+        idx = cmd.index("--extractor-args")
+        self.assertIn("youtube:player_client=android", cmd[idx + 1])
+
+    @patch("modules.reward_campaign.intake.subprocess.run")
+    def test_youtube_discovery_uses_android_player_client(self, run):
+        run.return_value = subprocess.CompletedProcess(
+            args=["yt-dlp"], returncode=0,
+            stdout='{"entries":[{"id":"abc123","title":"Ep 1"}]}', stderr="",
+        )
+        intake._discover_youtube_entries("https://www.youtube.com/@SomeChannel", limit=1)
+        cmd = run.call_args.args[0]
+        self.assertIn("--extractor-args", cmd)
+        idx = cmd.index("--extractor-args")
+        self.assertIn("youtube:player_client=android", cmd[idx + 1])
