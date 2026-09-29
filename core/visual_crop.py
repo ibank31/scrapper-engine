@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,23 @@ def _smooth(values: list[float], alpha: float = 0.28) -> list[float]:
     result = [values[0]]
     for value in values[1:]:
         result.append(result[-1] * (1.0 - alpha) + value * alpha)
+    return result
+
+
+def _apply_deadzone(centers: list[tuple[float, float]], deadzone_px: float) -> list[tuple[float, float]]:
+    """Hold the crop steady until the face moves beyond deadzone_px.
+
+    Prevents micro-jitter in the crop path: small detection noise is ignored,
+    real movement is followed immediately.
+    """
+    if not centers or deadzone_px <= 0:
+        return list(centers)
+    held = centers[0]
+    result = [held]
+    for point in centers[1:]:
+        if abs(point[0] - held[0]) >= deadzone_px or abs(point[1] - held[1]) >= deadzone_px:
+            held = point
+        result.append(held)
     return result
 
 
@@ -72,7 +90,9 @@ def detect_centers(path: str, sample_seconds: float = 0.5, start: float = 0.0, d
         centers = [(width / 2, height / 2)]
     xs = _smooth([point[0] for point in centers])
     ys = _smooth([point[1] for point in centers])
-    return width, height, duration, list(zip(xs, ys))
+    deadzone_px = max(0.0, float(os.environ.get("CLIPPER_CROP_DEADZONE", "0.04"))) * width
+    centers = _apply_deadzone(list(zip(xs, ys)), deadzone_px)
+    return width, height, duration, centers
 
 
 def visual_speaker_signal(path: str, start: float = 0.0, duration: float | None = None, max_samples: int = 6) -> dict[str, Any]:

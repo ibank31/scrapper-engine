@@ -28,9 +28,20 @@ SCHEMA = {
         "campaign_relevance": {"type": "string", "enum": ["pass", "uncertain", "fail"]},
         "reason": {"type": "string"},
         "risks": {"type": "array", "items": {"type": "string"}},
+        # Stage 3 hook-first + virality fields (optional; older providers omit them).
+        "hook_sentence": {"type": "string"},
+        "hook_score_3s": {"type": "number"},
+        "virality_score": {"type": "number"},
+        "emotion_score": {"type": "number"},
+        "conflict_score": {"type": "number"},
+        "quotability_score": {"type": "number"},
+        "value_score": {"type": "number"},
+        "shareability_score": {"type": "number"},
     },
     "required": ["rank", "decision", "semantic_score", "hook_score", "context_score", "payoff_score", "completeness_score", "campaign_relevance", "reason", "risks"],
 }
+
+VIRALITY_FIELDS = ("hook_score_3s", "virality_score", "emotion_score", "conflict_score", "quotability_score", "value_score", "shareability_score")
 
 RANKING_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -66,6 +77,12 @@ def _gemini_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tupl
         "with rank (integer matching the input rank), decision (exactly render, review, or reject), "
         "semantic_score, hook_score, context_score, payoff_score, completeness_score (numbers 0-100), "
         "campaign_relevance (exactly pass, uncertain, or fail), reason (string), and risks (array of strings). "
+        "Additionally score the candidate's VIRALITY: hook_sentence (the exact opening line of the candidate's first 3 seconds, "
+        "copied verbatim from the subtitle; it must make sense standalone as a claim, question, or payoff), "
+        "hook_score_3s (0-100: how strongly the first 3 seconds stop a scroller), virality_score (0-100 overall), "
+        "and sub-scores 0-100 for emotion_score (emotional pull or peak), conflict_score (tension, stakes, or contrarian claim), "
+        "quotability_score (a line worth quoting or sharing), value_score (practical takeaway), "
+        "shareability_score (would a viewer send this to a friend). "
         "Candidate data:\n" + json.dumps(prompt_data, ensure_ascii=False)
     )
     try:
@@ -227,6 +244,19 @@ def _normalize_model_results(parsed: dict[str, Any] | None, candidates: list[dic
             return None, "model_invalid_explanation_fields"
         item = dict(item)
         item["rank"] = int(candidate.get("rank") or 0)
+        hook_sentence = item.get("hook_sentence")
+        if isinstance(hook_sentence, str) and hook_sentence.strip():
+            item["hook_sentence"] = hook_sentence.strip()[:200]
+        elif "hook_sentence" in item:
+            del item["hook_sentence"]
+        for field in VIRALITY_FIELDS:
+            value = item.get(field)
+            if isinstance(value, bool):
+                del item[field]
+            elif isinstance(value, (int, float)):
+                item[field] = max(0.0, min(100.0, float(value)))
+            elif field in item:
+                del item[field]
         normalized.append(item)
     return normalized, None
 
