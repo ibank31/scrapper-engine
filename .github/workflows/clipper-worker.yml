@@ -91,10 +91,12 @@ jobs:
           CLIPPER_DISPATCH_TOKEN: ${{ inputs.dispatch_token }}
           PYTHONPATH: ${{ github.workspace }}
           # Deep analysis limit is separate from discovery/download limits.
-          CLIPPER_WHISPER_MODEL: small
+          # base: 6.7x faster than small on CPU with 0.9% word disagreement (bench 2026-09-29).
+          CLIPPER_WHISPER_MODEL: base
           CLIPPER_WHISPER_BEAM: "3"
           CLIPPER_MAX_VIDEO_SOURCES: "6"
-          CLIPPER_FFMPEG_PRESET: medium
+          # veryfast: 2.1x faster than medium at same CRF on CPU (bench 2026-09-29).
+          CLIPPER_FFMPEG_PRESET: veryfast
           CLIPPER_FFMPEG_CRF: "19"
           # Media signals are advisory and expensive (FFmpeg/OpenCV per candidate).
           # Keep a wider deterministic/semantic pool, but probe only its strongest 12.

@@ -32,6 +32,80 @@ SCHEMA = {
     "required": ["rank", "decision", "semantic_score", "hook_score", "context_score", "payoff_score", "completeness_score", "campaign_relevance", "reason", "risks"],
 }
 
+RANKING_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": SCHEMA,
+        },
+    },
+    "required": ["results"],
+}
+
+
+def _gemini_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """Rank candidates with Gemini (cloud). Falls back cleanly on any failure."""
+    try:
+        from core.campaign_ai import _gemini_generate_with_schema
+    except ImportError:
+        return None, "gemini_client_unavailable"
+    if not os.environ.get("GEMINI_API_KEY", "").strip():
+        return None, "gemini_api_key_missing"
+    prompt_data = {
+        "campaign_rules": _rules(plan),
+        "candidates": [
+            {"rank": c.get("rank"), "start": c.get("start"), "end": c.get("end"), "duration": c.get("duration"), "subtitle": c.get("text")}
+            for c in candidates
+        ],
+    }
+    prompt = (
+        "You rank short-video candidates from subtitles. Never invent or change timestamps. "
+        "Campaign rules are authoritative. Reject incomplete thoughts. "
+        "Return exactly one JSON object per input candidate inside the results array, "
+        "with rank (integer matching the input rank), decision (exactly render, review, or reject), "
+        "semantic_score, hook_score, context_score, payoff_score, completeness_score (numbers 0-100), "
+        "campaign_relevance (exactly pass, uncertain, or fail), reason (string), and risks (array of strings). "
+        "Candidate data:\n" + json.dumps(prompt_data, ensure_ascii=False)
+    )
+    try:
+        text = _gemini_generate_with_schema(prompt, RANKING_RESPONSE_SCHEMA, timeout=120)
+        parsed = _extract_json(text)
+    except Exception as exc:
+        return None, f"gemini_rank_failed:{type(exc).__name__}"
+    normalized, reason = _normalize_model_results(parsed if isinstance(parsed, dict) else None, candidates)
+    if normalized is None:
+        return None, reason or "gemini_invalid_results"
+    return normalized, None
+
+
+def _provider_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple[list[dict[str, Any]] | None, str | None, str]:
+    """Try ranking providers in order; never raise, always report an engine name.
+
+    CLIPPER_SEMANTIC_PROVIDER: auto (default) | gemini | qwen | deterministic.
+    auto = gemini -> qwen -> deterministic. Explicit choices skip the providers
+    above them but always keep the deterministic fallback last.
+    """
+    preference = os.environ.get("CLIPPER_SEMANTIC_PROVIDER", "auto").strip().lower()
+    if os.environ.get("CLIPPER_SEMANTIC_ENABLED", "auto").lower() in {"0", "false", "off"}:
+        return None, "model_disabled_or_path_missing", "deterministic"
+    if preference in {"0", "false", "off", "deterministic"}:
+        return None, "semantic_provider_disabled", "deterministic"
+    attempts: list[tuple[str, Any]] = []
+    if preference in {"auto", "gemini"}:
+        attempts.append(("gemini", _gemini_rank))
+    if preference in {"auto", "qwen"}:
+        attempts.append(("qwen", _model_rank))
+    for engine, rank_fn in attempts:
+        try:
+            results, reason = rank_fn(candidates, plan)
+        except Exception as exc:  # never let a provider crash the pipeline
+            results, reason = None, f"{engine}_crashed:{type(exc).__name__}"
+        if results is not None:
+            return results, None, engine
+        last_reason = reason
+    return None, last_reason or "no_provider_available", "deterministic"
+
 
 def _rules(plan: dict[str, Any]) -> dict[str, Any]:
     production = plan.get("production") or {}
@@ -199,11 +273,11 @@ def _model_rank(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple
 
 def rank_candidates_with_metadata(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Return candidates with semantic metadata, preserving source timestamps."""
-    model_results, fallback_reason = _model_rank(candidates, plan)
+    model_results, fallback_reason, engine = _provider_rank(candidates, plan)
     results = model_results or [_deterministic(candidate, plan) for candidate in candidates]
     runtime = {
         "schema_version": 1,
-        "engine": "qwen" if model_results is not None else "deterministic",
+        "engine": engine if model_results is not None else "deterministic",
         "fallback_used": model_results is None,
         "fallback_reason": fallback_reason,
         "candidate_count": len(candidates),
@@ -348,9 +422,15 @@ def rank_global_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any
             for runtime in model_runtimes
             if runtime.get("fallback_used")
         ]
+        model_engines = [
+            str(runtime.get("engine") or "")
+            for runtime in model_runtimes
+            if not runtime.get("fallback_used") and runtime.get("engine")
+        ]
+        winning_engine = model_engines[0] if model_engines else "deterministic"
         runtime = {
             "schema_version": 1,
-            "engine": "qwen" if not model_fallbacks else "deterministic",
+            "engine": winning_engine if not model_fallbacks else "deterministic",
             "fallback_used": bool(model_fallbacks),
             "fallback_reason": model_fallbacks[0] if model_fallbacks else None,
             "candidate_count": len(candidates),

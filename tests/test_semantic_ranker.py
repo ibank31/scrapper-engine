@@ -20,7 +20,8 @@ class SemanticRankerTest(unittest.TestCase):
     def test_rejects_short_mid_thought_candidate(self):
         plan = {"production": {"topic_terms": ["business"]}}
         candidates = [{"rank": 1, "start": 0, "end": 5.4, "duration": 5.4, "text": "They're gonna guide you to become that future"}]
-        result = rank_candidates(candidates, plan)[0]
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "deterministic"}):
+            result = rank_candidates(candidates, plan)[0]
         self.assertEqual(result["semantic"]["decision"], "reject")
         self.assertIn("short_clip", result["semantic"]["risks"])
 
@@ -63,8 +64,9 @@ class SemanticRankerTest(unittest.TestCase):
     def test_model_cannot_override_local_structural_gate(self):
         candidate = {"rank": 1, "start": 0, "end": 4, "duration": 4, "text": "And this is unfinished"}
         plan = {"production": {"max_duration_seconds": 5}}
-        with mock.patch("core.semantic_ranker._model_rank", return_value=([{"rank": 1, "decision": "render", "semantic_score": 99, "hook_score": 99, "context_score": 99, "payoff_score": 99, "completeness_score": 99, "campaign_relevance": "pass", "reason": "model", "risks": []}], None)):
-            result = rank_candidates_with_metadata([candidate], plan)[0][0]
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "qwen"}):
+            with mock.patch("core.semantic_ranker._model_rank", return_value=([{"rank": 1, "decision": "render", "semantic_score": 99, "hook_score": 99, "context_score": 99, "payoff_score": 99, "completeness_score": 99, "campaign_relevance": "pass", "reason": "model", "risks": []}], None)):
+                result = rank_candidates_with_metadata([candidate], plan)[0][0]
         self.assertEqual(result["semantic"]["decision"], "reject")
         self.assertIn("unfinished_sentence", result["semantic"]["risks"])
         self.assertTrue(result["semantic"]["hard_policy_gate"])
@@ -73,8 +75,9 @@ class SemanticRankerTest(unittest.TestCase):
         candidate = {"rank": 1, "start": 0, "end": 20, "duration": 20, "text": "A complete point for review."}
         plan = {"production": {"topic_terms": ["business"]}}
         model_result = [{"rank": 1, "decision": "reject", "semantic_score": 20, "hook_score": 20, "context_score": 20, "payoff_score": 20, "completeness_score": 20, "campaign_relevance": "fail", "reason": "model concern", "risks": ["model_concern"]}]
-        with mock.patch("core.semantic_ranker._model_rank", return_value=(model_result, None)):
-            result = rank_candidates_with_metadata([candidate], plan)[0][0]
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "qwen"}):
+            with mock.patch("core.semantic_ranker._model_rank", return_value=(model_result, None)):
+                result = rank_candidates_with_metadata([candidate], plan)[0][0]
         self.assertEqual(result["semantic"]["decision"], "reject")
         self.assertFalse(result["semantic"]["hard_policy_gate"])
 
@@ -84,7 +87,8 @@ class SemanticRankerTest(unittest.TestCase):
         normalized, reason = _normalize_model_results(parsed, [candidate])
         self.assertIsNone(normalized)
         self.assertEqual(reason, "model_invalid_decision")
-        ranked, runtime = rank_candidates_with_metadata([candidate], {"production": {"topic_terms": ["business"]}})
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "deterministic"}):
+            ranked, runtime = rank_candidates_with_metadata([candidate], {"production": {"topic_terms": ["business"]}})
         self.assertEqual(runtime["engine"], "deterministic")
         self.assertIsNotNone(ranked[0]["semantic"]["decision"])
 
@@ -94,7 +98,9 @@ class SemanticRankerTest(unittest.TestCase):
             {"rank": 1, "start": 0, "end": 36, "duration": 36, "text": "Here is the biggest mistake in business. Most people ignore the problem, but the answer is to simplify the process. That means you can repeat it every week."},
             {"rank": 2, "start": 40, "end": 65, "duration": 25, "text": "And then we kept going until the end"},
         ]
-        result = rank_candidates(candidates, plan)
+        result = None
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "deterministic"}):
+            result = rank_candidates(candidates, plan)
         self.assertEqual(result[0]["rank"], 1)
         self.assertEqual(result[0]["semantic"]["decision"], "render")
         self.assertGreaterEqual(result[0]["semantic"]["payoff_score"], 80)
@@ -214,6 +220,84 @@ class SemanticRankerTest(unittest.TestCase):
                 semantic_model_decision(candidates, plan, 15),
                 (True, "campaign_confidence_missing"),
             )
+
+
+class GeminiProviderTests(unittest.TestCase):
+    def _candidate(self):
+        return {"rank": 1, "start": 0, "end": 20, "duration": 20,
+                "text": "A complete business lesson with a clear payoff."}
+
+    def _gemini_ok(self, candidates, plan):
+        return ([{"rank": 1, "decision": "render", "semantic_score": 88,
+                  "hook_score": 85, "context_score": 90, "payoff_score": 87,
+                  "completeness_score": 92, "campaign_relevance": "pass",
+                  "reason": "gemini", "risks": []}], None)
+
+    def test_explicit_gemini_provider_uses_gemini_engine(self):
+        plan = {"production": {"topic_terms": ["business"]}}
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "gemini", "GEMINI_API_KEY": "test-key"}):
+            with mock.patch("core.semantic_ranker._gemini_rank", side_effect=self._gemini_ok):
+                ranked, runtime = rank_candidates_with_metadata([self._candidate()], plan)
+        self.assertEqual(runtime["engine"], "gemini")
+        self.assertFalse(runtime["fallback_used"])
+        self.assertEqual(ranked[0]["semantic"]["semantic_score"], 88)
+
+    def test_gemini_failure_falls_back_to_qwen(self):
+        plan = {"production": {"topic_terms": ["business"]}}
+        qwen_result = ([{"rank": 1, "decision": "review", "semantic_score": 70,
+                         "hook_score": 70, "context_score": 70, "payoff_score": 70,
+                         "completeness_score": 70, "campaign_relevance": "uncertain",
+                         "reason": "qwen", "risks": []}], None)
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "auto", "GEMINI_API_KEY": "test-key"}):
+            with mock.patch("core.semantic_ranker._gemini_rank", return_value=(None, "gemini_rank_failed:Timeout")):
+                with mock.patch("core.semantic_ranker._model_rank", return_value=qwen_result):
+                    ranked, runtime = rank_candidates_with_metadata([self._candidate()], plan)
+        self.assertEqual(runtime["engine"], "qwen")
+        self.assertFalse(runtime["fallback_used"])
+
+    def test_all_providers_failing_yields_deterministic(self):
+        plan = {"production": {"topic_terms": ["business"]}}
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "auto", "GEMINI_API_KEY": "test-key"}):
+            with mock.patch("core.semantic_ranker._gemini_rank", return_value=(None, "gemini down")):
+                with mock.patch("core.semantic_ranker._model_rank", return_value=(None, "qwen down")):
+                    ranked, runtime = rank_candidates_with_metadata([self._candidate()], plan)
+        self.assertEqual(runtime["engine"], "deterministic")
+        self.assertTrue(runtime["fallback_used"])
+        self.assertIsNotNone(ranked[0]["semantic"]["decision"])
+
+    def test_disabled_provider_skips_all_models(self):
+        plan = {"production": {"topic_terms": ["business"]}}
+        with mock.patch.dict(os.environ, {"CLIPPER_SEMANTIC_PROVIDER": "deterministic", "GEMINI_API_KEY": "test-key"}):
+            with mock.patch("core.semantic_ranker._gemini_rank", side_effect=AssertionError("gemini should be skipped")):
+                with mock.patch("core.semantic_ranker._model_rank", side_effect=AssertionError("qwen should be skipped")):
+                    ranked, runtime = rank_candidates_with_metadata([self._candidate()], plan)
+        self.assertEqual(runtime["engine"], "deterministic")
+        self.assertTrue(runtime["fallback_used"])
+
+    def test_gemini_rank_normalizes_valid_json(self):
+        from core import semantic_ranker
+        payload = {"results": [{"rank": 1, "decision": "review", "semantic_score": 75,
+                                "hook_score": 72, "context_score": 78, "payoff_score": 74,
+                                "completeness_score": 80, "campaign_relevance": "uncertain",
+                                "reason": "ok", "risks": ["r1"]}]}
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            with mock.patch("core.campaign_ai._gemini_generate_with_schema", return_value=json.dumps(payload)):
+                results, reason = semantic_ranker._gemini_rank(
+                    [self._candidate()], {"production": {"topic_terms": ["business"]}})
+        self.assertIsNone(reason)
+        self.assertEqual(results[0]["decision"], "review")
+        self.assertEqual(results[0]["risks"], ["r1"])
+
+    def test_gemini_rank_reports_missing_key(self):
+        from core import semantic_ranker
+        env = dict(os.environ)
+        env.pop("GEMINI_API_KEY", None)
+        with mock.patch.dict(os.environ, env, clear=True):
+            results, reason = semantic_ranker._gemini_rank(
+                [self._candidate()], {"production": {}})
+        self.assertIsNone(results)
+        self.assertEqual(reason, "gemini_api_key_missing")
+
 
 
 if __name__ == "__main__":
