@@ -119,6 +119,37 @@ class IntakeBudgetTests(unittest.TestCase):
             self.assertFalse(any((Path(tmp) / ".youtube-tmp").rglob("*")))
             self.assertIsNotNone(error)
 
+    def test_youtube_max_filesize_uses_yt_dlp_accepted_format(self):
+        # Regression: production run failed all 39 assets with
+        # `__main__.py: error: invalid max filesize "2147483648B" given`
+        # because the yt-dlp CLI validates --max-filesize with parse_bytes,
+        # which rejects a bare "B" suffix. Plain byte counts are accepted.
+        from yt_dlp.utils import parse_bytes
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = str(Path(tmp) / "asset.mp4")
+            captured = {}
+            def fake_run(command, check, text, timeout):
+                captured["command"] = command
+                output_path = Path(command[command.index("-o") + 1].replace("%(ext)s", "mp4"))
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(b"complete")
+                return None
+            with patch("modules.reward_campaign.intake._download_guard", return_value=("ready", None)), patch(
+                "modules.reward_campaign.intake.subprocess.run", side_effect=fake_run
+            ):
+                status, _ = intake.download_youtube("https://youtu.be/test", destination, max_bytes=2147483648)
+            self.assertEqual(status, "downloaded")
+            command = captured["command"]
+            max_filesize = command[command.index("--max-filesize") + 1]
+            self.assertEqual(parse_bytes(max_filesize), 2147483648)
+            # the default budget must also survive CLI validation
+            with patch("modules.reward_campaign.intake._download_guard", return_value=("ready", None)), patch(
+                "modules.reward_campaign.intake.subprocess.run", side_effect=fake_run
+            ):
+                intake.download_youtube("https://youtu.be/test", destination)
+            default_filesize = captured["command"][captured["command"].index("--max-filesize") + 1]
+            self.assertIsNotNone(parse_bytes(default_filesize))
+
 
 if __name__ == "__main__":
     unittest.main()
