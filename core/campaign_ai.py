@@ -373,7 +373,8 @@ def _error_reason(response: Any) -> str:
     return re.sub(r"AIza[0-9A-Za-z_-]{12,}", "[redacted]", reason)[:240]
 
 
-def _gemini_generate(prompt: str, timeout: int = 120) -> str:
+def _gemini_generate_with_schema(prompt: str, response_schema: dict[str, Any], timeout: int = 120) -> str:
+    """Generate with Gemini using a caller-supplied JSON response schema."""
     url = f"{GEMINI_API_BASE.rstrip('/')}/models/{GEMINI_MODEL}:generateContent"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -382,7 +383,7 @@ def _gemini_generate(prompt: str, timeout: int = 120) -> str:
             "topP": 0.8,
             "maxOutputTokens": 12000,
             "responseMimeType": "application/json",
-            "responseSchema": GEMINI_RESPONSE_SCHEMA,
+            "responseSchema": response_schema,
         },
     }
     max_retries, retry_base, retry_cap = _retry_config()
@@ -465,6 +466,11 @@ def _gemini_generate(prompt: str, timeout: int = 120) -> str:
         return text
 
     raise GeminiApiError("Gemini request exhausted retries")
+
+
+def _gemini_generate(prompt: str, timeout: int = 120) -> str:
+    """Campaign-analysis generation with the canonical campaign response schema."""
+    return _gemini_generate_with_schema(prompt, GEMINI_RESPONSE_SCHEMA, timeout=timeout)
 
 
 def _num(value: Any, default: float | None = None) -> float | None:
